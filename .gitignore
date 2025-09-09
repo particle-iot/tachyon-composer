@@ -205,3 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Tachyon System Image Composer
+# Build artifacts and temporary files
+tmp/
+*.img
+*.iso
+build/
