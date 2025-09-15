@@ -13,7 +13,7 @@
 #   $1 UBOOT_DIR                 (e.g. "u-boot", dir inside /tmp/work/input/)
 #   $2 BASE24_IMG_BASENAME       (e.g. "tachyon-ubuntu-24.04-desktop-image-14-276cd6b.img")
 #   $3 BASE24_SYSTEM_IMAGE_DIR   (default: "sys-img-24.04")
-#   $4 OUTPUT_24_04_SYSTEM_IMAGE (e.g. "tachyon-ubuntu-24.04-desktop-9.9.999.zip")
+#   $4 OUTPUT_24_04_SYSTEM_IMAGE (e.g. "tachyon-ubuntu-24.04-desktop-1.0.0.zip")
 #   $5 DEBUG (false or true)
 #
 # Expected paths in the Docker workspace:

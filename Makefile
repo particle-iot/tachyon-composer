@@ -1,5 +1,7 @@
+##########################################################
 # Tachyon System Image Composer
-# Version: 1.0.0
+# Version comes from the tag in git, e.g., v0.1.0 -> 0.1.0
+##########################################################
 
 # Derive VERSION from the latest semantic tag in the repo
 VERSION := $(shell \
@@ -19,6 +21,11 @@ DEFAULT_OUTPUT_PREFIX := tachyon-ubuntu
 DEFAULT_TMP_ROOT_DIR := ./.tmp
 DEFAULT_TMP_INPUT_DIR := ./.tmp/input
 DEFAULT_TMP_OUTPUT_DIR := ./.tmp/output
+DEFAULT_OUTPUT_VERSION := 9.9.999
+
+# optional parameters
+OUTPUT_VERSION ?= $(DEFAULT_OUTPUT_VERSION)
+DEBUG ?= false                       # true | false
 
 # Parameters (overridable)
 COMMAND ?=
@@ -27,7 +34,7 @@ INPUT_REGION ?=                     # NA | RoW
 INPUT_VARIANT ?=                    # headless | desktop
 INPUT_UBOOT_VERSION ?=              # semver, e.g., 1.0.3
 INPUT_BASE_24_04_VERSION ?=         # e.g., 14-276cd6b
-OUTPUT_24_04_SYSTEM_IMAGE ?= $(DEFAULT_OUTPUT_PREFIX)-24.04-$(INPUT_REGION)-$(INPUT_VARIANT)-formfactor_dvt-9.9.999.zip
+OUTPUT_24_04_SYSTEM_IMAGE ?= $(DEFAULT_OUTPUT_PREFIX)-24.04-$(INPUT_REGION)-$(INPUT_VARIANT)-formfactor_dvt-$(OUTPUT_VERSION).zip
 
 # Working variables
 TMP_ROOT_DIR ?= $(DEFAULT_TMP_ROOT_DIR)
@@ -220,6 +227,7 @@ prepare_base_24_04: fetch_20_04 fetch_24_04_unxz docker/build
 		BASE20_ZIP="/tmp/work/input/$(notdir $(BASE20_ZIP))" \
 		BASE24_IMG="/tmp/work/input/$(notdir $(BASE24_IMG))" \
 		INPUT_BASE_24_04_VERSION="$(INPUT_BASE_24_04_VERSION)" \
+		OUTPUT_VERSION="$(OUTPUT_VERSION)" \
 		DEBUG="$${DEBUG:-false}" \
 		./prepare_base_24.04.sh'
 

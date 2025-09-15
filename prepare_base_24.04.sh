@@ -42,6 +42,7 @@ BASE24_SYSTEM_IMAGE_DIR="${BASE24_SYSTEM_IMAGE_DIR:-sys-img-24.04}"
 BASE20_ZIP="$(map_to_container_path "${BASE20_ZIP:?BASE20_ZIP unset}")"
 BASE24_IMG="$(map_to_container_path "${BASE24_IMG:?BASE24_IMG unset}")"
 INPUT_BASE_24_04_VERSION="${INPUT_BASE_24_04_VERSION:-unknown}"
+OUTPUT_VERSION="${OUTPUT_VERSION:-unknown}"
 
 BASEDIR="$TMP_OUTPUT_DIR/$BASE24_SYSTEM_IMAGE_DIR"
 SRC20_DIR="$TMP_INPUT_DIR/sys-img-20.04"
@@ -114,12 +115,13 @@ jq --arg now "$now" --arg base24 "$INPUT_BASE_24_04_VERSION" '
   .distribution_version = "24.04"
   | .release_name |= (
       sub("20\\.04"; "24.04")
-      | sub("-[0-9]+\\.[0-9]+\\.[0-9]+$"; "-9.9.999")
+      | sub("-[0-9]+\\.[0-9]+\\.[0-9]+$"; "-$OUTPUT_VERSION")
     )
-  | .version = "9.9.999"
+  | .version = "$OUTPUT_VERSION"
   | .build_date = $now
   | .sources += [{"key":"ubuntu-24.04","value":$base24}]' \
   "$MANIFEST" > "$MANIFEST.tmp"
+echo "Updated manifest.json!"
 mv "$MANIFEST.tmp" "$MANIFEST"
 
 section "Prepared"
