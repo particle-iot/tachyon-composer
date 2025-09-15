@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.7
-# particle-dockerfile-version=1.0
+# particle-dockerfile-version=1.1
 # this is the Dockerfile version.
 # Update this ARG to change the base image and recompile it!
 
-ARG BASE_IMAGE=ubuntu:22.04
+ARG BASE_IMAGE=ubuntu:24.04
 FROM ${BASE_IMAGE}
 
 # Avoid interactive prompts during apt installs

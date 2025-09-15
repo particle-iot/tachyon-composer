@@ -426,7 +426,7 @@ version:
 .PHONY: clean
 clean:
 	@echo "Cleaning temporary files..."
-	@rm -rf $(DEFAULT_TMP_INPUT_DIR)
+	@rm -rf $(DEFAULT_TMP_ROOT_DIR)
 	@echo "Cleanup completed."
 
 # Default target
