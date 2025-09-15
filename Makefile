@@ -353,6 +353,7 @@ $(DOCKER_STAMP): $(DOCKERFILE)
 	  else \
 	    echo "==> Building Docker image $(IMAGE_TAG)"; \
 	    docker build -t "$(IMAGE_TAG)" \
+	      --load \
 	      --file "$(DOCKERFILE)" \
 	      --build-arg UID="$(UID)" \
 	      --build-arg GID="$(GID)" \
