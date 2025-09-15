@@ -392,6 +392,7 @@ docker/version:
 DOCKER_RUN := docker run --rm -it --privileged \
 	-v $(PWD):/project \
 	-v $(TMP_ROOT_DIR):/tmp/work \
+	-v /dev:/dev \
 	-w /project \
 	$(IMAGE_TAG)
 
