@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# particle-dockerfile-version=1.1
+# particle-dockerfile-version=1.2
 # this is the Dockerfile version.
 # Update this ARG to change the base image and recompile it!
 

@@ -1,7 +1,10 @@
-##########################################################
+####################################################################################################################
 # Tachyon System Image Composer
 # Version comes from the tag in git, e.g., v0.1.0 -> 0.1.0
-##########################################################
+#
+# Notes:
+#  - the dockerfile is cached. There is a version tag in the top of the file that should be updated with each release.
+####################################################################################################################
 
 # Derive VERSION from the latest semantic tag in the repo
 VERSION := $(shell \
@@ -34,6 +37,8 @@ INPUT_REGION ?=                     # NA | RoW
 INPUT_VARIANT ?=                    # headless | desktop
 INPUT_UBOOT_VERSION ?=              # semver, e.g., 1.0.3
 INPUT_BASE_24_04_VERSION ?=         # e.g., 14-276cd6b
+INPUT_ENV	?=                   			# optional, e.g., "VAR1=val1,VAR2=val2"
+INPUT_OVERLAY_PATH ?=               # optional, path to overlay dir (inside container, e.g., ./os_overlays/24.04)
 OUTPUT_24_04_SYSTEM_IMAGE ?= $(DEFAULT_OUTPUT_PREFIX)-24.04-$(INPUT_REGION)-$(INPUT_VARIANT)-formfactor_dvt-$(OUTPUT_VERSION).zip
 
 # Working variables
@@ -268,13 +273,55 @@ $(QTOOLS_STAMP): docker/build
 	@echo "Installed qtools to $(QTOOLS_DIR)"
 
 # -------------------------------------------------------------------
+# tachyon-overlay tool fetch/setup inside Docker
+# -------------------------------------------------------------------
+
+# Directory INSIDE the container where tachyon-overlay will be cloned
+OVERLAY_TOOL_DIR      := /tmp/work/tools/tachyon-overlay
+
+# Clone URL for the overlay tool
+OVERLAY_TOOL_CLONE_URL = https://github.com/particle-iot/tachyon-overlay.git
+
+# Pin to a branch/tag/commit if desired: OVERLAY_TOOL_REF=main (or a SHA)
+OVERLAY_TOOL_REF      ?= main
+OVERLAY_TOOL_STAMP    := $(OVERLAY_TOOL_DIR)/.installed
+
+.PHONY: fetch_overlay_tool
+fetch_overlay_tool: $(OVERLAY_TOOL_STAMP)
+
+# Clone (or update) tachyon-overlay inside the builder container
+$(OVERLAY_TOOL_STAMP): docker/build
+	@echo "==> Setting up tachyon-overlay tool inside Docker"
+	@mkdir -p "$(OVERLAY_TOOL_DIR)"
+	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
+		if [ ! -d "$(OVERLAY_TOOL_DIR)/.git" ]; then \
+			echo "Cloning $(OVERLAY_TOOL_CLONE_URL) -> $(OVERLAY_TOOL_DIR)"; \
+			git clone --depth 1 "$(OVERLAY_TOOL_CLONE_URL)" "$(OVERLAY_TOOL_DIR)"; \
+		else \
+			echo "$(OVERLAY_TOOL_DIR) already present"; \
+		fi; \
+		echo "Checking out $(OVERLAY_TOOL_REF)"; \
+		git -C "$(OVERLAY_TOOL_DIR)" fetch --depth 1 origin "$(OVERLAY_TOOL_REF)"; \
+		git -C "$(OVERLAY_TOOL_DIR)" checkout -q FETCH_HEAD; \
+		# Optional: install Python deps if the project defines them \
+		if [ -f "$(OVERLAY_TOOL_DIR)/requirements.txt" ]; then \
+			pip3 install --user --no-cache-dir -r "$(OVERLAY_TOOL_DIR)/requirements.txt" || \
+			  sudo pip3 install --break-system-packages --no-cache-dir -r "$(OVERLAY_TOOL_DIR)/requirements.txt"; \
+		fi; \
+		# Sanity check expected entrypoints exist \
+		{ test -f "$(OVERLAY_TOOL_DIR)/overlay.py" && test -f "$(OVERLAY_TOOL_DIR)/run-overlay.sh"; } || { \
+			echo "Error: expected overlay.py and run-overlay.sh not found in $(OVERLAY_TOOL_DIR)"; exit 1; }; \
+		touch "$(OVERLAY_TOOL_DIR)/.installed"'
+	@echo "Installed tachyon-overlay to $(OVERLAY_TOOL_DIR)"
+
+# -------------------------------------------------------------------
 # Main build command for Ubuntu 24.04
 # -------------------------------------------------------------------
 # Helper basenames for use inside the container
 BASE24_IMG_BASENAME := $(notdir $(BASE24_IMG))
 
 .PHONY: build_24.04
-build_24.04: version fetch_qtools fetch_20_04 fetch_uboot fetch_24_04_unxz prepare_base_24_04 docker/build
+build_24.04: version fetch_overlay_tool fetch_qtools fetch_20_04 fetch_uboot fetch_24_04_unxz prepare_base_24_04 docker/build
 	@echo "Building Tachyon System Image for Ubuntu 24.04..."
 	@echo ""
 	$(call check_required_param,INPUT_BASE_20_04_VERSION)
@@ -297,6 +344,8 @@ build_24.04: version fetch_qtools fetch_20_04 fetch_uboot fetch_24_04_unxz prepa
 	@echo "  Temp Directory:     $(TMP_INPUT_DIR)"
 	@echo "  Temp Output Dir:    $(TMP_OUTPUT_DIR)"
 	@echo "  Debug:       			 $(DEBUG)"
+	@echo "  Input Env:         $(if $(INPUT_ENV),$(INPUT_ENV),<none>)"
+	@echo "  Input Overlay Path: $(if $(INPUT_OVERLAY_PATH),$(INPUT_OVERLAY_PATH),<none>)"
 	@echo ""
 	@mkdir -p $(TMP_INPUT_DIR)
 	@mkdir -p $(TMP_OUTPUT_DIR)
@@ -305,7 +354,7 @@ build_24.04: version fetch_qtools fetch_20_04 fetch_uboot fetch_24_04_unxz prepa
 	@echo "  - U-Boot: $(notdir $(UBOOT_ZIP)) in $(TMP_INPUT_DIR)/u-boot"
 	@echo "  - 24.04 img: $(notdir $(BASE24_IMG)) in $(TMP_INPUT_DIR)/sys-img-24.04"
 	@echo ""
-	@$(DOCKER_RUN) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)"
+	@$(DOCKER_RUN) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_ENV)" "$(INPUT_OVERLAY_PATH)"
 	@echo ""
 	@echo "Build completed successfully!"
 	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(notdir $(OUTPUT_24_04_SYSTEM_IMAGE))"
