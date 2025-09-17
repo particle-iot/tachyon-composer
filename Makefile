@@ -25,6 +25,7 @@ DEFAULT_TMP_ROOT_DIR := ./.tmp
 DEFAULT_TMP_INPUT_DIR := ./.tmp/input
 DEFAULT_TMP_OUTPUT_DIR := ./.tmp/output
 DEFAULT_OUTPUT_VERSION := 9.9.999
+DEFAULT_OVERLAY_PATH := input/tachyon-overlays
 
 # optional parameters
 OUTPUT_VERSION ?= $(DEFAULT_OUTPUT_VERSION)
@@ -37,8 +38,8 @@ INPUT_REGION ?=                     # NA | RoW
 INPUT_VARIANT ?=                    # headless | desktop
 INPUT_UBOOT_VERSION ?=              # semver, e.g., 1.0.3
 INPUT_BASE_24_04_VERSION ?=         # e.g., 14-276cd6b
-INPUT_ENV	?=                   			# optional, e.g., "VAR1=val1,VAR2=val2"
-INPUT_OVERLAY_PATH ?=               # optional, path to overlay dir (inside container, e.g., ./os_overlays/24.04)
+INPUT_ENV	?=                      	# optional, e.g., "VAR1=val1,VAR2=val2"
+INPUT_OVERLAY_PATH ?= $(DEFAULT_OVERLAY_PATH) # optional, path to overlay dir (inside container, e.g., ./os_overlays/24.04)
 OUTPUT_24_04_SYSTEM_IMAGE ?= $(DEFAULT_OUTPUT_PREFIX)-24.04-$(INPUT_REGION)-$(INPUT_VARIANT)-formfactor_dvt-$(OUTPUT_VERSION).zip
 
 # Working variables
@@ -46,6 +47,7 @@ TMP_ROOT_DIR ?= $(DEFAULT_TMP_ROOT_DIR)
 TMP_INPUT_DIR ?= $(DEFAULT_TMP_INPUT_DIR)
 TMP_OUTPUT_DIR ?= $(DEFAULT_TMP_OUTPUT_DIR)
 BUILD_SCRIPT := $(TMP_INPUT_DIR)/build_24.04.sh
+INPUT_OVERLAY_DOCKER_PATH := $(strip /tmp/work/$(subst $(DEFAULT_TMP_ROOT_DIR)/,,$(INPUT_OVERLAY_PATH)))
 
 # -------------------------------------------------------------------
 # Validation helpers
@@ -315,13 +317,48 @@ $(OVERLAY_TOOL_STAMP): docker/build
 	@echo "Installed tachyon-overlay-tool to $(OVERLAY_TOOL_DIR)"
 
 # -------------------------------------------------------------------
+# tachyon-overlays fetch/setup inside Docker
+# -------------------------------------------------------------------
+
+# Directory INSIDE the container where the repo will be cloned
+OVERLAYS_REPO_DIR      := $(INPUT_OVERLAY_DOCKER_PATH)
+
+# Create a host-visible stamp file matching the container path
+# /tmp/work (container) <-> $(TMP_ROOT_DIR) (host)
+OVERLAYS_STAMP := $(TMP_ROOT_DIR)$(patsubst /tmp/work%,%,$(INPUT_OVERLAY_DOCKER_PATH))/.installed
+
+.PHONY: fetch_tachyon_overlays
+fetch_tachyon_overlays: $(OVERLAYS_STAMP)
+
+# Clone (or update) tachyon-overlays and copy overlays into $(INPUT_OVERLAY_DOCKER_PATH)
+$(OVERLAYS_STAMP): docker/build
+	$(call check_required_param,INPUT_OVERLAY_DOCKER_PATH)
+	@echo "==> Fetching tachyon-overlays into $(INPUT_OVERLAY_DOCKER_PATH) inside Docker"
+	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
+		DEST="$(INPUT_OVERLAY_DOCKER_PATH)"; \
+		echo "Using overlay destination: $$DEST"; \
+		mkdir -p "$(dir $(OVERLAYS_REPO_DIR))" "$$DEST"; \
+		if [ ! -d "$(OVERLAYS_REPO_DIR)/.git" ]; then \
+			echo "Cloning https://github.com/particle-iot/tachyon-overlays.git -> $(OVERLAYS_REPO_DIR)"; \
+			git clone --depth 1 https://github.com/particle-iot/tachyon-overlays.git "$(OVERLAYS_REPO_DIR)"; \
+		else \
+			echo "$(OVERLAYS_REPO_DIR) already present"; \
+		fi; \
+		echo "Checking out $(OVERLAYS_REF)"; \
+		git -C "$(OVERLAYS_REPO_DIR)" fetch --depth 1 origin "$(OVERLAYS_REF)"; \
+		git -C "$(OVERLAYS_REPO_DIR)" checkout -q FETCH_HEAD; \
+		\
+		touch "$$DEST/.installed"'
+	@echo "Installed tachyon-overlays into $(INPUT_OVERLAY_DOCKER_PATH)"
+
+# -------------------------------------------------------------------
 # Main build command for Ubuntu 24.04
 # -------------------------------------------------------------------
 # Helper basenames for use inside the container
 BASE24_IMG_BASENAME := $(notdir $(BASE24_IMG))
 
 .PHONY: build_24.04
-build_24.04: version fetch_overlay_tool fetch_qtools fetch_20_04 fetch_uboot fetch_24_04_unxz prepare_base_24_04 docker/build
+build_24.04: version fetch_tachyon_overlays fetch_overlay_tool fetch_qtools fetch_20_04 fetch_uboot fetch_24_04_unxz prepare_base_24_04 docker/build
 	@echo "Building Tachyon System Image for Ubuntu 24.04..."
 	@echo ""
 	$(call check_required_param,INPUT_BASE_20_04_VERSION)
@@ -344,8 +381,8 @@ build_24.04: version fetch_overlay_tool fetch_qtools fetch_20_04 fetch_uboot fet
 	@echo "  Temp Directory:     $(TMP_INPUT_DIR)"
 	@echo "  Temp Output Dir:    $(TMP_OUTPUT_DIR)"
 	@echo "  Debug:       			 $(DEBUG)"
-	@echo "  Input Env:         $(if $(INPUT_ENV),$(INPUT_ENV),<none>)"
-	@echo "  Input Overlay Path: $(if $(INPUT_OVERLAY_PATH),$(INPUT_OVERLAY_PATH),<none>)"
+	@echo "  Input Env:          $(if $(INPUT_ENV),$(INPUT_ENV),<none>)"
+	@echo "  Input Overlay Path: $(INPUT_OVERLAY_PATH)"
 	@echo ""
 	@mkdir -p $(TMP_INPUT_DIR)
 	@mkdir -p $(TMP_OUTPUT_DIR)
@@ -354,7 +391,7 @@ build_24.04: version fetch_overlay_tool fetch_qtools fetch_20_04 fetch_uboot fet
 	@echo "  - U-Boot: $(notdir $(UBOOT_ZIP)) in $(TMP_INPUT_DIR)/u-boot"
 	@echo "  - 24.04 img: $(notdir $(BASE24_IMG)) in $(TMP_INPUT_DIR)/sys-img-24.04"
 	@echo ""
-	@$(DOCKER_RUN) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_ENV)" "$(INPUT_OVERLAY_PATH)"
+	@$(DOCKER_RUN) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(INPUT_ENV)" 
 	@echo ""
 	@echo "Build completed successfully!"
 	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(notdir $(OUTPUT_24_04_SYSTEM_IMAGE))"

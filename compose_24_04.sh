@@ -94,13 +94,16 @@ BASE24_IMG_BASENAME="${2:?missing arg2 (BASE24_IMG_BASENAME)}"
 BASE24_SYSTEM_IMAGE_DIR="${3:?missing arg3 (BASE24_SYSTEM_IMAGE_DIR)}"
 OUTPUT_24_04_SYSTEM_IMAGE="${4:?missing arg4 (OUTPUT_24_04_SYSTEM_IMAGE)}"
 OVERLAY_DEBUG="${5:?missing arg5 (DEBUG)}"             # reuse for overlay too
-OVERLAY_ENV="${6:-}"                                   # optional (comma-separated KEY=VAL)
-INPUT_OVERLAY_PATH="${7:?missing arg7 (INPUT_OVERLAY_PATH)}"
+INPUT_OVERLAY_PATH="${6:?missing arg6 (INPUT_OVERLAY_PATH)}"
+OVERLAY_ENV="${7:-}"                                   # optional (comma-separated KEY=VAL)
 
 echo "UBOOT_DIR                 : $UBOOT_DIR"
 echo "BASE24_IMG_BASENAME       : $BASE24_IMG_BASENAME"
 echo "BASE24_SYSTEM_IMAGE_DIR   : $BASE24_SYSTEM_IMAGE_DIR"
 echo "OUTPUT_24_04_SYSTEM_IMAGE : $OUTPUT_24_04_SYSTEM_IMAGE"
+echo "INPUT_OVERLAY_PATH        : $INPUT_OVERLAY_PATH"
+echo "OVERLAY_ENV               : $OVERLAY_ENV"
+echo "OVERLAY_DEBUG             : $OVERLAY_DEBUG"
 
 #create the final location for the system image 
 OUTPUT_24_04_SYSTEM_IMAGE_FULLPATH="/tmp/work/output/$OUTPUT_24_04_SYSTEM_IMAGE"
@@ -378,41 +381,45 @@ python3 ./xml_tools.py modify --input "$boot_xml" --label "boot_a" --field "file
 python3 ./xml_tools.py modify --input "$boot_xml" --label "boot_b" --field "filename" --value "efi.img"
 
 # ---------- APPLY OVERLAYS to the freshly built ext4 --------------------------
-# section "5) APPLY OVERLAYS"
+section "5) APPLY OVERLAYS"
 
-# # The sys-img directory we just populated (this is what the overlay expects)
-# SYSDIR="/tmp/work/output/${BASE24_SYSTEM_IMAGE_DIR:-sys-img-24.04}"
+# The sys-img directory we just populated (this is what the overlay expects)
+SYSDIR="/tmp/work/output/${BASE24_SYSTEM_IMAGE_DIR:-sys-img-24.04}"
 
-# # Path to the tachyon-overlay tool inside the container (adjust if different)
-# OVERLAY_TOOL_DIR="/tmp/work/tools/tachyon-overlay"
+# Path to the tachyon-overlay tool inside the container (adjust if different)
+OVERLAY_TOOL_DIR="/tmp/work/tools/tachyon-overlay-tool"
 
-# # Required inputs for the overlay
-# # - INPUT_OVERLAY_PATH must point to a dir (or colon-separated dirs)
-# #   that contain 'overlays/' and 'stacks/' subfolders INSIDE THE CONTAINER.
-# #   (Avoid host paths like /Users/... unless you bind-mounted them.)
-# : "${INPUT_OVERLAY_PATH:?ERROR: set INPUT_OVERLAY_PATH to your overlays root(s), e.g. /project/tachyon-release-builder}"
-# : "${INPUT_OVERLAY_STACK:=ubuntu-headless-24.04}"     # override if you want a different stack
-# : "${OVERLAY_DEBUG:=${DEBUG:-false}}"           # reuse compose DEBUG unless overridden
+# Required inputs for the overlay
+# - INPUT_OVERLAY_PATH must point to a dir (or colon-separated dirs)
+#   that contain 'overlays/' and 'stacks/' subfolders INSIDE THE CONTAINER.
+#   (Avoid host paths like /Users/... unless you bind-mounted them.)
+: "${INPUT_OVERLAY_PATH:?ERROR: set INPUT_OVERLAY_PATH to your overlays root(s), e.g. /project/tachyon-release-builder}"
+: "${INPUT_OVERLAY_STACK:=ubuntu-headless-24.04}"     # override if you want a different stack
+: "${OVERLAY_DEBUG:=${DEBUG:-false}}"           # reuse compose DEBUG unless overridden
 
-# OVERLAY_DEBUG="$(trim "$OVERLAY_DEBUG")"
-# OVERLAY_ENV="$(trim "$OVERLAY_ENV")"
-# INPUT_OVERLAY_PATH="$(trim "$INPUT_OVERLAY_PATH")"
-# INPUT_OVERLAY_STACK="$(trim "$INPUT_OVERLAY_STACK")"
+OVERLAY_DEBUG="$(trim "$OVERLAY_DEBUG")"
+OVERLAY_ENV="$(trim "$OVERLAY_ENV")"
+INPUT_OVERLAY_PATH="$(trim "$INPUT_OVERLAY_PATH")"
+INPUT_OVERLAY_STACK="$(trim "$INPUT_OVERLAY_STACK")"
 
-# # Optional env pins passed to overlay (comma-separated KEY=VAL)
-# # Example:
-# #   OVERLAY_ENV='PKG_particle_linux=0.20.1-1,PKG_particle_tachyon_desktop_setup=2.7.0,PIN_PRIORITY=900'
+# Optional env pins passed to overlay (comma-separated KEY=VAL)
+# Example:
+#   OVERLAY_ENV='PKG_particle_linux=0.20.1-1,PKG_particle_tachyon_desktop_setup=2.7.0,PIN_PRIORITY=900'
 
-# # Run the overlay in-place (no OUTPUT_SYSTEM_IMAGE) so packaging below zips the final tree
-# pushd "$OVERLAY_TOOL_DIR" >/dev/null
-#   echo "==> Running tachyon-overlay on $SYSDIR (stack: $INPUT_OVERLAY_STACK)"
-#   make apply \
-#     INPUT_OVERLAY_PATH="$INPUT_OVERLAY_PATH" \
-#     INPUT_STACK_NAME="$INPUT_OVERLAY_STACK" \
-#     INPUT_SYSTEM_IMAGE="$SYSDIR" \
-#     DEBUG="$OVERLAY_DEBUG" \
-#     $( [ -n "$OVERLAY_ENV" ] && printf "%s" "INPUT_ENV_VARS=$INPUT_ENV" )
-# popd >/dev/null
+mkdir -p /tmp/work/output/overlay_work
+
+# Run the overlay in-place (no OUTPUT_SYSTEM_IMAGE) so packaging below zips the final tree
+pushd "$OVERLAY_TOOL_DIR" >/dev/null
+  echo "==> Running tachyon-overlay on $SYSDIR (stack: $INPUT_OVERLAY_STACK)"
+  make apply \
+    INPUT_OVERLAY_PATH="$INPUT_OVERLAY_PATH" \
+    INPUT_STACK_NAME="$INPUT_OVERLAY_STACK" \
+    INPUT_SYSTEM_IMAGE="$SYSDIR" \
+    DEBUG="$OVERLAY_DEBUG" \
+    INPUT_SYSTEM_IMAGE_MODE="inplace" \
+    TMP_ROOT_DIR="/tmp/work/output/overlay_work" \
+    $( [ -n "$OVERLAY_ENV" ] && printf "%s" "INPUT_ENV_VARS=$INPUT_ENV" )
+popd >/dev/null
 
 ###########################################################################
 # Package final system image (zip the prepared BASE24_SYSTEM_IMAGE_DIR)
