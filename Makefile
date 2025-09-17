@@ -273,14 +273,14 @@ $(QTOOLS_STAMP): docker/build
 	@echo "Installed qtools to $(QTOOLS_DIR)"
 
 # -------------------------------------------------------------------
-# tachyon-overlay tool fetch/setup inside Docker
+# tachyon-overlay-tool tool fetch/setup inside Docker
 # -------------------------------------------------------------------
 
-# Directory INSIDE the container where tachyon-overlay will be cloned
-OVERLAY_TOOL_DIR      := /tmp/work/tools/tachyon-overlay
+# Directory INSIDE the container where tachyon-overlay-tool will be cloned
+OVERLAY_TOOL_DIR      := /tmp/work/tools/tachyon-overlay-tool
 
 # Clone URL for the overlay tool
-OVERLAY_TOOL_CLONE_URL = https://github.com/particle-iot/tachyon-overlay.git
+OVERLAY_TOOL_CLONE_URL = https://github.com/particle-iot/tachyon-overlay-tool.git
 
 # Pin to a branch/tag/commit if desired: OVERLAY_TOOL_REF=main (or a SHA)
 OVERLAY_TOOL_REF      ?= main
@@ -289,9 +289,9 @@ OVERLAY_TOOL_STAMP    := $(OVERLAY_TOOL_DIR)/.installed
 .PHONY: fetch_overlay_tool
 fetch_overlay_tool: $(OVERLAY_TOOL_STAMP)
 
-# Clone (or update) tachyon-overlay inside the builder container
+# Clone (or update) tachyon-overlay-tool inside the builder container
 $(OVERLAY_TOOL_STAMP): docker/build
-	@echo "==> Setting up tachyon-overlay tool inside Docker"
+	@echo "==> Setting up tachyon-overlay-tool tool inside Docker"
 	@mkdir -p "$(OVERLAY_TOOL_DIR)"
 	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
 		if [ ! -d "$(OVERLAY_TOOL_DIR)/.git" ]; then \
@@ -312,7 +312,7 @@ $(OVERLAY_TOOL_STAMP): docker/build
 		{ test -f "$(OVERLAY_TOOL_DIR)/overlay.py" && test -f "$(OVERLAY_TOOL_DIR)/run-overlay.sh"; } || { \
 			echo "Error: expected overlay.py and run-overlay.sh not found in $(OVERLAY_TOOL_DIR)"; exit 1; }; \
 		touch "$(OVERLAY_TOOL_DIR)/.installed"'
-	@echo "Installed tachyon-overlay to $(OVERLAY_TOOL_DIR)"
+	@echo "Installed tachyon-overlay-tool to $(OVERLAY_TOOL_DIR)"
 
 # -------------------------------------------------------------------
 # Main build command for Ubuntu 24.04
