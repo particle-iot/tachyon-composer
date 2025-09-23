@@ -49,6 +49,11 @@ TMP_OUTPUT_DIR ?= $(DEFAULT_TMP_OUTPUT_DIR)
 BUILD_SCRIPT := $(TMP_INPUT_DIR)/build_24.04.sh
 INPUT_OVERLAY_DOCKER_PATH := $(strip /tmp/work/$(subst $(DEFAULT_TMP_ROOT_DIR)/,,$(INPUT_OVERLAY_PATH)))
 
+#default INPUT_ENV to INPUT_ENV_VARS if set
+ifneq ($(strip $(INPUT_ENV_VARS)),)
+	INPUT_ENV := $(strip $(INPUT_ENV_VARS))
+endif
+
 # -------------------------------------------------------------------
 # Validation helpers
 # -------------------------------------------------------------------

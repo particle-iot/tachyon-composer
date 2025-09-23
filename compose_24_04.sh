@@ -418,7 +418,7 @@ pushd "$OVERLAY_TOOL_DIR" >/dev/null
     DEBUG="$OVERLAY_DEBUG" \
     INPUT_SYSTEM_IMAGE_MODE="inplace" \
     TMP_ROOT_DIR="/tmp/work/output/overlay_work" \
-    $( [ -n "$OVERLAY_ENV" ] && printf "%s" "INPUT_ENV_VARS=$INPUT_ENV" )
+    $( [ -n "$OVERLAY_ENV" ] && printf "%s" "INPUT_ENV_VARS=$OVERLAY_ENV" )
 popd >/dev/null
 
 ###########################################################################
