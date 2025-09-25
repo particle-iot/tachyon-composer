@@ -207,7 +207,7 @@ else
       found_adsp=1
     fi
   else
-    echo "Warning: no adsp* firmware found under /usr/lib/firmware or /lib/firmware in 20.04 rootfs"
+    error "Warning: no adsp* firmware found under /usr/lib/firmware or /lib/firmware in 20.04 rootfs"
   fi
 
   sudo umount "$DEPS_DIR/image/mount"

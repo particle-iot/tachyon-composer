@@ -35,7 +35,7 @@ DEBUG ?= false                       # true | false
 COMMAND ?=
 INPUT_BASE_20_04_VERSION ?=         # semver, e.g., 1.0.167
 INPUT_REGION ?=                     # NA | RoW
-INPUT_VARIANT ?=                    # headless | desktop
+INPUT_VARIANT := headless
 INPUT_UBOOT_VERSION ?=              # semver, e.g., 1.0.3
 INPUT_BASE_24_04_VERSION ?=         # e.g., 14-276cd6b
 INPUT_ENV	?=                      	# optional, e.g., "VAR1=val1,VAR2=val2"

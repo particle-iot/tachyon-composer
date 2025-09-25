@@ -17,14 +17,16 @@ A build system for creating Tachyon System Images that upgrade from Ubuntu 20.04
 make help
 ```
 
-# Build a 24.04 system image using 20.04 base version 1.0.167
+# Build a 24.04 system image using 20.04 base version 1.0.170
 ```bash
 make build_24.04 \
-  INPUT_BASE_20_04_VERSION=1.0.167 \
+  INPUT_BASE_20_04_VERSION=1.0.170 \
   INPUT_REGION=RoW \
   INPUT_VARIANT=desktop \
-  INPUT_UBOOT_VERSION=1.0.3 \
-  INPUT_BASE_24_04_VERSION=14-276cd6b
+  INPUT_UBOOT_VERSION=1.0.4 \
+  INPUT_BASE_24_04_VERSION=14-276cd6b \
+  INPUT_OVERLAY_STACK=ubuntu-headless-24.04 \
+  INPUT_ENV_VARS="PKG_particle_linux=0.20.1-1,PKG_particle_tachyon_desktop_setup=2.7.0,PKG_particle_tachyon_ril=0.4.5-1,PKG_particle_tachyon_syscon=1.0.19-1,PIN_PRIORITY=900"
 ```
 
 ### Available Commands
@@ -52,11 +54,8 @@ Required Parameters
 
  - INPUT_BASE_20_04_VERSION: Semantic version of the 20.04 base zip (e.g., 1.0.167)
  - INPUT_REGION: Target deployment region
- - NA = North America
- - RoW = Rest of World
- - INPUT_VARIANT: System configuration variant
- - headless = server/headless configuration
- - desktop = desktop configuration with GUI
+    - NA = North America
+    - RoW = Rest of World
  - INPUT_UBOOT_VERSION: Semantic version of U-Boot package (e.g., 1.0.3)
  - INPUT_BASE_24_04_VERSION: Build identifier for the 24.04 base image (e.g., 14-276cd6b)
 
@@ -75,27 +74,6 @@ Default: ./.tmp/input
 Default: ./.tmp/output
 
 ### Examples
-
-# Basic headless build for North America
-```bash
-make build_24.04 \
-  INPUT_BASE_20_04_VERSION=1.0.167 \
-  INPUT_REGION=NA \
-  INPUT_VARIANT=headless \
-  INPUT_UBOOT_VERSION=1.0.3 \
-  INPUT_BASE_24_04_VERSION=14-276cd6b
-```
-
-# Desktop build for RoW with custom output filename
-```bash
-make build_24.04 \
-  INPUT_BASE_20_04_VERSION=1.0.167 \
-  INPUT_REGION=RoW \
-  INPUT_VARIANT=desktop \
-  INPUT_UBOOT_VERSION=1.0.3 \
-  INPUT_BASE_24_04_VERSION=14-276cd6b \
-  OUTPUT_24_04_SYSTEM_IMAGE=my-custom-desktop.zip
-```
 
 # Use a custom temporary directory
 ```base 
@@ -126,11 +104,7 @@ You can debug any command by adding DEBUG=true to the end, such as:
 
 ```bash
 make build_24.04 \
-  INPUT_BASE_20_04_VERSION=1.0.167 \
-  INPUT_REGION=NA \
-  INPUT_VARIANT=headless \
-  INPUT_UBOOT_VERSION=1.0.3 \
-  INPUT_BASE_24_04_VERSION=14-276cd6b \
+  <blah>
   DEBUG=true
 ```
 
@@ -140,7 +114,6 @@ The Makefile includes validation for:
 
  - Missing required parameters
  - Invalid region values (must be NA or RoW)
- - Invalid variant values (must be headless or desktop)
  - Directory creation permissions
 
 ### Version
