@@ -593,8 +593,10 @@ docker/version:
 	@echo "IMAGE_TAG: $(IMAGE_TAG)"
 
 # --- Docker run helpers -------------------------------------------------------
+# In CI (env CI=true), drop -it to avoid "the input device is not a TTY"
+DOCKER_TTY := $(if $(CI),, -it)
 
-DOCKER_RUN := docker run --rm -it --privileged \
+DOCKER_RUN := docker run --rm $(DOCKER_TTY) --privileged \
 	-v $(PWD):/project \
 	-v $(TMP_ROOT_DIR):/tmp/work \
 	-v /dev:/dev \
