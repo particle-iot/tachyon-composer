@@ -9,7 +9,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write    # needed for release upload on tag builds
+  contents: read
+  pull-requests: write
+  issues: write
 
 jobs:
   build:
@@ -111,16 +113,17 @@ jobs:
           if-no-files-found: error
 
       - name: Comment with download info
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             ✅ Build completed for **${{ matrix.region }} desktop**
-            
-            You can download the artifact from this run:
-            - [Download from Actions Artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
+            Download from this run:
+            - [Actions Artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            Artifact: `${{ steps.build_step.outputs.output_name }}`
             > Artifacts expire after 90 days.
 
       - name: Create GitHub Release & attach assets (only on tag releases)
