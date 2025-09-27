@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest-xl   # 4 vCPU, 32 GB RAM, ~50 GB disk
+    runs-on: ubuntu-tachyon
     strategy:
       fail-fast: false
       matrix:
