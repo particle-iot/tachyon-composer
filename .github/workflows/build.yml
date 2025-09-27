@@ -79,6 +79,7 @@ jobs:
           make doctor
 
       - name: Build (Ubuntu 24.04)
+        id: build_step
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
@@ -91,17 +92,36 @@ jobs:
             OUTPUT_VERSION=${VERSION} \
             OUTPUT_24_04_SYSTEM_IMAGE="${OUTPUT_NAME}"
 
-          echo "OUTPUT_NAME=${OUTPUT_NAME}" >> $GITHUB_ENV
-          echo "OUTPUT_PATH=.tmp/output/${OUTPUT_NAME}" >> $GITHUB_ENV
-          ls -lh "$OUTPUT_PATH"
+          # Emit step outputs for downstream steps
+          echo "output_name=${OUTPUT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "output_path=.tmp/output/${OUTPUT_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload artifact (only on tag releases)
+      - name: Verify artifact exists
+        run: |
+          set -euo pipefail
+          ls -lh "${{ steps.build_step.outputs.output_path }}"
+          test -s "${{ steps.build_step.outputs.output_path }}"
+
+      - name: Upload artifact
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
           name: tachyon-24.04-${{ matrix.region }}-desktop-${{ steps.ver.outputs.version }}
-          path: ${{ env.OUTPUT_PATH }}
+          path: ${{ steps.build_step.outputs.output_path }}
           if-no-files-found: error
+
+      - name: Comment with download info
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ✅ Build completed for **${{ matrix.region }} desktop**
+            
+            You can download the artifact from this run:
+            - [Download from Actions Artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            > Artifacts expire after 90 days.
 
       - name: Create GitHub Release & attach assets (only on tag releases)
         if: startsWith(github.ref, 'refs/tags/')
