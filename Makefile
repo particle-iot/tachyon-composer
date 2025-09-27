@@ -30,12 +30,49 @@ DEFAULT_OVERLAY_PATH := input/tachyon-overlays
 # optional parameters
 OUTPUT_VERSION ?= $(DEFAULT_OUTPUT_VERSION)
 DEBUG ?= false                       # true | false
+VERSIONS_FILE ?=
+INPUT_UBOOT_DIR ?=
+INPUT_OVERLAY_DIR ?=
+INPUT_OVERLAY_STACK ?=
+OVERLAYS_REF ?= HEAD
+ifneq ($(strip $(INPUT_OVERLAY_STACK)),)
+	OVERLAYS_REF := $(INPUT_OVERLAY_STACK)
+endif
+
+ifdef VERSIONS_FILE
+  $(info Using versions file $(VERSIONS_FILE) to override versions)
+
+  JSON_UBOOT_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print(j.get('sources',{}).get('particle-iot/tachyon-u-boot',{}).get('param',''))" $(VERSIONS_FILE))
+  JSON_BASE20_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print(j.get('sources',{}).get('particle-iot-inc/tachyon-release-builder',{}).get('param',''))" $(VERSIONS_FILE))
+  JSON_BASE24_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print(j.get('sources',{}).get('particle-iot/tachyon-ubuntu-24.04',{}).get('param',''))" $(VERSIONS_FILE))
+  JSON_OVERLAYS_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); s=j.get('sources',{}); o=s.get('particle-iot/tachyon-overlay') or s.get('particle-iot/tachyon-overlays',{}); print((o or {}).get('param',''))" $(VERSIONS_FILE))
+
+  # unified env (preferred); legacy fallback to packages->PKG_* if env missing
+  ENV_FROM_JSON := $(shell python3 -c "import json,sys; d=json.load(open(sys.argv[1])); e=d.get('env',{}); e = e or ({('PKG_'+k.replace('-','_')):v for k,v in d.get('packages',{}).items()} if (not e and d.get('packages')) else {}); print(','.join([f'{k}={v}' for k,v in e.items()]))" $(VERSIONS_FILE))
+
+  ifneq ($(strip $(JSON_BASE20_PARAM)),)
+    override INPUT_BASE_20_04_VERSION := $(JSON_BASE20_PARAM)
+  endif
+  ifneq ($(strip $(JSON_UBOOT_PARAM)),)
+    override INPUT_UBOOT_VERSION := $(JSON_UBOOT_PARAM)
+  endif
+  ifneq ($(strip $(JSON_BASE24_PARAM)),)
+    override INPUT_BASE_24_04_VERSION := $(JSON_BASE24_PARAM)
+  endif
+  ifneq ($(strip $(JSON_OVERLAYS_PARAM)),)
+    override OVERLAYS_REF := $(JSON_OVERLAYS_PARAM)
+  endif
+  ifneq ($(strip $(ENV_FROM_JSON)),)
+    override INPUT_ENV_VARS := $(ENV_FROM_JSON)
+    override INPUT_ENV := $(ENV_FROM_JSON)
+  endif
+endif
 
 # Parameters (overridable)
 COMMAND ?=
 INPUT_BASE_20_04_VERSION ?=         # semver, e.g., 1.0.167
 INPUT_REGION ?=                     # NA | RoW
-INPUT_VARIANT := headless
+INPUT_VARIANT ?=                    # headless | desktop
 INPUT_UBOOT_VERSION ?=              # semver, e.g., 1.0.3
 INPUT_BASE_24_04_VERSION ?=         # e.g., 14-276cd6b
 INPUT_ENV	?=                      	# optional, e.g., "VAR1=val1,VAR2=val2"
@@ -116,6 +153,53 @@ BASE24_XZ := $(TMP_INPUT_DIR)/$(BASE24_XZ_FILENAME)
 BASE24_IMG := $(TMP_INPUT_DIR)/$(basename $(BASE24_XZ_FILENAME))
 BASE24_SYSTEM_IMAGE_DIR := sys-img-24.04
 
+# ------------------------------------------------------------
+# Pretty header + resolved configuration printer
+# ------------------------------------------------------------
+
+CONFIG_SOURCE := $(if $(strip $(VERSIONS_FILE)),versions.json: $(VERSIONS_FILE),CLI args)
+
+define PRINT_BANNER
+	@printf '%s\n' \
+	'**************************************************' \
+	'*                                                *' \
+	'*        Tachyon System Image — Configuration    *' \
+	'*                                                *' \
+	'**************************************************'
+endef
+
+define PRINT_CONFIG
+	@echo "Source:            $(CONFIG_SOURCE)"
+	@echo "Version Tag:       $(VERSION)"
+	@echo
+	@echo "Inputs (resolved)"
+	@echo "  Base 20.04 Ver:  $(INPUT_BASE_20_04_VERSION)"
+	@echo "  24.04 Build ID:  $(INPUT_BASE_24_04_VERSION)"
+	@echo "  Region:          $(INPUT_REGION)"
+	@echo "  Variant:         $(INPUT_VARIANT)"
+	@echo "  U-Boot Ver:      $(if $(INPUT_UBOOT_VERSION),$(INPUT_UBOOT_VERSION),<using INPUT_UBOOT_DIR>)"
+	@echo "  Overlays Ref:    $(OVERLAYS_REF)"
+	@echo
+	@echo "Paths"
+	@echo "  Tmp Input Dir:   $(TMP_INPUT_DIR)"
+	@echo "  Tmp Output Dir:  $(TMP_OUTPUT_DIR)"
+	@echo "  Overlay Path:    $(INPUT_OVERLAY_PATH)"
+	@echo "  Overlay Dir OV:  $(INPUT_OVERLAY_DIR)"
+	@echo "  U-Boot Dir OV:   $(INPUT_UBOOT_DIR)"
+	@echo
+	@echo "Output"
+	@echo "  System Image:    $(OUTPUT_24_04_SYSTEM_IMAGE)"
+	@echo "  Debug:           $(DEBUG)"
+	@echo "  Input Env:       $(if $(strip $(INPUT_ENV)), $(INPUT_ENV), <none>)"
+	@echo ""
+	@echo	"**************************************************"
+endef
+
+.PHONY: print-config
+print-config:
+	$(PRINT_BANNER)
+	$(PRINT_CONFIG)
+
 # -------------------------------------------------------------------
 # Help
 # -------------------------------------------------------------------
@@ -141,10 +225,18 @@ help:
 	@echo "Optional parameters:"
 	@echo "  TMP_INPUT_DIR							 Temporary directory (default: ./tmp)"
 	@echo "  OUTPUT_24_04_SYSTEM_IMAGE   Output filename"
+	@echo "  VERSIONS_FILE               Path to a JSON file with source versions (overrides individual inputs)"
+	@echo "  INPUT_UBOOT_DIR             Path to local U-Boot directory (skip downloading U-Boot if set)"
+	@echo "  INPUT_OVERLAY_DIR           Path to local overlays directory (skip cloning tachyon-overlays if set)"
+	@echo "  INPUT_OVERLAY_STACK         Overlay stack/branch name to use (e.g., ubuntu-headless-24.04)"
+	@echo "  INPUT_ENV_VARS              Comma-separated package version env vars (e.g., PKG_name=ver,...)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build_24.04 COMMAND=build_24.04 INPUT_BASE_20_04_VERSION=1.0.167 INPUT_REGION=RoW INPUT_VARIANT=desktop INPUT_UBOOT_VERSION=1.0.3 INPUT_BASE_24_04_VERSION=14-276cd6b"
 	@echo "  make fetch_20_04 INPUT_BASE_20_04_VERSION=1.0.167 INPUT_REGION=RoW INPUT_VARIANT=desktop"
+	@echo "  make build_24.04 VERSIONS_FILE=./versions.json INPUT_REGION=RoW INPUT_VARIANT=headless"
+	@echo "  make build_24.04 INPUT_BASE_20_04_VERSION=1.0.169 INPUT_REGION=RoW INPUT_VARIANT=desktop INPUT_BASE_24_04_VERSION=14-276cd6b INPUT_UBOOT_DIR=../my-uboot-build INPUT_OVERLAY_DIR=./my-overlays"
+	@echo ""
 
 # -------------------------------------------------------------------
 # Fetch targets (run inside Docker)
@@ -172,25 +264,28 @@ $(BASE20_ZIP):
 		unzip -o "$@" -d "$(TMP_INPUT_DIR)/sys-img-20.04"; \
 		echo "Unzipped 20.04 base to $(TMP_INPUT_DIR)/sys-img-20.04"'
 
-
-fetch_uboot: $(UBOOT_ZIP)
-$(UBOOT_ZIP):
-	$(call check_required_param,INPUT_UBOOT_VERSION)
-	$(call validate_semver,INPUT_UBOOT_VERSION)
-	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
-		mkdir -p "$(TMP_INPUT_DIR)"; \
-		if [ -f "$@" ]; then \
-			echo "File $@ already exists, skipping download"; \
-			exit 0; \
+fetch_uboot: docker/build
+	@if [ -n "$(INPUT_UBOOT_DIR)" ]; then \
+		echo "Using local U-Boot from $(INPUT_UBOOT_DIR)"; \
+		rm -rf "$(TMP_INPUT_DIR)/u-boot"; \
+		mkdir -p "$(TMP_INPUT_DIR)/u-boot"; \
+		cp -r "$(INPUT_UBOOT_DIR)/." "$(TMP_INPUT_DIR)/u-boot/"; \
+		echo "Copied local U-Boot files to $(TMP_INPUT_DIR)/u-boot"; \
+	else \
+		if [ -f "$(UBOOT_ZIP)" ]; then \
+			echo "File $(UBOOT_ZIP) already exists, skipping download"; \
+		else \
+			$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
+				mkdir -p "$(TMP_INPUT_DIR)"; \
+				echo "==> Downloading U-Boot: $(UBOOT_URL_PRIMARY) (fallback: encoded path)"; \
+				{ curl -fL --retry 3 -o "$(UBOOT_ZIP)" "$(UBOOT_URL_PRIMARY)" || curl -fL --retry 3 -o "$(UBOOT_ZIP)" "$(UBOOT_URL_ENCODED)"; } \
+				  || { echo "Error: failed to download U-Boot from both $(UBOOT_URL_PRIMARY) and $(UBOOT_URL_ENCODED)"; rm -f "$(UBOOT_ZIP)"; exit 1; }; \
+				test -s "$(UBOOT_ZIP)" || { echo "Error: downloaded file is empty: $(UBOOT_ZIP)"; exit 1; }; \
+				echo "Downloaded U-Boot: $(UBOOT_ZIP)"; \
+				unzip -o "$(UBOOT_ZIP)" -d "$(TMP_INPUT_DIR)/u-boot" >/dev/null; \
+				echo "Unzipped U-Boot to $(TMP_INPUT_DIR)/u-boot"'; \
 		fi; \
-		echo "==> Downloading U-Boot: $(UBOOT_URL_PRIMARY) (fallback: encoded path)"; \
-		{ curl -fL --retry 3 -o "$@" "$(UBOOT_URL_PRIMARY)" || curl -fL --retry 3 -o "$@" "$(UBOOT_URL_ENCODED)"; } \
-		  || { echo "Error: failed to download U-Boot from both $(UBOOT_URL_PRIMARY) and $(UBOOT_URL_ENCODED)"; rm -f "$@"; exit 1; }; \
-		test -s "$@" || { echo "Error: downloaded file is empty: $@"; exit 1; }; \
-		echo "Downloaded uboot: $@"; \
-		unzip -o "$@" -d "$(TMP_INPUT_DIR)/u-boot" >/dev/null; \
-		echo "Unzipped U-Boot to $(TMP_INPUT_DIR)/u-boot"'
-
+	fi
 
 fetch_24_04: $(BASE24_XZ)
 $(BASE24_XZ):
@@ -207,7 +302,6 @@ $(BASE24_XZ):
 		curl -fL --retry 3 -o "$@" "$(BASE24_URL)" || { echo "Error: failed to download $(BASE24_URL)"; rm -f "$@"; exit 1; }; \
 		test -s "$@" || { echo "Error: downloaded file is empty: $@"; exit 1; }; \
 		echo "Downloaded 24.04: $@"'
-
 
 # Decompress the .img.xz -> .img via Docker
 fetch_24_04_unxz: fetch_24_04 docker/build $(BASE24_IMG)
@@ -328,33 +422,37 @@ $(OVERLAY_TOOL_STAMP): docker/build
 # Directory INSIDE the container where the repo will be cloned
 OVERLAYS_REPO_DIR      := $(INPUT_OVERLAY_DOCKER_PATH)
 
-# Create a host-visible stamp file matching the container path
-# /tmp/work (container) <-> $(TMP_ROOT_DIR) (host)
-OVERLAYS_STAMP := $(TMP_ROOT_DIR)$(patsubst /tmp/work%,%,$(INPUT_OVERLAY_DOCKER_PATH))/.installed
-
 .PHONY: fetch_tachyon_overlays
-fetch_tachyon_overlays: $(OVERLAYS_STAMP)
-
-# Clone (or update) tachyon-overlays and copy overlays into $(INPUT_OVERLAY_DOCKER_PATH)
-$(OVERLAYS_STAMP): docker/build
-	$(call check_required_param,INPUT_OVERLAY_DOCKER_PATH)
-	@echo "==> Fetching tachyon-overlays into $(INPUT_OVERLAY_DOCKER_PATH) inside Docker"
-	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
-		DEST="$(INPUT_OVERLAY_DOCKER_PATH)"; \
-		echo "Using overlay destination: $$DEST"; \
-		mkdir -p "$(dir $(OVERLAYS_REPO_DIR))" "$$DEST"; \
-		if [ ! -d "$(OVERLAYS_REPO_DIR)/.git" ]; then \
-			echo "Cloning https://github.com/particle-iot/tachyon-overlays.git -> $(OVERLAYS_REPO_DIR)"; \
-			git clone --depth 1 https://github.com/particle-iot/tachyon-overlays.git "$(OVERLAYS_REPO_DIR)"; \
-		else \
-			echo "$(OVERLAYS_REPO_DIR) already present"; \
-		fi; \
-		echo "Checking out $(OVERLAYS_REF)"; \
-		git -C "$(OVERLAYS_REPO_DIR)" fetch --depth 1 origin "$(OVERLAYS_REF)"; \
-		git -C "$(OVERLAYS_REPO_DIR)" checkout -q FETCH_HEAD; \
-		\
-		touch "$$DEST/.installed"'
-	@echo "Installed tachyon-overlays into $(INPUT_OVERLAY_DOCKER_PATH)"
+fetch_tachyon_overlays: docker/build
+	@if [ -n "$(INPUT_OVERLAY_DIR)" ]; then \
+		echo "Using local overlays from $(INPUT_OVERLAY_DIR)"; \
+		rm -rf $(TMP_ROOT_DIR)/input/tachyon-overlays; \
+		mkdir -p $(TMP_ROOT_DIR)/input/tachyon-overlays; \
+		cp -r "$(INPUT_OVERLAY_DIR)/." $(TMP_ROOT_DIR)/input/tachyon-overlays/; \
+		echo "Copied local overlays to $(TMP_ROOT_DIR)/input/tachyon-overlays"; \
+		touch $(TMP_ROOT_DIR)/input/tachyon-overlays/.installed; \
+	else \
+		echo "==> Fetching tachyon-overlays into $(INPUT_OVERLAY_DOCKER_PATH) inside Docker"; \
+		$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
+			DEST="$(INPUT_OVERLAY_DOCKER_PATH)"; \
+			echo "Using overlay destination: $$DEST"; \
+			mkdir -p "$(dir $(OVERLAYS_REPO_DIR))" "$$DEST"; \
+			if [ ! -d "$(OVERLAYS_REPO_DIR)/.git" ]; then \
+				echo "Cloning https://github.com/particle-iot/tachyon-overlays.git -> $(OVERLAYS_REPO_DIR)"; \
+				git clone --depth 1 https://github.com/particle-iot/tachyon-overlays.git "$(OVERLAYS_REPO_DIR)"; \
+			else \
+				echo "$(OVERLAYS_REPO_DIR) already present"; \
+			fi; \
+			echo "Checking out $(OVERLAYS_REF)"; \
+			if [ "$(OVERLAYS_REF)" = "HEAD" ]; then \
+				echo "Using latest HEAD of default branch"; \
+			else \
+				git -C "$(OVERLAYS_REPO_DIR)" fetch --depth 1 origin "$(OVERLAYS_REF)"; \
+				git -C "$(OVERLAYS_REPO_DIR)" checkout -q FETCH_HEAD; \
+			fi; \
+			touch "$$DEST/.installed"'; \
+		echo "Installed tachyon-overlays into $(INPUT_OVERLAY_DOCKER_PATH)"; \
+	fi
 
 # -------------------------------------------------------------------
 # Main build command for Ubuntu 24.04
@@ -363,18 +461,26 @@ $(OVERLAYS_STAMP): docker/build
 BASE24_IMG_BASENAME := $(notdir $(BASE24_IMG))
 
 .PHONY: build_24.04
-build_24.04: version fetch_tachyon_overlays fetch_overlay_tool fetch_qtools fetch_20_04 fetch_uboot fetch_24_04_unxz prepare_base_24_04 docker/build
+build_24.04: version print-config fetch_tachyon_overlays fetch_overlay_tool fetch_qtools fetch_20_04 fetch_uboot fetch_24_04_unxz prepare_base_24_04 docker/build 
 	@echo "Building Tachyon System Image for Ubuntu 24.04..."
 	@echo ""
 	$(call check_required_param,INPUT_BASE_20_04_VERSION)
 	$(call check_required_param,INPUT_REGION)
 	$(call check_required_param,INPUT_VARIANT)
-	$(call check_required_param,INPUT_UBOOT_VERSION)
 	$(call check_required_param,INPUT_BASE_24_04_VERSION)
 	$(call validate_region)
 	$(call validate_variant)
 	$(call validate_semver,INPUT_BASE_20_04_VERSION)
-	$(call validate_semver,INPUT_UBOOT_VERSION)
+	@if [ -z "$(INPUT_UBOOT_VERSION)" ] && [ -z "$(INPUT_UBOOT_DIR)" ]; then \
+		echo "Error: INPUT_UBOOT_VERSION or INPUT_UBOOT_DIR is required"; \
+		exit 1; \
+	fi
+	@if [ -n "$(INPUT_UBOOT_VERSION)" ]; then \
+		if ! echo "$(INPUT_UBOOT_VERSION)" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$'; then \
+			echo "Error: INPUT_UBOOT_VERSION must be a semantic version (x.y.z), got '$(INPUT_UBOOT_VERSION)'"; \
+			exit 1; \
+		fi; \
+	fi
 	$(call validate_output_24_04,OUTPUT_24_04_SYSTEM_IMAGE)
 	@echo "Configuration:"
 	@echo "  Base 20.04 Version: $(INPUT_BASE_20_04_VERSION)"
@@ -396,7 +502,7 @@ build_24.04: version fetch_tachyon_overlays fetch_overlay_tool fetch_qtools fetc
 	@echo "  - U-Boot: $(notdir $(UBOOT_ZIP)) in $(TMP_INPUT_DIR)/u-boot"
 	@echo "  - 24.04 img: $(notdir $(BASE24_IMG)) in $(TMP_INPUT_DIR)/sys-img-24.04"
 	@echo ""
-	@$(DOCKER_RUN) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(INPUT_ENV)" 
+	@$(DOCKER_RUN) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(INPUT_ENV)"
 	@echo ""
 	@echo "Build completed successfully!"
 	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(notdir $(OUTPUT_24_04_SYSTEM_IMAGE))"
