@@ -13,13 +13,24 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-xl   # 4 vCPU, 32 GB RAM, ~50 GB disk
     strategy:
       fail-fast: false
       matrix:
         region: [RoW, NA]
 
     steps:
+      - name: Free up disk space
+        run: |
+          echo "Before:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache
+          echo "After:"
+          df -h
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
