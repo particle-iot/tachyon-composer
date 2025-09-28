@@ -1,0 +1,79 @@
+name: Tag on PR Merge
+
+on:
+  pull_request:
+    types: [closed]   # fires when PR is closed; we check 'merged' below
+
+permissions:
+  contents: write     # required to push tags
+
+jobs:
+  tag:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (with full history + tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version (from labels or default patch)
+        id: nextver
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Get latest tag; default to 0.0.0 if none
+          LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo '0.0.0')"
+          # Strip optional leading 'v' from historical tags
+          BASE="${LATEST_TAG#v}"
+
+          MAJOR="${BASE%%.*}"
+          REST="${BASE#*.}"
+          MINOR="${REST%%.*}"
+          PATCH="${REST#*.}"
+
+          # Default bump is patch; allow PR labels to override
+          BUMP="patch"
+          LABELS=$(jq -r '.pull_request.labels[].name' <<< '${{ toJson(github.event) }}' || true)
+          if echo "$LABELS" | grep -q 'release:major'; then
+            BUMP="major"
+          elif echo "$LABELS" | grep -q 'release:minor'; then
+            BUMP="minor"
+          elif echo "$LABELS" | grep -q 'release:patch'; then
+            BUMP="patch"
+          fi
+
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0;;
+            minor) MINOR=$((MINOR+1)); PATCH=0;;
+            patch|*) PATCH=$((PATCH+1));;
+          esac
+
+          NEXT="${MAJOR}.${MINOR}.${PATCH}"
+
+          echo "latest=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+          echo "next=${NEXT}"         >> "$GITHUB_OUTPUT"
+          echo "bump=${BUMP}"         >> "$GITHUB_OUTPUT"
+          echo "Next version: ${NEXT} (bump=${BUMP})"
+
+      - name: Create and push tag (no leading 'v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          NEXT="${{ steps.nextver.outputs.next }}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Avoid failure if the tag already exists (e.g., rerun)
+          if git rev-parse "refs/tags/${NEXT}" >/dev/null 2>&1; then
+            echo "Tag ${NEXT} already exists; skipping."
+            exit 0
+          fi
+
+          git tag -a "${NEXT}" -m "Release ${NEXT}"
+          git push origin "${NEXT}"

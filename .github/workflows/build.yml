@@ -1,0 +1,138 @@
+name: Build Tachyon 24.04
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'        # e.g. 1.2.3
+      - '[0-9]+.[0-9]+.[0-9]+-*'      # e.g. 1.2.3-rc1 / 1.2.3-beta.1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-tachyon
+    strategy:
+      fail-fast: false
+      matrix:
+        region: [RoW, NA]
+
+    steps:
+      - name: Free up disk space
+        run: |
+          echo "Before:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache
+          echo "After:"
+          df -h
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # need tags to derive versions
+
+      - name: Determine version
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Base: latest semver-like tag (or '0.0.0' if none)
+          BASE_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo '0.0.0')"
+          BASE_VER="${BASE_TAG#v}"
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            SHORTSHA="$(git rev-parse --short=7 ${{ github.sha }})"
+            VERSION="${BASE_VER}-${SHORTSHA}"
+            MODE="pr"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Official release: strip leading v
+            RAW_TAG="${{ github.ref_name }}"
+            VERSION="${RAW_TAG#v}"
+            MODE="tag"
+          else
+            # Manual or other: snapshot off current commit
+            SHORTSHA="$(git rev-parse --short=7 ${{ github.sha }})"
+            VERSION="${BASE_VER}-${SHORTSHA}"
+            MODE="other"
+          fi
+
+          echo "base_tag=${BASE_TAG}"        >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}"          >> "$GITHUB_OUTPUT"
+          echo "mode=${MODE}"                >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${VERSION} (mode=${MODE})"
+
+      - name: Show build matrix/config
+        run: |
+          echo "Region:  ${{ matrix.region }}"
+          echo "Variant: desktop"
+          echo "Version: ${{ steps.ver.outputs.version }}"
+          echo "Mode:    ${{ steps.ver.outputs.mode }}"
+
+      - name: Docker sanity
+        run: |
+          docker --version
+          make doctor
+
+      - name: Build (Ubuntu 24.04)
+        id: build_step
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          OUTPUT_NAME="tachyon-ubuntu-24.04-${{ matrix.region }}-desktop-formfactor_dvt-${VERSION}.zip"
+          make build_24.04 \
+            VERSIONS_FILE=./versions.json \
+            INPUT_REGION=${{ matrix.region }} \
+            INPUT_VARIANT=desktop \
+            OUTPUT_VERSION=${VERSION} \
+            OUTPUT_24_04_SYSTEM_IMAGE="${OUTPUT_NAME}"
+
+          # Emit step outputs for downstream steps
+          echo "output_name=${OUTPUT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "output_path=.tmp/output/${OUTPUT_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify artifact exists
+        run: |
+          set -euo pipefail
+          ls -lh "${{ steps.build_step.outputs.output_path }}"
+          test -s "${{ steps.build_step.outputs.output_path }}"
+
+      # - name: Upload artifact
+      #   if: startsWith(github.ref, 'refs/tags/')
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: tachyon-24.04-${{ matrix.region }}-desktop-${{ steps.ver.outputs.version }}
+      #     path: ${{ steps.build_step.outputs.output_path }}
+      #     if-no-files-found: error
+
+      # - name: Comment with download info
+      #   if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+      #   uses: peter-evans/create-or-update-comment@v4
+      #   with:
+      #     issue-number: ${{ github.event.pull_request.number }}
+      #     body: |
+      #       ✅ Build completed for **${{ matrix.region }} desktop**
+
+      #       Download from this run:
+      #       - [Actions Artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+      #       Artifact: `${{ steps.build_step.outputs.output_name }}`
+      #       > Artifacts expire after 90 days.
+
+      # - name: Create GitHub Release & attach assets (only on tag releases)
+      #   if: startsWith(github.ref, 'refs/tags/')
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: ${{ github.ref_name }}
+      #     name: Release ${{ github.ref_name }}
+      #     draft: false
+      #     prerelease: false
+      #     files: ${{ steps.build_step.outputs.output_path }}

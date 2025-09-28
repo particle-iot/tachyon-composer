@@ -1,0 +1,27 @@
+{
+  "sources": {
+    "particle-iot/tachyon-u-boot": {
+      "type": "cicd_release",
+      "param": "1.0.4"
+    },
+    "particle-iot-inc/tachyon-release-builder": {
+      "type": "cicd_release",
+      "param": "1.0.172"
+    },
+    "particle-iot/tachyon-ubuntu-24.04": {
+      "type": "git_release",
+      "param": "14-276cd6b"
+    },
+    "particle-iot/tachyon-overlay": {
+      "type": "git_release",
+      "param": "HEAD"
+    }
+  },
+  "env": {
+    "PKG_particle_linux": "0.20.1-1",
+    "PKG_particle_tachyon_desktop_setup": "2.7.0",
+    "PKG_particle_tachyon_ril": "0.4.5-1",
+    "PKG_particle_tachyon_syscon": "1.0.19-1",
+    "PIN_PRIORITY": "900"
+  }
+}
