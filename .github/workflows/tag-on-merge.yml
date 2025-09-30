@@ -2,10 +2,10 @@ name: Tag on PR Merge
 
 on:
   pull_request:
-    types: [closed]   # fires when PR is closed; we check 'merged' below
+    types: [closed]
 
 permissions:
-  contents: write     # required to push tags
+  contents: write
 
 jobs:
   tag:
@@ -23,10 +23,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          # Get latest tag; default to 0.0.0 if none
           LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo '0.0.0')"
-          # Strip optional leading 'v' from historical tags
           BASE="${LATEST_TAG#v}"
 
           MAJOR="${BASE%%.*}"
@@ -34,7 +31,6 @@ jobs:
           MINOR="${REST%%.*}"
           PATCH="${REST#*.}"
 
-          # Default bump is patch; allow PR labels to override
           BUMP="patch"
           LABELS=$(jq -r '.pull_request.labels[].name' <<< '${{ toJson(github.event) }}' || true)
           if echo "$LABELS" | grep -q 'release:major'; then
@@ -56,7 +52,6 @@ jobs:
           echo "latest=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
           echo "next=${NEXT}"         >> "$GITHUB_OUTPUT"
           echo "bump=${BUMP}"         >> "$GITHUB_OUTPUT"
-          echo "Next version: ${NEXT} (bump=${BUMP})"
 
       - name: Create and push tag (no leading 'v')
         env:
@@ -69,7 +64,6 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Avoid failure if the tag already exists (e.g., rerun)
           if git rev-parse "refs/tags/${NEXT}" >/dev/null 2>&1; then
             echo "Tag ${NEXT} already exists; skipping."
             exit 0
