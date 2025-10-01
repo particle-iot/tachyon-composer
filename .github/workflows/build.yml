@@ -313,6 +313,46 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "prev=${PREV}"     >> "$GITHUB_OUTPUT"
 
+      - name: Build changelog from PRs
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v4
+        with:
+          fromTag: ${{ steps.versel.outputs.prev }}
+          toTag:   ${{ steps.versel.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute contributors between tags
+        id: contribs
+        shell: bash
+        run: |
+          set -euo pipefail
+          FROM="${{ steps.versel.outputs.prev }}"
+          TO="${{ steps.versel.outputs.version }}"
+
+          # If there's no previous tag, fall back to just the TO tag (first release)
+          if [[ -z "$FROM" ]]; then
+            RANGE="${TO}"
+          else
+            RANGE="${FROM}..${TO}"
+          fi
+
+          git fetch --quiet --tags --force
+
+          # Get "count name <email>" lines, then format as markdown bullets
+          MAP="$(git shortlog -sne $RANGE || true)"
+          if [[ -z "$MAP" ]]; then
+            LIST="(none)"
+          else
+            LIST="$(echo "$MAP" | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+(.+) <.*>/- \2 (\1 commits)/')"
+          fi
+
+          {
+            echo 'contributors<<EOF'
+            echo "$LIST"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build release body
         id: body
         shell: bash
@@ -342,14 +382,15 @@ jobs:
               echo
             fi
             echo
-            echo "<list of changes - this is a meta tag>"
+            echo "Changes"
+            echo
+            # changelog is markdown (list of merged PRs) provided by the action
+            echo "${{ steps.changelog.outputs.changelog }}"
             echo
             echo "Full Changelog: ${PREV:-0.0.0}...${VERSION}"
             echo
             echo "Contributors"
-            echo " x,"
-            echo
-            echo " y, z"
+            echo "${{ steps.contribs.outputs.contributors }}"
           } > RELEASE_BODY.md
 
           echo "Built RELEASE_BODY.md:"
