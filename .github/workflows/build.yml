@@ -253,7 +253,8 @@ jobs:
         if: steps.s3_upload_tag.outputs.s3_uri
         uses: actions/upload-artifact@v4
         with:
-          name: release-metadata
+          # 👇 unique name per matrix region avoids 409 conflicts
+          name: release-metadata-${{ matrix.region }}
           path: release_meta/*.txt
           if-no-files-found: ignore
           retention-days: 3
@@ -274,8 +275,18 @@ jobs:
       - name: Download aggregated release metadata
         uses: actions/download-artifact@v4
         with:
-          name: release-metadata
+          # 👇 pull both artifacts and merge their files into one folder
+          pattern: release-metadata-*
           path: release_meta
+          merge-multiple: true
+
+      - name: Ensure both regions produced metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -l release_meta || true
+          test -f release_meta/NA.txt
+          test -f release_meta/RoW.txt
 
       - name: Parse version and choose previous tag
         id: versel
