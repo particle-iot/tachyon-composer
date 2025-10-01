@@ -236,6 +236,16 @@ jobs:
             echo "CF_DIST_ID not set; skipping invalidation."
           fi
 
+      # Compute SHA256 for tag/workflow_run builds (used later in the release metadata JSON)
+      - name: Compute SHA256 (tag builds)
+        id: sha
+        if: (startsWith(github.ref, 'refs/tags/') || steps.tagpick.outputs.tag)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="$(sha256sum "${{ steps.build_step.outputs.output_path }}" | awk '{print $1}')"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+
       # Emit tiny region metadata and upload as a shared artifact (for the release job to aggregate)
       - name: Publish region metadata (for release job)
         if: steps.s3_upload_tag.outputs.s3_uri
@@ -247,6 +257,7 @@ jobs:
           FILE=${{ steps.build_step.outputs.output_name }}
           S3_KEY=${{ steps.s3_upload_tag.outputs.obj_key }}
           S3_URI=s3://${{ secrets.LINUX_DIST_S3_BUCKET }}/${{ steps.s3_upload_tag.outputs.obj_key }}
+          SHA256=${{ steps.sha.outputs.sha }}
           EOF
 
       - name: Upload release metadata artifact
@@ -275,13 +286,11 @@ jobs:
       - name: Download aggregated release metadata
         uses: actions/download-artifact@v4
         with:
-          # 👇 pull both artifacts and merge their files into one folder
           pattern: release-metadata-*
           path: release_meta
           merge-multiple: true
 
       - name: Ensure both regions produced metadata
-        shell: bash
         run: |
           set -euo pipefail
           ls -l release_meta || true
@@ -290,7 +299,6 @@ jobs:
 
       - name: Parse version and choose previous tag
         id: versel
-        shell: bash
         run: |
           set -euo pipefail
           VERSION="$(grep -h '^VERSION=' release_meta/*.txt | head -n1 | cut -d= -f2)"
@@ -300,22 +308,50 @@ jobs:
           fi
 
           git fetch --tags --force
-          mapfile -t TAGS < <(git tag -l --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' || true)
-          PREV=""
-          for t in "${TAGS[@]}"; do
-            if [[ "$t" == "$VERSION" ]]; then
-              continue
-            fi
-            PREV="$t"
-            break
-          done
+          PREV="$(git tag -l --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' | grep -B1 "$VERSION" | head -n1 || true)"
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "prev=${PREV}"     >> "$GITHUB_OUTPUT"
+          echo "prev=$PREV" >> "$GITHUB_OUTPUT"
+
+      - name: Build changelog from PRs
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v4
+        with:
+          fromTag: ${{ steps.versel.outputs.prev }}
+          toTag:   ${{ steps.versel.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute contributors between tags
+        id: contribs
+        run: |
+          set -euo pipefail
+          FROM="${{ steps.versel.outputs.prev }}"
+          TO="${{ steps.versel.outputs.version }}"
+
+          if [[ -z "$FROM" ]]; then
+            RANGE="$TO"
+          else
+            RANGE="$FROM..$TO"
+          fi
+
+          git fetch --quiet --tags --force
+
+          MAP="$(git shortlog -sne $RANGE || true)"
+          if [[ -z "$MAP" ]]; then
+            LIST="(none)"
+          else
+            LIST="$(echo "$MAP" | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+(.+) <.*>/- \2 (\1 commits)/')"
+          fi
+
+          {
+            echo 'contributors<<EOF'
+            echo "$LIST"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build release body
         id: body
-        shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ steps.versel.outputs.version }}"
@@ -329,27 +365,16 @@ jobs:
             echo
             echo "Images"
             echo
-            if [[ -n "$NA_FILE" ]]; then
-              echo "NA"
-              echo
-              echo "Tachyon desktop - ${NA_FILE}"
-              echo
-            fi
-            if [[ -n "$ROW_FILE" ]]; then
-              echo "RoW"
-              echo
-              echo "Tachyon desktop - ${ROW_FILE}"
-              echo
-            fi
+            [[ -n "$NA_FILE" ]] && echo "NA" && echo "Tachyon desktop - ${NA_FILE}" && echo
+            [[ -n "$ROW_FILE" ]] && echo "RoW" && echo "Tachyon desktop - ${ROW_FILE}" && echo
+            echo "Changes"
             echo
-            echo "<list of changes - this is a meta tag>"
+            echo "${{ steps.changelog.outputs.changelog }}"
             echo
             echo "Full Changelog: ${PREV:-0.0.0}...${VERSION}"
             echo
             echo "Contributors"
-            echo " x,"
-            echo
-            echo " y, z"
+            echo "${{ steps.contribs.outputs.contributors }}"
           } > RELEASE_BODY.md
 
           echo "Built RELEASE_BODY.md:"
@@ -365,3 +390,158 @@ jobs:
           prerelease: ${{ contains(steps.versel.outputs.version, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build JSON entries for 24.04 desktop (NA & RoW)
+        id: json24
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.versel.outputs.version }}"
+          NOW="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          BASE_URL="${PUBLIC_RELEASE_BASE_URL:-https://linux-dist.particle.io/releases}"
+
+          NA_FILE="$(grep -h '^FILE='   release_meta/NA.txt   | cut -d= -f2)"
+          NA_SHA="$(grep  -h '^SHA256=' release_meta/NA.txt   | cut -d= -f2)"
+          ROW_FILE="$(grep -h '^FILE='  release_meta/RoW.txt  | cut -d= -f2)"
+          ROW_SHA="$(grep  -h '^SHA256=' release_meta/RoW.txt | cut -d= -f2)"
+
+          NA_URL="${BASE_URL}/${VERSION}/NA/${NA_FILE}"
+          ROW_URL="${BASE_URL}/${VERSION}/RoW/${ROW_FILE}"
+
+          jq -n \
+            --arg ver "$VERSION" --arg now "$NOW" --arg url_na "$NA_URL" --arg sha_na "$NA_SHA" \
+            '{
+              release_name: ("tachyon-ubuntu-24.04-NA-desktop-" + $ver),
+              version: $ver,
+              region: "NA",
+              variant: "desktop",
+              platform: "qcm6490",
+              board: "formfactor_dvt",
+              os: "linux",
+              distribution: "ubuntu",
+              distribution_version: "24.04",
+              distribution_variant: "ubuntu",
+              build_date: $now,
+              artifacts: [{ artifact_url: $url_na, sha256_checksum: $sha_na, type: "release_image" }]
+            }' > na_24_04_desktop.json
+
+          jq -n \
+            --arg ver "$VERSION" --arg now "$NOW" --arg url_row "$ROW_URL" --arg sha_row "$ROW_SHA" \
+            '{
+              release_name: ("tachyon-ubuntu-24.04-RoW-desktop-" + $ver),
+              version: $ver,
+              region: "RoW",
+              variant: "desktop",
+              platform: "qcm6490",
+              board: "formfactor_dvt",
+              os: "linux",
+              distribution: "ubuntu",
+              distribution_version: "24.04",
+              distribution_variant: "ubuntu",
+              build_date: $now,
+              artifacts: [{ artifact_url: $url_row, sha256_checksum: $sha_row, type: "release_image" }]
+            }' > row_24_04_desktop.json
+
+      - name: Update shared S3 release metadata (replace existing 24.04 entries for this version)
+        run: |
+          set -euo pipefail
+
+          # ---- Inputs via plain envs (no GitHub context in this step) ----
+          : "${LINUX_DIST_S3_BUCKET:?Set LINUX_DIST_S3_BUCKET in your Environment/Variables}"
+          KEY="${RELEASE_METADATA_KEY:-meta/releases.json}"
+          VERSION="${VERSION:?VERSION must be exported earlier (e.g. from Determine version step)}"
+          PUSH="${PUSH_JSON:-false}"
+
+          TMP_IN="$(mktemp)"
+          TMP_OUT="$(mktemp)"
+
+          # Helper: remove existing entries for THIS version matching
+          # (distribution_version=24.04 AND same {region, variant, board}) for NA/RoW,
+          # then append fresh NA/RoW entries we just built.
+          apply_merge() {
+            jq \
+              --arg ver "$VERSION" \
+              --argjson na  "$(cat na_24_04_desktop.json)" \
+              --argjson row "$(cat row_24_04_desktop.json)" \
+              '
+              .builds |=
+                [ .[]
+                  | select(
+                      not (
+                        .version == $ver
+                        and .distribution_version == "24.04"
+                        and (
+                          (.region == $na.region  and .variant == $na.variant  and .board == $na.board)
+                          or
+                          (.region == $row.region and .variant == $row.variant and .board == $row.board)
+                        )
+                      )
+                  )
+                ]
+              | .builds += [ $na, $row ]
+              ' "$1" > "$2"
+          }
+
+          # Always fetch current file (or start with an empty skeleton),
+          # merge locally, and PRINT the result to logs for review.
+          if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY" > head.json 2>/dev/null; then
+            aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY}" "$TMP_IN"
+          else
+            echo '{ "builds": [] }' > "$TMP_IN"
+          fi
+          apply_merge "$TMP_IN" "$TMP_OUT"
+
+          echo "----- Merged release metadata preview (${KEY}) -----"
+          jq . "$TMP_OUT" || cat "$TMP_OUT"
+          echo "----- end preview -----"
+
+          # Only push if explicitly enabled (PUSH_JSON=true)
+          if [[ "$PUSH" == "true" ]]; then
+            echo "PUSH_JSON=true → attempting conditional S3 update with optimistic lock…"
+
+            attempt=1; max=3
+            while :; do
+              # (Re)read ETag and latest file before each attempt
+              if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY" > head.json 2>/dev/null; then
+                ETAG="$(jq -r '.ETag' head.json | tr -d '"')"
+                aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY}" "$TMP_IN"
+              else
+                ETAG=""
+                echo '{ "builds": [] }' > "$TMP_IN"
+              fi
+
+              # Re-apply the merge against the freshest content
+              apply_merge "$TMP_IN" "$TMP_OUT"
+
+              if [[ -n "$ETAG" ]]; then
+                # Optimistic lock: only succeed if the object hasn't changed (If-Match)
+                if aws s3api put-object \
+                      --bucket "$LINUX_DIST_S3_BUCKET" \
+                      --key "$KEY" \
+                      --body "$TMP_OUT" \
+                      --content-type "application/json" \
+                      --if-match "$ETAG" >/dev/null 2>&1; then
+                  echo "✅ Updated ${KEY} (existing file, ETag matched)."
+                  break
+                fi
+                if (( attempt >= max )); then
+                  echo "❌ Failed to update after ${max} attempts (concurrent modification persisted)." >&2
+                  exit 1
+                fi
+                echo "⚠️  ETag mismatch (file changed upstream). Retrying in 10s… (attempt $((attempt+1))/${max})"
+                sleep 10
+                attempt=$((attempt+1))
+              else
+                # Object did not exist — create it (no If-Match needed)
+                aws s3api put-object \
+                  --bucket "$LINUX_DIST_S3_BUCKET" \
+                  --key "$KEY" \
+                  --body "$TMP_OUT" \
+                  --content-type "application/json" >/dev/null
+                echo "✅ Created ${KEY} (new file)."
+                break
+              fi
+            done
+          else
+            echo "PUSH_JSON != 'true' → dry run only (nothing pushed)."
+          fi
