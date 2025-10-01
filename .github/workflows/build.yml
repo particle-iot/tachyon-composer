@@ -5,18 +5,24 @@ on:
     types: [opened, synchronize, reopened]
   push:
     tags:
-      - '[0-9]+.[0-9]+.[0-9]+'        # e.g. 1.2.3
-      - '[0-9]+.[0-9]+.[0-9]+-*'      # e.g. 1.2.3-rc1 / 1.2.3-beta.1
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
 
 permissions:
   contents: read
   pull-requests: write
   issues: write
+  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-tachyon
+    environment: production
+    # Default the upload gates to 'true' and allow repo/env variables to override.
+    env:
+      UPLOAD_PR_ASSETS:  ${{ vars.UPLOAD_PR_ASSETS  || 'true' }}
+      UPLOAD_TAG_ASSETS: ${{ vars.UPLOAD_TAG_ASSETS || 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -25,61 +31,39 @@ jobs:
     steps:
       - name: Free up disk space
         run: |
-          echo "Before:"
-          df -h
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache
-          echo "After:"
-          df -h
+          echo "Before:"; df -h
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache
+          echo "After:"; df -h
 
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # need tags to derive versions
+          fetch-depth: 0
 
       - name: Determine version
         id: ver
         shell: bash
         run: |
           set -euo pipefail
-          # Base: latest semver-like tag (or '0.0.0' if none)
-          BASE_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo '0.0.0')"
-          BASE_VER="${BASE_TAG#v}"
+          LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo '0.0.0')"
+          BASE_VER="${LATEST_TAG#v}"
+          SHORTSHA="$(git rev-parse --short=7 ${{ github.sha }})"
 
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            SHORTSHA="$(git rev-parse --short=7 ${{ github.sha }})"
-            VERSION="${BASE_VER}-${SHORTSHA}"
             MODE="pr"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            # Official release: strip leading v
-            RAW_TAG="${{ github.ref_name }}"
-            VERSION="${RAW_TAG#v}"
-            MODE="tag"
-          else
-            # Manual or other: snapshot off current commit
-            SHORTSHA="$(git rev-parse --short=7 ${{ github.sha }})"
             VERSION="${BASE_VER}-${SHORTSHA}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            MODE="tag"
+            VERSION="${{ github.ref_name }}"
+          else
             MODE="other"
+            VERSION="${BASE_VER}-${SHORTSHA}"
           fi
 
-          echo "base_tag=${BASE_TAG}"        >> "$GITHUB_OUTPUT"
+          echo "base_tag=${BASE_VER}"        >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORTSHA}"       >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}"          >> "$GITHUB_OUTPUT"
           echo "mode=${MODE}"                >> "$GITHUB_OUTPUT"
-          echo "Resolved version: ${VERSION} (mode=${MODE})"
-
-      - name: Show build matrix/config
-        run: |
-          echo "Region:  ${{ matrix.region }}"
-          echo "Variant: desktop"
-          echo "Version: ${{ steps.ver.outputs.version }}"
-          echo "Mode:    ${{ steps.ver.outputs.mode }}"
-
-      - name: Docker sanity
-        run: |
-          docker --version
-          make doctor
 
       - name: Build (Ubuntu 24.04)
         id: build_step
@@ -87,52 +71,115 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          OUTPUT_NAME="tachyon-ubuntu-24.04-${{ matrix.region }}-desktop-formfactor_dvt-${VERSION}.zip"
+          if [[ "${{ steps.ver.outputs.mode }}" == "pr" ]]; then
+            OUTNAME="tachyon-ubuntu-24.04-${{ matrix.region }}-desktop-${{ steps.ver.outputs.base_tag }}-${{ steps.ver.outputs.short_sha }}.zip"
+          else
+            OUTNAME="tachyon-ubuntu-24.04-${{ matrix.region }}-desktop-${{ steps.ver.outputs.version }}.zip"
+          fi
+
           make build_24.04 \
             VERSIONS_FILE=./versions.json \
             INPUT_REGION=${{ matrix.region }} \
             INPUT_VARIANT=desktop \
-            OUTPUT_VERSION=${VERSION} \
-            OUTPUT_24_04_SYSTEM_IMAGE="${OUTPUT_NAME}"
+            OUTPUT_VERSION=${{ steps.ver.outputs.version }} \
+            OUTPUT_24_04_SYSTEM_IMAGE="${OUTNAME}"
 
-          # Emit step outputs for downstream steps
-          echo "output_name=${OUTPUT_NAME}" >> "$GITHUB_OUTPUT"
-          echo "output_path=.tmp/output/${OUTPUT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "output_name=${OUTNAME}" >> "$GITHUB_OUTPUT"
+          echo "output_path=.tmp/output/${OUTNAME}" >> "$GITHUB_OUTPUT"
 
       - name: Verify artifact exists
         run: |
-          set -euo pipefail
           ls -lh "${{ steps.build_step.outputs.output_path }}"
           test -s "${{ steps.build_step.outputs.output_path }}"
 
-      # - name: Upload artifact
-      #   if: startsWith(github.ref, 'refs/tags/')
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: tachyon-24.04-${{ matrix.region }}-desktop-${{ steps.ver.outputs.version }}
-      #     path: ${{ steps.build_step.outputs.output_path }}
-      #     if-no-files-found: error
+      # ---------- PR uploads ----------
+      - name: Configure AWS (PR)
+        if: github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository &&
+            env.UPLOAD_PR_ASSETS != 'false'
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: tachyon-pr-upload-${{ github.run_id }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      # - name: Comment with download info
-      #   if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-      #   uses: peter-evans/create-or-update-comment@v4
-      #   with:
-      #     issue-number: ${{ github.event.pull_request.number }}
-      #     body: |
-      #       ✅ Build completed for **${{ matrix.region }} desktop**
+      - name: Upload PR build to S3
+        id: s3_upload_pr
+        if: github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository &&
+            env.UPLOAD_PR_ASSETS != 'false'
+        env:
+          S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
+          OBJ_KEY: "${{ steps.build_step.outputs.output_name }}"
+        run: |
+          aws s3 cp "${{ steps.build_step.outputs.output_path }}" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
+          echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
 
-      #       Download from this run:
-      #       - [Actions Artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+      - name: Presign PR artifact
+        id: presign_pr
+        if: steps.s3_upload_pr.outputs.s3_uri &&
+            github.event_name == 'pull_request' &&
+            env.UPLOAD_PR_ASSETS != 'false'
+        env:
+          S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
+          OBJ_KEY: "${{ steps.build_step.outputs.output_name }}"
+        run: |
+          URL="$(aws s3 presign "s3://${S3_BUCKET}/${OBJ_KEY}" --expires-in 604800)"
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
 
-      #       Artifact: `${{ steps.build_step.outputs.output_name }}`
-      #       > Artifacts expire after 90 days.
+      - name: Comment with download link (peter-evans)
+        if: steps.presign_pr.outputs.url &&
+            github.event_name == 'pull_request' &&
+            env.UPLOAD_PR_ASSETS != 'false'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ✅ **PR build uploaded** for **${{ matrix.region }} desktop**
 
-      # - name: Create GitHub Release & attach assets (only on tag releases)
-      #   if: startsWith(github.ref, 'refs/tags/')
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: ${{ github.ref_name }}
-      #     name: Release ${{ github.ref_name }}
-      #     draft: false
-      #     prerelease: false
-      #     files: ${{ steps.build_step.outputs.output_path }}
+            **File:** `${{ steps.build_step.outputs.output_name }}`
+            **Base tag:** `${{ steps.ver.outputs.base_tag }}`
+            **Commit:** `${{ steps.ver.outputs.short_sha }}`
+
+            **Download:** [Presigned URL](${{ steps.presign_pr.outputs.url }}) _(expires in ~7 days)_
+
+      - name: Invalidate CloudFront (optional for PR)
+        if: steps.s3_upload_pr.outputs.s3_uri &&
+            env.UPLOAD_PR_ASSETS != 'false' &&
+            env.CF_DIST_ID
+        env:
+          CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
+          INVALIDATION_PATHS: "/${{ steps.build_step.outputs.output_name }}"
+        run: |
+          aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "$INVALIDATION_PATHS"
+
+      # ---------- Tag uploads ----------
+      - name: Configure AWS (tag)
+        if: startsWith(github.ref, 'refs/tags/') &&
+            env.UPLOAD_TAG_ASSETS != 'false'
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: tachyon-tag-upload-${{ github.run_id }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload tag build to S3 (permanent)
+        id: s3_upload_tag
+        if: startsWith(github.ref, 'refs/tags/') &&
+            env.UPLOAD_TAG_ASSETS != 'false'
+        env:
+          S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
+          OBJ_KEY: "releases/${{ steps.ver.outputs.version }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
+        run: |
+          aws s3 cp "${{ steps.build_step.outputs.output_path }}" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
+          echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
+
+      - name: Invalidate CloudFront (optional for tags)
+        if: steps.s3_upload_tag.outputs.s3_uri &&
+            env.UPLOAD_TAG_ASSETS != 'false' &&
+            env.CF_DIST_ID
+        env:
+          CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
+          INVALIDATION_PATHS: "/releases/${{ steps.ver.outputs.version }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
+        run: |
+          aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "$INVALIDATION_PATHS"
