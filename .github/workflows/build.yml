@@ -22,7 +22,6 @@ jobs:
   build:
     runs-on: ubuntu-tachyon
     environment: production
-    # Default the upload gates to 'true' and allow repo/env variables to override.
     env:
       UPLOAD_PR_ASSETS:  ${{ vars.UPLOAD_PR_ASSETS  || 'true' }}
       UPLOAD_TAG_ASSETS: ${{ vars.UPLOAD_TAG_ASSETS || 'true' }}
@@ -43,7 +42,7 @@ jobs:
         with:
           fetch-depth: 0  # need tags/commits for versioning
 
-      # If we were triggered by the tag workflow finishing, resolve and switch to the newest semver tag
+      # If triggered by the tag workflow finishing, resolve and switch to the newest semver tag
       - name: Detect latest semver tag (only for workflow_run)
         id: tagpick
         if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
@@ -58,15 +57,13 @@ jobs:
           fi
           echo "Resolved latest tag: ${TAG}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "RUN_AT_TAG=true" >> "$GITHUB_ENV"
-          echo "RESOLVED_TAG=${TAG}" >> "$GITHUB_ENV"
 
       - name: Switch to resolved tag (workflow_run)
         if: steps.tagpick.outputs.tag
         shell: bash
         run: |
           set -euo pipefail
-          git checkout "refs/tags/${RESOLVED_TAG}"
+          git checkout "refs/tags/${{ steps.tagpick.outputs.tag }}"
           echo "Now at:"
           git log -1 --oneline
 
@@ -79,9 +76,9 @@ jobs:
           BASE_VER="${LATEST_TAG#v}"
           SHORTSHA="$(git rev-parse --short=7 HEAD)"
 
-          if [[ "${RUN_AT_TAG:-}" == "true" ]]; then
+          if [[ -n "${{ steps.tagpick.outputs.tag }}" ]]; then
             MODE="tag"
-            VERSION="${RESOLVED_TAG}"
+            VERSION="${{ steps.tagpick.outputs.tag }}"
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             MODE="pr"
             VERSION="${BASE_VER}-${SHORTSHA}"
@@ -180,17 +177,20 @@ jobs:
 
       - name: Invalidate CloudFront (optional for PR)
         if: steps.s3_upload_pr.outputs.s3_uri &&
-            env.UPLOAD_PR_ASSETS != 'false' &&
-            env.CF_DIST_ID
+            env.UPLOAD_PR_ASSETS != 'false'
         env:
           CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
           INVALIDATION_PATHS: "/${{ steps.build_step.outputs.output_name }}"
         run: |
-          aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "$INVALIDATION_PATHS"
+          if [ -n "${CF_DIST_ID}" ]; then
+            aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "$INVALIDATION_PATHS"
+          else
+            echo "CF_DIST_ID not set; skipping invalidation."
+          fi
 
       # ---------- Tag uploads (permanent) ----------
       - name: Configure AWS (tag)
-        if: (startsWith(github.ref, 'refs/tags/') || env.RUN_AT_TAG == 'true') &&
+        if: (startsWith(github.ref, 'refs/tags/') || steps.tagpick.outputs.tag) &&
             env.UPLOAD_TAG_ASSETS != 'false'
         uses: aws-actions/configure-aws-credentials@v5
         with:
@@ -198,25 +198,162 @@ jobs:
           role-session-name: tachyon-tag-upload-${{ github.run_id }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Compute object version (for tag uploads)
+        id: objver
+        if: startsWith(github.ref, 'refs/tags/') || steps.tagpick.outputs.tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ steps.tagpick.outputs.tag }}" ]; then
+            echo "obj_ver=${{ steps.tagpick.outputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "obj_ver=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload tag build to S3 (permanent)
         id: s3_upload_tag
-        if: (startsWith(github.ref, 'refs/tags/') || env.RUN_AT_TAG == 'true') &&
+        if: (startsWith(github.ref, 'refs/tags/') || steps.tagpick.outputs.tag) &&
             env.UPLOAD_TAG_ASSETS != 'false'
         env:
           S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
-          OBJ_VER: ${{ env.RUN_AT_TAG == 'true' && env.RESOLVED_TAG || github.ref_name }}
+          OBJ_VER: ${{ steps.objver.outputs.obj_ver }}
           OBJ_KEY: "releases/${{ env.OBJ_VER }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
         run: |
           aws s3 cp "${{ steps.build_step.outputs.output_path }}" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
+          echo "region=${{ matrix.region }}"     >> "$GITHUB_OUTPUT"
+          echo "file=${{ steps.build_step.outputs.output_name }}" >> "$GITHUB_OUTPUT"
+          echo "obj_key=${OBJ_KEY}"             >> "$GITHUB_OUTPUT"
           echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
 
       - name: Invalidate CloudFront (optional for tags)
         if: steps.s3_upload_tag.outputs.s3_uri &&
-            env.UPLOAD_TAG_ASSETS != 'false' &&
-            env.CF_DIST_ID
+            env.UPLOAD_TAG_ASSETS != 'false'
         env:
           CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
-          OBJ_VER: ${{ env.RUN_AT_TAG == 'true' && env.RESOLVED_TAG || github.ref_name }}
+          OBJ_VER: ${{ steps.objver.outputs.obj_ver }}
           INVALIDATION_PATHS: "/releases/${{ env.OBJ_VER }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
         run: |
-          aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "$INVALIDATION_PATHS"
+          if [ -n "${CF_DIST_ID}" ]; then
+            aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "$INVALIDATION_PATHS"
+          else
+            echo "CF_DIST_ID not set; skipping invalidation."
+          fi
+
+      # Emit tiny region metadata and upload as a shared artifact (for the release job to aggregate)
+      - name: Publish region metadata (for release job)
+        if: steps.s3_upload_tag.outputs.s3_uri
+        run: |
+          mkdir -p release_meta
+          cat > release_meta/${{ matrix.region }}.txt <<EOF
+          REGION=${{ matrix.region }}
+          VERSION=${{ steps.ver.outputs.version }}
+          FILE=${{ steps.build_step.outputs.output_name }}
+          S3_KEY=${{ env.OBJ_KEY }}
+          S3_URI=s3://${{ secrets.LINUX_DIST_S3_BUCKET }}/${{ env.OBJ_KEY }}
+          EOF
+
+      - name: Upload release metadata artifact
+        if: steps.s3_upload_tag.outputs.s3_uri
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-metadata
+          path: release_meta/*.txt
+          if-no-files-found: ignore
+          retention-days: 3
+
+  publish_release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Only publish for tag-mode runs (tag push or workflow_run), and when the build matrix succeeded
+    if: ${{ needs.build.result == 'success' && (github.event_name == 'workflow_run' || startsWith(github.ref, 'refs/tags/')) }}
+    steps:
+      - name: Checkout (to get tags for compare link)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download aggregated release metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: release-metadata
+          path: release_meta
+
+      - name: Parse version and choose previous tag
+        id: versel
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(grep -h '^VERSION=' release_meta/*.txt | head -n1 | cut -d= -f2)"
+          if [[ -z "$VERSION" ]]; then
+            echo "No VERSION in metadata; abort." >&2
+            exit 1
+          fi
+
+          git fetch --tags --force
+          mapfile -t TAGS < <(git tag -l --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' || true)
+          PREV=""
+          for t in "${TAGS[@]}"; do
+            if [[ "$t" == "$VERSION" ]]; then
+              continue
+            fi
+            PREV="$t"
+            break
+          done
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prev=${PREV}"     >> "$GITHUB_OUTPUT"
+
+      - name: Build release body
+        id: body
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.versel.outputs.version }}"
+          PREV="${{ steps.versel.outputs.prev }}"
+
+          NA_FILE="$(grep -h '^FILE=' release_meta/NA.txt   | cut -d= -f2 || true)"
+          ROW_FILE="$(grep -h '^FILE=' release_meta/RoW.txt | cut -d= -f2 || true)"
+
+          {
+            echo "${VERSION}"
+            echo
+            echo "Images"
+            echo
+            if [[ -n "$NA_FILE" ]]; then
+              echo "NA"
+              echo
+              echo "Tachyon desktop - ${NA_FILE}"
+              echo
+            fi
+            if [[ -n "$ROW_FILE" ]]; then
+              echo "RoW"
+              echo
+              echo "Tachyon desktop - ${ROW_FILE}"
+              echo
+            fi
+            echo
+            echo "<list of changes - this is a meta tag>"
+            echo
+            echo "Full Changelog: ${PREV:-0.0.0}...${VERSION}"
+            echo
+            echo "Contributors"
+            echo " x,"
+            echo
+            echo " y, z"
+          } > RELEASE_BODY.md
+
+          echo "Built RELEASE_BODY.md:"
+          sed -n '1,200p' RELEASE_BODY.md
+
+      - name: Create/Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versel.outputs.version }}
+          name: ${{ steps.versel.outputs.version }}
+          body_path: RELEASE_BODY.md
+          draft: false
+          prerelease: ${{ contains(steps.versel.outputs.version, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
