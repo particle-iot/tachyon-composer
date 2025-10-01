@@ -8,6 +8,9 @@ on:
       - '[0-9]+.[0-9]+.[0-9]+'
       - '[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Tag on PR Merge"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -38,7 +41,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # need tags/commits for versioning
+
+      # If we were triggered by the tag workflow finishing, resolve and switch to the newest semver tag
+      - name: Detect latest semver tag (only for workflow_run)
+        id: tagpick
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          TAG="$(git tag -l --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' | head -n1 || true)"
+          if [[ -z "${TAG}" ]]; then
+            echo "No semver tag found; aborting." >&2
+            exit 1
+          fi
+          echo "Resolved latest tag: ${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "RUN_AT_TAG=true" >> "$GITHUB_ENV"
+          echo "RESOLVED_TAG=${TAG}" >> "$GITHUB_ENV"
+
+      - name: Switch to resolved tag (workflow_run)
+        if: steps.tagpick.outputs.tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout "refs/tags/${RESOLVED_TAG}"
+          echo "Now at:"
+          git log -1 --oneline
 
       - name: Determine version
         id: ver
@@ -47,9 +77,12 @@ jobs:
           set -euo pipefail
           LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo '0.0.0')"
           BASE_VER="${LATEST_TAG#v}"
-          SHORTSHA="$(git rev-parse --short=7 ${{ github.sha }})"
+          SHORTSHA="$(git rev-parse --short=7 HEAD)"
 
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          if [[ "${RUN_AT_TAG:-}" == "true" ]]; then
+            MODE="tag"
+            VERSION="${RESOLVED_TAG}"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             MODE="pr"
             VERSION="${BASE_VER}-${SHORTSHA}"
           elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
@@ -60,10 +93,11 @@ jobs:
             VERSION="${BASE_VER}-${SHORTSHA}"
           fi
 
-          echo "base_tag=${BASE_VER}"        >> "$GITHUB_OUTPUT"
-          echo "short_sha=${SHORTSHA}"       >> "$GITHUB_OUTPUT"
-          echo "version=${VERSION}"          >> "$GITHUB_OUTPUT"
-          echo "mode=${MODE}"                >> "$GITHUB_OUTPUT"
+          echo "base_tag=${BASE_VER}"  >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORTSHA}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}"    >> "$GITHUB_OUTPUT"
+          echo "mode=${MODE}"          >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${VERSION} (mode=${MODE})"
 
       - name: Build (Ubuntu 24.04)
         id: build_step
@@ -71,9 +105,10 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          if [[ "${{ steps.ver.outputs.mode }}" == "pr" ]]; then
+          if [[ "${{ steps.ver.outputs.mode }}" == "pr" || "${{ steps.ver.outputs.mode }}" == "other" ]]; then
             OUTNAME="tachyon-ubuntu-24.04-${{ matrix.region }}-desktop-${{ steps.ver.outputs.base_tag }}-${{ steps.ver.outputs.short_sha }}.zip"
           else
+            # tag / workflow_run(tag)
             OUTNAME="tachyon-ubuntu-24.04-${{ matrix.region }}-desktop-${{ steps.ver.outputs.version }}.zip"
           fi
 
@@ -153,9 +188,9 @@ jobs:
         run: |
           aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "$INVALIDATION_PATHS"
 
-      # ---------- Tag uploads ----------
+      # ---------- Tag uploads (permanent) ----------
       - name: Configure AWS (tag)
-        if: startsWith(github.ref, 'refs/tags/') &&
+        if: (startsWith(github.ref, 'refs/tags/') || env.RUN_AT_TAG == 'true') &&
             env.UPLOAD_TAG_ASSETS != 'false'
         uses: aws-actions/configure-aws-credentials@v5
         with:
@@ -165,11 +200,12 @@ jobs:
 
       - name: Upload tag build to S3 (permanent)
         id: s3_upload_tag
-        if: startsWith(github.ref, 'refs/tags/') &&
+        if: (startsWith(github.ref, 'refs/tags/') || env.RUN_AT_TAG == 'true') &&
             env.UPLOAD_TAG_ASSETS != 'false'
         env:
           S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
-          OBJ_KEY: "releases/${{ steps.ver.outputs.version }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
+          OBJ_VER: ${{ env.RUN_AT_TAG == 'true' && env.RESOLVED_TAG || github.ref_name }}
+          OBJ_KEY: "releases/${{ env.OBJ_VER }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
         run: |
           aws s3 cp "${{ steps.build_step.outputs.output_path }}" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
           echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
@@ -180,6 +216,7 @@ jobs:
             env.CF_DIST_ID
         env:
           CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
-          INVALIDATION_PATHS: "/releases/${{ steps.ver.outputs.version }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
+          OBJ_VER: ${{ env.RUN_AT_TAG == 'true' && env.RESOLVED_TAG || github.ref_name }}
+          INVALIDATION_PATHS: "/releases/${{ env.OBJ_VER }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
         run: |
           aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "$INVALIDATION_PATHS"
