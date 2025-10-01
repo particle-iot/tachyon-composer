@@ -210,28 +210,25 @@ jobs:
             echo "obj_ver=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
+      # Upload tag build to S3 (use the *step output*, not env)
       - name: Upload tag build to S3 (permanent)
         id: s3_upload_tag
         if: (startsWith(github.ref, 'refs/tags/') || steps.tagpick.outputs.tag) &&
             env.UPLOAD_TAG_ASSETS != 'false'
         env:
           S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
-          OBJ_VER: ${{ steps.objver.outputs.obj_ver }}
-          OBJ_KEY: "releases/${{ env.OBJ_VER }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
+          OBJ_KEY: "releases/${{ steps.objver.outputs.obj_ver }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
         run: |
           aws s3 cp "${{ steps.build_step.outputs.output_path }}" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
-          echo "region=${{ matrix.region }}"     >> "$GITHUB_OUTPUT"
-          echo "file=${{ steps.build_step.outputs.output_name }}" >> "$GITHUB_OUTPUT"
-          echo "obj_key=${OBJ_KEY}"             >> "$GITHUB_OUTPUT"
           echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
+          echo "obj_key=${OBJ_KEY}" >> "$GITHUB_OUTPUT"
 
+      # Invalidate CloudFront (use the same *step output*)
       - name: Invalidate CloudFront (optional for tags)
-        if: steps.s3_upload_tag.outputs.s3_uri &&
-            env.UPLOAD_TAG_ASSETS != 'false'
+        if: steps.s3_upload_tag.outputs.s3_uri && env.UPLOAD_TAG_ASSETS != 'false'
         env:
           CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
-          OBJ_VER: ${{ steps.objver.outputs.obj_ver }}
-          INVALIDATION_PATHS: "/releases/${{ env.OBJ_VER }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
+          INVALIDATION_PATHS: "/releases/${{ steps.objver.outputs.obj_ver }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
         run: |
           if [ -n "${CF_DIST_ID}" ]; then
             aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "$INVALIDATION_PATHS"
@@ -248,8 +245,8 @@ jobs:
           REGION=${{ matrix.region }}
           VERSION=${{ steps.ver.outputs.version }}
           FILE=${{ steps.build_step.outputs.output_name }}
-          S3_KEY=${{ env.OBJ_KEY }}
-          S3_URI=s3://${{ secrets.LINUX_DIST_S3_BUCKET }}/${{ env.OBJ_KEY }}
+          S3_KEY=${{ steps.s3_upload_tag.outputs.obj_key }}
+          S3_URI=s3://${{ secrets.LINUX_DIST_S3_BUCKET }}/${{ steps.s3_upload_tag.outputs.obj_key }}
           EOF
 
       - name: Upload release metadata artifact
