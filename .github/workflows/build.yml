@@ -445,17 +445,23 @@ jobs:
       - name: Update shared S3 release metadata (replace existing 24.04 entries for this version)
         run: |
           set -euo pipefail
-          BUCKET="${{ secrets.LINUX_DIST_S3_BUCKET }}"
+
+          # ---- Inputs via plain envs (no GitHub context in this step) ----
+          : "${LINUX_DIST_S3_BUCKET:?Set LINUX_DIST_S3_BUCKET in your Environment/Variables}"
           KEY="${RELEASE_METADATA_KEY:-meta/releases.json}"
-          VERSION="${{ steps.versel.outputs.version }}"
+          VERSION="${VERSION:?VERSION must be exported earlier (e.g. from Determine version step)}"
+          PUSH="${PUSH_JSON:-false}"
 
           TMP_IN="$(mktemp)"
           TMP_OUT="$(mktemp)"
 
+          # Helper: remove existing entries for THIS version matching
+          # (distribution_version=24.04 AND same {region, variant, board}) for NA/RoW,
+          # then append fresh NA/RoW entries we just built.
           apply_merge() {
             jq \
               --arg ver "$VERSION" \
-              --argjson na "$(cat na_24_04_desktop.json)" \
+              --argjson na  "$(cat na_24_04_desktop.json)" \
               --argjson row "$(cat row_24_04_desktop.json)" \
               '
               .builds |=
@@ -476,37 +482,66 @@ jobs:
               ' "$1" > "$2"
           }
 
-          if aws s3api head-object --bucket "$BUCKET" --key "$KEY" > head.json 2>/dev/null; then
-            ETAG=$(jq -r '.ETag' head.json | tr -d '"')
-            aws s3 cp "s3://${BUCKET}/${KEY}" "$TMP_IN"
-            apply_merge "$TMP_IN" "$TMP_OUT"
+          # Always fetch current file (or start with an empty skeleton),
+          # merge locally, and PRINT the result to logs for review.
+          if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY" > head.json 2>/dev/null; then
+            aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY}" "$TMP_IN"
+          else
+            echo '{ "builds": [] }' > "$TMP_IN"
+          fi
+          apply_merge "$TMP_IN" "$TMP_OUT"
+
+          echo "----- Merged release metadata preview (${KEY}) -----"
+          jq . "$TMP_OUT" || cat "$TMP_OUT"
+          echo "----- end preview -----"
+
+          # Only push if explicitly enabled (PUSH_JSON=true)
+          if [[ "$PUSH" == "true" ]]; then
+            echo "PUSH_JSON=true → attempting conditional S3 update with optimistic lock…"
 
             attempt=1; max=3
             while :; do
-              if aws s3api put-object --bucket "$BUCKET" --key "$KEY" \
-                   --body "$TMP_OUT" --content-type "application/json" \
-                   --if-match "$ETAG" >/dev/null 2>&1; then
-                echo "Release metadata updated."
+              # (Re)read ETag and latest file before each attempt
+              if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY" > head.json 2>/dev/null; then
+                ETAG="$(jq -r '.ETag' head.json | tr -d '"')"
+                aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY}" "$TMP_IN"
+              else
+                ETAG=""
+                echo '{ "builds": [] }' > "$TMP_IN"
+              fi
+
+              # Re-apply the merge against the freshest content
+              apply_merge "$TMP_IN" "$TMP_OUT"
+
+              if [[ -n "$ETAG" ]]; then
+                # Optimistic lock: only succeed if the object hasn't changed (If-Match)
+                if aws s3api put-object \
+                      --bucket "$LINUX_DIST_S3_BUCKET" \
+                      --key "$KEY" \
+                      --body "$TMP_OUT" \
+                      --content-type "application/json" \
+                      --if-match "$ETAG" >/dev/null 2>&1; then
+                  echo "✅ Updated ${KEY} (existing file, ETag matched)."
+                  break
+                fi
+                if (( attempt >= max )); then
+                  echo "❌ Failed to update after ${max} attempts (concurrent modification persisted)." >&2
+                  exit 1
+                fi
+                echo "⚠️  ETag mismatch (file changed upstream). Retrying in 10s… (attempt $((attempt+1))/${max})"
+                sleep 10
+                attempt=$((attempt+1))
+              else
+                # Object did not exist — create it (no If-Match needed)
+                aws s3api put-object \
+                  --bucket "$LINUX_DIST_S3_BUCKET" \
+                  --key "$KEY" \
+                  --body "$TMP_OUT" \
+                  --content-type "application/json" >/dev/null
+                echo "✅ Created ${KEY} (new file)."
                 break
               fi
-
-              if (( attempt >= max )); then
-                echo "Failed to update metadata after ${max} attempts." >&2
-                exit 1
-              fi
-
-              echo "Conflict, reloading in 10s…"
-              sleep 10
-              aws s3api head-object --bucket "$BUCKET" --key "$KEY" > head.json
-              ETAG=$(jq -r '.ETag' head.json | tr -d '"')
-              aws s3 cp "s3://${BUCKET}/${KEY}" "$TMP_IN"
-              apply_merge "$TMP_IN" "$TMP_OUT"
-              attempt=$((attempt+1))
             done
           else
-            echo '{ "builds": [] }' > "$TMP_IN"
-            apply_merge "$TMP_IN" "$TMP_OUT"
-            aws s3api put-object --bucket "$BUCKET" --key "$KEY" \
-              --body "$TMP_OUT" --content-type "application/json" >/dev/null
-            echo "Release metadata created."
+            echo "PUSH_JSON != 'true' → dry run only (nothing pushed)."
           fi
