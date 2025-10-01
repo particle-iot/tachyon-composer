@@ -22,7 +22,6 @@ jobs:
   build:
     runs-on: ubuntu-tachyon
     environment: production
-    # Upload toggles (default true; override via repo/env variables)
     env:
       UPLOAD_PR_ASSETS:  ${{ vars.UPLOAD_PR_ASSETS  || 'true' }}
       UPLOAD_TAG_ASSETS: ${{ vars.UPLOAD_TAG_ASSETS || 'true' }}
@@ -43,7 +42,7 @@ jobs:
         with:
           fetch-depth: 0  # need tags/commits for versioning
 
-      # When triggered by workflow_run (Tag on PR Merge finished), resolve newest semver tag
+      # If triggered by the tag workflow finishing, resolve and switch to the newest semver tag
       - name: Detect latest semver tag (only for workflow_run)
         id: tagpick
         if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
@@ -226,7 +225,6 @@ jobs:
           echo "obj_key=${OBJ_KEY}"             >> "$GITHUB_OUTPUT"
           echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
 
-      # CDN invalidation for tag uploads (useful on reruns)
       - name: Invalidate CloudFront (optional for tags)
         if: steps.s3_upload_tag.outputs.s3_uri &&
             env.UPLOAD_TAG_ASSETS != 'false'
@@ -267,9 +265,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # needed to create/update GitHub Releases
-    # Only publish when the entire build matrix succeeded (both NA and RoW)
-    if: ${{ needs.build.result == 'success' }}
+      contents: write
+    # Only publish for tag-mode runs (tag push or workflow_run), and when the build matrix succeeded
+    if: ${{ needs.build.result == 'success' && (github.event_name == 'workflow_run' || startsWith(github.ref, 'refs/tags/')) }}
     steps:
       - name: Checkout (to get tags for compare link)
         uses: actions/checkout@v4
