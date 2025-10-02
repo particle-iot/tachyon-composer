@@ -316,6 +316,17 @@ jobs:
           echo "== ls (prefix) =="
           aws s3 ls "s3://${LINUX_DIST_S3_BUCKET}/meta/" || true
 
+      # --- Ensure artifact dir exists before download to avoid 'No such file or directory'
+      - name: Prepare artifact folder
+        run: mkdir -p release_meta
+
+      - name: Download aggregated release metadata
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-metadata-*
+          path: release_meta
+          merge-multiple: true
+
       - name: Download aggregated release metadata
         uses: actions/download-artifact@v4
         with:
