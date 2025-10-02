@@ -279,6 +279,10 @@ jobs:
     permissions:
       contents: write
       id-token: write
+    # ✅ Only run after successful matrix AND not on PRs; allow tag push or the tag workflow-run
+    if: ${{ needs.build.result == 'success'
+           && github.event_name != 'pull_request'
+           && (github.event_name == 'workflow_run' || startsWith(github.ref, 'refs/tags/')) }}
     env:
       # make these shell envs available to all steps
       LINUX_DIST_S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
