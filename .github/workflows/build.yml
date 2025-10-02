@@ -427,6 +427,36 @@ jobs:
             echo "PUSH_JSON=${{ vars.PUSH_JSON }}" >> "$GITHUB_ENV"
           fi
 
+      - name: Show current manifest summary (pre-merge)
+        run: |
+          set -euo pipefail
+          KEY="${RELEASE_METADATA_KEY:-meta/tachyon-latest.json}"
+          echo "🔎 Using manifest: s3://${LINUX_DIST_S3_BUCKET}/${KEY}"
+
+          TMP="$(mktemp)"
+          if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY" > head.json 2>/dev/null; then
+            echo "📄 Head-object:"
+            cat head.json | jq -C '{Key: "'"$KEY"'", Size, ETag, LastModified, ContentType: (.ContentType // "unknown")}'
+            aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY}" "$TMP" >/dev/null
+
+            echo "📄 existing builds: $(jq '.builds|length' "$TMP" 2>/dev/null || echo 0)"
+            echo "📄 schema: $(jq -r '.["$schema"] // "absent"' "$TMP" 2>/dev/null || echo absent)"
+
+            echo "----- First 3 builds (pre-merge) -----"
+            jq -C '.builds[:3]' "$TMP" || cat "$TMP"
+            echo "----- End first 3 -----"
+
+            echo "----- FULL manifest (pre-merge) -----"
+            jq -C . "$TMP" || cat "$TMP"
+            echo "----- End FULL manifest -----"
+          else
+            echo "📄 No existing object; will seed new manifest"
+            echo '{ "$schema": "https://linux-dist.particle.io/schema/release_metadata_v1.json", "builds": [] }' > "$TMP"
+          fi
+
+          # Persist the temp copy for the merge step
+          echo "PRE_MERGE_MANIFEST=$TMP" >> "$GITHUB_ENV"
+
       - name: Build JSON entries for 24.04 (NA & RoW)
         id: json24
         run: |
@@ -482,90 +512,80 @@ jobs:
           echo "NA_VARIANT=$NA_VARIANT" >> $GITHUB_ENV
           echo "ROW_VARIANT=$ROW_VARIANT" >> $GITHUB_ENV
 
-      - name: Update shared S3 release metadata (replace existing 24.04 entries for this {region,variant,board})
+      - name: Update shared S3 release metadata (replace existing 24.04 entries for {region,variant,board})
         run: |
           set -euo pipefail
 
-          # ---- Inputs via plain envs (no GitHub context interpolation here) ----
-          : "${LINUX_DIST_S3_BUCKET:?Set LINUX_DIST_S3_BUCKET in your Environment/Variables}"
-          KEY="${RELEASE_METADATA_KEY:-meta/releases.json}"
-          VERSION="${VERSION:?VERSION must be exported earlier (e.g. from Determine version step)}"
+          : "${LINUX_DIST_S3_BUCKET:?Set LINUX_DIST_S3_BUCKET as an env/variable}"
+          KEY="${RELEASE_METADATA_KEY:-meta/tachyon-latest.json}"
+          VERSION="${VERSION:?VERSION must be exported earlier}"
           PUSH="${PUSH_JSON:-false}"
 
-          TMP_IN="$(mktemp)"
+          # Use the pre-fetched copy from the summary step
+          : "${PRE_MERGE_MANIFEST:?PRE_MERGE_MANIFEST not set}"
+          TMP_IN="$PRE_MERGE_MANIFEST"
           TMP_OUT="$(mktemp)"
 
-          # Helper: remove existing entries with distribution_version=24.04 and matching {region, variant, board} (for NA/RoW), then append fresh entries.
+          # Merge helper: delete all 24.04 rows that match NA/RoW {region, variant, board}, then append the new two rows.
           apply_merge() {
             jq \
               --argjson na  "$(cat "na_24_04_${NA_VARIANT}.json")" \
               --argjson row "$(cat "row_24_04_${ROW_VARIANT}.json")" \
+              --arg schema "https://linux-dist.particle.io/schema/release_metadata_v1.json" \
               '
-              del(
-                .builds[]
-                | select(
-                    .distribution_version == "24.04" and
-                    (
-                      (.region == $na.region  and .variant == $na.variant  and .board == $na.board) or
-                      (.region == $row.region and .variant == $row.variant and .board == $row.board)
-                    )
+              . as $root
+              | { "$schema": ($root["$schema"] // $schema), builds: ($root.builds // []) }
+              | del(
+                  .builds[]
+                  | select(
+                      .distribution_version == "24.04" and
+                      (
+                        (.region == $na.region  and .variant == $na.variant  and .board == $na.board) or
+                        (.region == $row.region and .variant == $row.variant and .board == $row.board)
+                      )
+                  )
                 )
-              )
               | .builds += [ $na, $row ]
               ' "$1" > "$2"
           }
 
-          # Always fetch current file (or start with an empty skeleton),
-          # merge locally, and PRINT the result to logs for review.
-          if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY" > head.json 2>/dev/null; then
-            aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY}" "$TMP_IN"
-          else
-            echo '{ "builds": [] }' > "$TMP_IN"
-          fi
           apply_merge "$TMP_IN" "$TMP_OUT"
 
           echo "----- Merged release metadata preview (${KEY}) -----"
-          jq . "$TMP_OUT" || cat "$TMP_OUT"
+          jq -C . "$TMP_OUT" || cat "$TMP_OUT"
           echo "----- end preview -----"
 
-          # Only push if explicitly enabled (PUSH_JSON=true)
           if [[ "$PUSH" == "true" ]]; then
             echo "PUSH_JSON=true → attempting conditional S3 update with optimistic lock…"
 
             attempt=1; max=3
             while :; do
-              # (Re)read ETag and latest file before each attempt
               if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY" > head.json 2>/dev/null; then
                 ETAG="$(jq -r '.ETag' head.json | tr -d '"')"
-                aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY}" "$TMP_IN"
+                FRESH="$(mktemp)"
+                aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY}" "$FRESH" >/dev/null
+                apply_merge "$FRESH" "$TMP_OUT"
               else
                 ETAG=""
-                echo '{ "builds": [] }' > "$TMP_IN"
               fi
 
-              # Re-apply the merge against the freshest content
-              apply_merge "$TMP_IN" "$TMP_OUT"
-
               if [[ -n "$ETAG" ]]; then
-                # Optimistic lock: only succeed if the object hasn't changed (If-Match)
                 if aws s3api put-object \
                       --bucket "$LINUX_DIST_S3_BUCKET" \
                       --key "$KEY" \
                       --body "$TMP_OUT" \
                       --content-type "application/json" \
                       --if-match "$ETAG" >/dev/null 2>&1; then
-                  echo "✅ Updated ${KEY} (existing file, ETag matched)."
+                  echo "✅ Updated ${KEY} (ETag matched)."
                   break
                 fi
                 if (( attempt >= max )); then
                   echo "❌ Failed to update after ${max} attempts (concurrent modification persisted)." >&2
                   exit 1
                 fi
-                echo "⚠️  ETag mismatch (file changed upstream). Retrying in 10s… (attempt $((attempt+1))/${max})"
-                sleep 10
-                attempt=$((attempt+1))
+                echo "⚠️  ETag mismatch; retrying in 10s… (attempt $((attempt+1))/${max})"
+                sleep 10; attempt=$((attempt+1))
               else
-                # Object did not exist — create it (no If-Match needed)
                 aws s3api put-object \
                   --bucket "$LINUX_DIST_S3_BUCKET" \
                   --key "$KEY" \
