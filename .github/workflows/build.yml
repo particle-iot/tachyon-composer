@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-tachyon
     environment: production
     env:
-      UPLOAD_PR_ASSETS:  ${{ vars.UPLOAD_PR_ASSETS  || 'true' }}
+      UPLOAD_PR_ASSETS: ${{ vars.UPLOAD_PR_ASSETS  || 'true' }}
       UPLOAD_TAG_ASSETS: ${{ vars.UPLOAD_TAG_ASSETS || 'true' }}
     strategy:
       fail-fast: false
@@ -211,25 +211,23 @@ jobs:
             echo "obj_ver=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
-      # Upload tag build to S3 (use the *step output*, not env)
       - name: Upload tag build to S3 (permanent)
         id: s3_upload_tag
         if: (startsWith(github.ref, 'refs/tags/') || steps.tagpick.outputs.tag) &&
             env.UPLOAD_TAG_ASSETS != 'false'
         env:
           S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
-          OBJ_KEY: "releases/${{ steps.objver.outputs.obj_ver }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
+          OBJ_KEY: "releases/${{ steps.build_step.outputs.output_name }}"
         run: |
           aws s3 cp "${{ steps.build_step.outputs.output_path }}" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
           echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
           echo "obj_key=${OBJ_KEY}" >> "$GITHUB_OUTPUT"
 
-      # Invalidate CloudFront (use the same *step output*)
       - name: Invalidate CloudFront (optional for tags)
         if: steps.s3_upload_tag.outputs.s3_uri && env.UPLOAD_TAG_ASSETS != 'false'
         env:
           CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
-          INVALIDATION_PATHS: "/releases/${{ steps.objver.outputs.obj_ver }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
+          INVALIDATION_PATHS: "/releases/${{ steps.build_step.outputs.output_name }}"
         run: |
           if [ -n "${CF_DIST_ID}" ]; then
             aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "$INVALIDATION_PATHS"
@@ -237,7 +235,6 @@ jobs:
             echo "CF_DIST_ID not set; skipping invalidation."
           fi
 
-      # Compute SHA256 for tag/workflow_run builds (used later in the release metadata JSON)
       - name: Compute SHA256 (tag builds)
         id: sha
         if: (startsWith(github.ref, 'refs/tags/') || steps.tagpick.outputs.tag)
@@ -247,7 +244,6 @@ jobs:
           SHA="$(sha256sum "${{ steps.build_step.outputs.output_path }}" | awk '{print $1}')"
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
 
-      # Emit tiny region metadata and upload as a shared artifact (for the release job to aggregate)
       - name: Publish region metadata (for release job)
         if: steps.s3_upload_tag.outputs.s3_uri
         run: |
@@ -266,7 +262,6 @@ jobs:
         if: steps.s3_upload_tag.outputs.s3_uri
         uses: actions/upload-artifact@v4
         with:
-          # 👇 unique name per matrix region/variant to avoid conflicts
           name: release-metadata-${{ matrix.region }}-${{ matrix.variant }}
           path: release_meta/*.txt
           if-no-files-found: ignore
@@ -279,12 +274,10 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    # ✅ Only run after successful matrix AND not on PRs; allow tag push or the tag workflow-run
-    if: ${{ needs.build.result == 'success'
-           && github.event_name != 'pull_request'
-           && (github.event_name == 'workflow_run' || startsWith(github.ref, 'refs/tags/')) }}
+    if: ${{ needs.build.result == 'success' &&
+           github.event_name != 'pull_request' &&
+           (github.event_name == 'workflow_run' || startsWith(github.ref, 'refs/tags/')) }}
     env:
-      # make these shell envs available to all steps
       LINUX_DIST_S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
       AWS_REGION:           ${{ secrets.AWS_REGION }}
       RELEASE_METADATA_KEY: ${{ vars.RELEASE_METADATA_KEY || 'meta/tachyon-latest.json' }}
@@ -316,16 +309,8 @@ jobs:
           echo "== ls (prefix) =="
           aws s3 ls "s3://${LINUX_DIST_S3_BUCKET}/meta/" || true
 
-      # --- Ensure artifact dir exists before download to avoid 'No such file or directory'
       - name: Prepare artifact folder
         run: mkdir -p release_meta
-
-      - name: Download aggregated release metadata
-        uses: actions/download-artifact@v4
-        with:
-          pattern: release-metadata-*
-          path: release_meta
-          merge-multiple: true
 
       - name: Download aggregated release metadata
         uses: actions/download-artifact@v4
@@ -338,41 +323,29 @@ jobs:
         run: |
           set -euo pipefail
           ls -l release_meta || true
-          test -f release_meta/NA-desktop.txt # adjust if more variants added
-          test -f release_meta/RoW-desktop.txt # adjust if more variants added
+          test -f release_meta/NA-desktop.txt   # adjust if more variants added
+          test -f release_meta/RoW-desktop.txt  # adjust if more variants added
 
       - name: Parse version and choose previous tag
         id: versel
         run: |
           set -euo pipefail
-          # Grab the version from the region metadata
           VERSION="$(grep -h '^VERSION=' release_meta/*.txt | head -n1 | cut -d= -f2 | tr -d '\r')"
-
           if [[ -z "$VERSION" ]]; then
             echo "No VERSION in metadata; abort." >&2
             exit 1
           fi
-          # Optional: enforce simple semver (x.y.z[-suffix] is fine; tighten if needed)
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.].*)?$ ]]; then
             echo "VERSION '$VERSION' doesn't look like semver; abort." >&2
             exit 1
           fi
-
-          # Expose both as step outputs (already used elsewhere)…
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-          # …and also as an env var for later steps in this job.
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-
           git fetch --tags --force
-
-          # Sorted descending (semver aware)
           mapfile -t TAGS < <(git tag -l --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)
-
           PREV=""
           for ((i=0; i<${#TAGS[@]}; i++)); do
             if [[ "${TAGS[$i]}" == "$VERSION" ]]; then
-              # previous tag is the one AFTER current in the sorted list
               idx=$((i+1))
               if [[ $idx -lt ${#TAGS[@]} ]]; then
                 PREV="${TAGS[$idx]}"
@@ -380,7 +353,6 @@ jobs:
               break
             fi
           done
-
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "prev=$PREV"      >> "$GITHUB_OUTPUT"
 
@@ -399,22 +371,18 @@ jobs:
           set -euo pipefail
           FROM="${{ steps.versel.outputs.prev }}"
           TO="${{ steps.versel.outputs.version }}"
-
           if [[ -z "$FROM" ]]; then
             RANGE="$TO"
           else
             RANGE="$FROM..$TO"
           fi
-
           git fetch --quiet --tags --force
-
           MAP="$(git shortlog -sne $RANGE || true)"
           if [[ -z "$MAP" ]]; then
             LIST="(none)"
           else
             LIST="$(echo "$MAP" | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+(.+) <.*>/- \2 (\1 commits)/')"
           fi
-
           {
             echo 'contributors<<EOF'
             echo "$LIST"
@@ -427,15 +395,10 @@ jobs:
           set -euo pipefail
           VERSION="${{ steps.versel.outputs.version }}"
           PREV="${{ steps.versel.outputs.prev }}"
-
           NA_FILE="$(grep -h '^FILE=' release_meta/NA-desktop.txt   | cut -d= -f2 || true)"
           ROW_FILE="$(grep -h '^FILE=' release_meta/RoW-desktop.txt | cut -d= -f2 || true)"
-
           # Take the action's changelog and drop category headings like "## :package: Uncategorized"
-          CLEAN_CHANGES="$(printf '%s\n' "${{ steps.changelog.outputs.changelog }}" \
-            | sed -E '/^##[[:space:]:[:alnum:]_-]+$/d' \
-            | sed -E '/^##[[:space:]]*:package:[[:space:]]*Uncategorized$/Id')"
-
+          CLEAN_CHANGES="$(printf '%s\n' "${{ steps.changelog.outputs.changelog }}" | sed -E '/^##[[:space:]:[:alnum:]_-]+$/d' | sed -E '/^##[[:space:]]*:package:[[:space:]]*Uncategorized$/Id')"
           {
             echo "${VERSION}"
             echo
@@ -446,7 +409,7 @@ jobs:
             echo "Changes"
             echo
             # If the sanitized section is empty, print a friendlier default
-            if [ -z "$(printf '%s' "$CLEAN_CHANGES" | sed '/^[[:space:]]*$/d')" ]; then
+            if [ -z "$(printf '%s\n' "$CLEAN_CHANGES" | sed '/^[[:space:]]*$/d')" ]; then
               echo "- No categorized changes"
             else
               printf '%s\n' "$CLEAN_CHANGES"
@@ -457,7 +420,6 @@ jobs:
             echo "Contributors"
             echo "${{ steps.contribs.outputs.contributors }}"
           } > RELEASE_BODY.md
-
           echo "Built RELEASE_BODY.md:"
           sed -n '1,200p' RELEASE_BODY.md
 
@@ -477,20 +439,16 @@ jobs:
           set -euo pipefail
           KEY="${RELEASE_METADATA_KEY:-meta/tachyon-latest.json}"
           echo "🔎 Using manifest: s3://${LINUX_DIST_S3_BUCKET}/${KEY}"
-
           TMP="$(mktemp)"
           if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY" > head.json 2>/dev/null; then
             echo "📄 Head-object:"
             cat head.json | jq -C '{Key: "'"$KEY"'", Size, ETag, LastModified, ContentType: (.ContentType // "unknown")}'
             aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY}" "$TMP" >/dev/null
-
             echo "📄 existing builds: $(jq '.builds|length' "$TMP" 2>/dev/null || echo 0)"
             echo "📄 schema: $(jq -r '.["$schema"] // "absent"' "$TMP" 2>/dev/null || echo absent)"
-
             echo "----- First 3 builds (pre-merge) -----"
             jq -C '.builds[:3]' "$TMP" || cat "$TMP"
             echo "----- End first 3 -----"
-
             echo "----- FULL manifest (pre-merge) -----"
             jq -C . "$TMP" || cat "$TMP"
             echo "----- End FULL manifest -----"
@@ -498,8 +456,6 @@ jobs:
             echo "📄 No existing object; will seed new manifest"
             echo '{ "$schema": "https://linux-dist.particle.io/schema/release_metadata_v1.json", "builds": [] }' > "$TMP"
           fi
-
-          # Persist the temp copy for the merge step
           echo "PRE_MERGE_MANIFEST=$TMP" >> "$GITHUB_ENV"
 
       - name: Build JSON entries for 24.04 (NA & RoW)
@@ -508,22 +464,17 @@ jobs:
           set -euo pipefail
           VERSION="${{ steps.versel.outputs.version }}"
           NOW="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-
           BASE_URL="${PUBLIC_RELEASE_BASE_URL:-https://linux-dist.particle.io/releases}"
-
           NA_FILE="$(grep -h '^FILE='   release_meta/NA-desktop.txt   | cut -d= -f2)"
           NA_SHA="$(grep -h '^SHA256='  release_meta/NA-desktop.txt   | cut -d= -f2)"
           ROW_FILE="$(grep -h '^FILE='  release_meta/RoW-desktop.txt  | cut -d= -f2)"
           ROW_SHA="$(grep -h '^SHA256=' release_meta/RoW-desktop.txt  | cut -d= -f2)"
-
-          NA_URL="${BASE_URL}/${VERSION}/NA/${NA_FILE}"
-          ROW_URL="${BASE_URL}/${VERSION}/RoW/${ROW_FILE}"
-
+          NA_URL="${BASE_URL}/${NA_FILE}"
+          ROW_URL="${BASE_URL}/${ROW_FILE}"
           NA_VARIANT="$(grep -h '^VARIANT=' release_meta/NA-desktop.txt   | cut -d= -f2)"
           ROW_VARIANT="$(grep -h '^VARIANT=' release_meta/RoW-desktop.txt | cut -d= -f2)"
-
-          jq -n             --arg ver "$VERSION" --arg now "$NOW" --arg url_na "$NA_URL" --arg sha_na "$NA_SHA" --arg variant "$NA_VARIANT" \
-          '{
+          jq -n --arg ver "$VERSION" --arg now "$NOW" --arg url_na "$NA_URL" --arg sha_na "$NA_SHA" --arg variant "$NA_VARIANT" \
+            '{
               release_name: ("tachyon-ubuntu-24.04-NA-" + $variant + "-" + $ver),
               version: $ver,
               region: "NA",
@@ -537,9 +488,8 @@ jobs:
               build_date: $now,
               artifacts: [{ artifact_url: $url_na, sha256_checksum: $sha_na, type: "release_image" }]
             }' > na_24_04_$NA_VARIANT.json
-
-          jq -n             --arg ver "$VERSION" --arg now "$NOW" --arg url_row "$ROW_URL" --arg sha_row "$ROW_SHA" --arg variant "$ROW_VARIANT" \
-          '{
+          jq -n --arg ver "$VERSION" --arg now "$NOW" --arg url_row "$ROW_URL" --arg sha_row "$ROW_SHA" --arg variant "$ROW_VARIANT" \
+            '{
               release_name: ("tachyon-ubuntu-24.04-RoW-" + $variant + "-" + $ver),
               version: $ver,
               region: "RoW",
@@ -553,24 +503,19 @@ jobs:
               build_date: $now,
               artifacts: [{ artifact_url: $url_row, sha256_checksum: $sha_row, type: "release_image" }]
             }' > row_24_04_$ROW_VARIANT.json
-
           echo "NA_VARIANT=$NA_VARIANT" >> $GITHUB_ENV
           echo "ROW_VARIANT=$ROW_VARIANT" >> $GITHUB_ENV
 
       - name: Update shared S3 release metadata (replace existing 24.04 entries for {region,variant,board})
         run: |
           set -euo pipefail
-
           : "${LINUX_DIST_S3_BUCKET:?Set LINUX_DIST_S3_BUCKET as an env/variable}"
           KEY="${RELEASE_METADATA_KEY:-meta/tachyon-latest.json}"
           VERSION="${VERSION:?VERSION must be exported earlier}"
           PUSH="${PUSH_JSON:-false}"
-
-          # Use the pre-fetched copy from the summary step
           : "${PRE_MERGE_MANIFEST:?PRE_MERGE_MANIFEST not set}"
           TMP_IN="$PRE_MERGE_MANIFEST"
           TMP_OUT="$(mktemp)"
-
           # Merge helper: delete all 24.04 rows that match NA/RoW {region, variant, board}, then append the new two rows.
           apply_merge() {
             jq \
@@ -586,40 +531,32 @@ jobs:
                       .distribution_version == "24.04" and
                       (
                         (.region == $na.region  and .variant == $na.variant  and .board == $na.board) or
-                        (.region == $row.region and .variant == $row.variant and .board == $row.board)
+                        (.region == $row.region and .variant == $row.variant  and .board == $row.board)
                       )
                   )
                 )
               | .builds = (
-                  # non-24.04 first (preserve order)…
                   [ .builds[] | select(.distribution_version != "24.04") ]
-                  +
-                  # …then all existing 24.04 (preserve order) plus the two new rows at the very end
-                  ( [ .builds[] | select(.distribution_version == "24.04") ] + [ $na, $row ] )
+                  + ( [ .builds[] | select(.distribution_version == "24.04") ] + [ $na, $row ] )
                 )
               ' "$1" > "$2"
           }
-
           apply_merge "$TMP_IN" "$TMP_OUT"
-
           echo "----- Merged release metadata preview (${KEY}) -----"
           jq -C . "$TMP_OUT" || cat "$TMP_OUT"
           echo "----- end preview -----"
-
           if [[ "$PUSH" == "true" ]]; then
             echo "PUSH_JSON=true → attempting conditional S3 update with optimistic lock…"
-
             attempt=1; max=3
             while :; do
               if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY" > head.json 2>/dev/null; then
-                ETAG="$(jq -r '.ETag' head.json | tr -d '"')"
+                ETAG="$(jq -r '.ETag' head.json | tr -d '\"')"
                 FRESH="$(mktemp)"
                 aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY}" "$FRESH" >/dev/null
                 apply_merge "$FRESH" "$TMP_OUT"
               else
                 ETAG=""
               fi
-
               if [[ -n "$ETAG" ]]; then
                 if aws s3api put-object \
                       --bucket "$LINUX_DIST_S3_BUCKET" \
@@ -649,3 +586,329 @@ jobs:
           else
             echo "PUSH_JSON != 'true' → dry run only (nothing pushed)."
           fi
+
+      - name: Prepare per-version manifest (load or seed)
+        run: |
+          set -euo pipefail
+          KEY_VER="meta/tachyon-${{ steps.versel.outputs.version }}.json"
+          if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY_VER" > head_ver.json 2>/dev/null; then
+            ETAG_VER=$(jq -r '.ETag' head_ver.json | tr -d '\"')
+            aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY_VER}" ver_in.json
+          else
+            ETAG_VER=""
+            echo '{ "$schema": "https://linux-dist.particle.io/schema/release_metadata_v1.json", "builds": [] }' > ver_in.json
+          fi
+          jq \
+            --argjson na  "$(cat "na_24_04_${NA_VARIANT}.json")" \
+            --argjson row "$(cat "row_24_04_${ROW_VARIANT}.json")" \
+            --arg schema "https://linux-dist.particle.io/schema/release_metadata_v1.json" \
+            '
+            . as $root
+            | { "$schema": ($root["$schema"] // $schema), builds: ($root.builds // []) }
+            | del(
+                .builds[]
+                | select(
+                    .distribution_version == "24.04" and
+                    (
+                      (.region == $na.region  and .variant == $na.variant  and .board == $na.board) or
+                      (.region == $row.region and .variant == $row.variant  and .board == $row.board)
+                    )
+                )
+              )
+            | .builds = (
+                [ .builds[] | select(.distribution_version != "24.04") ]
+                + ( [ .builds[] | select(.distribution_version == "24.04") ] + [ $na, $row ] )
+              )
+            ' ver_in.json > ver_out.json
+          echo "KEY_VER=$KEY_VER"   >> "$GITHUB_ENV"
+          echo "ETAG_VER=$ETAG_VER" >> "$GITHUB_ENV"
+
+      - name: Upload per-version manifest with optimistic lock (gated + preview)
+        run: |
+          # Use strict mode and fail if any command fails or any variable is undefined
+          set -euo pipefail
+          # Determine whether pushing JSON to S3 is enabled (PUSH_JSON env)
+          PUSH="${PUSH_JSON:-false}"
+          # Show the content of the per-version release manifest that will be uploaded
+          echo "----- per-version manifest preview (${KEY_VER}) -----"
+          jq -C . ver_out.json || cat ver_out.json
+          echo "----- end preview -----"
+          # Only proceed with upload if pushing JSON is enabled
+          if [[ "$PUSH" != "true" ]]; then
+            echo "PUSH_JSON != 'true' → dry run only (not uploading ${KEY_VER})."
+            exit 0
+          fi
+          # Attempt to update the per-version manifest with optimistic locking
+          attempt=1; max=3
+          while :; do
+            if [[ -z "${ETAG_VER:-}" ]]; then
+              # No existing manifest file for this version; upload new file directly
+              aws s3api put-object \
+                --bucket "$LINUX_DIST_S3_BUCKET" \
+                --key "$KEY_VER" \
+                --body ver_out.json \
+                --content-type "application/json" >/dev/null && echo "✅ Created ${KEY_VER} (new file)." && break
+              echo "❌ Failed to create ${KEY_VER}." >&2
+              exit 1
+            else
+              # File exists, try conditional update with ETag for optimistic locking
+              if aws s3api put-object \
+                   --bucket "$LINUX_DIST_S3_BUCKET" \
+                   --key "$KEY_VER" \
+                   --body ver_out.json \
+                   --content-type "application/json" \
+                   --if-match "$ETAG_VER" >/dev/null 2>&1; then
+                echo "✅ Updated ${KEY_VER} (ETag matched)."
+                break
+              fi
+              # If we reach here, the ETag didn't match (file changed during our run)
+              if (( attempt >= max )); then
+                echo "❌ Failed to update ${KEY_VER} after ${max} attempts (concurrent modification persisted)." >&2
+                exit 1
+              fi
+              echo "⚠️  ETag mismatch on attempt ${attempt}/${max} for ${KEY_VER}; will refresh and retry..."
+              # Fetch the latest version of the manifest and merge our changes again
+              aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY_VER}" ver_in.json >/dev/null
+              jq \
+                --argjson na  "$(cat "na_24_04_${NA_VARIANT}.json")" \
+                --argjson row "$(cat "row_24_04_${ROW_VARIANT}.json")" \
+                --arg schema "https://linux-dist.particle.io/schema/release_metadata_v1.json" \
+                '
+                . as $root
+                | { "$schema": ($root["$schema"] // $schema), builds: ($root.builds // []) }
+                | del(
+                    .builds[]
+                    | select(
+                        .distribution_version == "24.04" and
+                        (
+                          (.region == $na.region  and .variant == $na.variant  and .board == $na.board) or
+                          (.region == $row.region and .variant == $row.variant  and .board == $row.board)
+                        )
+                    )
+                  )
+                | .builds = (
+                    [ .builds[] | select(.distribution_version != "24.04") ]
+                    + ( [ .builds[] | select(.distribution_version == "24.04") ] + [ $na, $row ] )
+                  )
+                ' ver_in.json > ver_out.json
+              # Get the new ETag of the remote file after refresh
+              aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY_VER" > head_ver_retry.json 2>/dev/null || true
+              ETAG_VER=$(jq -r '.ETag' head_ver_retry.json 2>/dev/null | tr -d '\"')
+              attempt=$((attempt+1))
+              # Loop around to retry with updated content and ETag
+            fi
+          done
+
+  promote_stable:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+      id-token: write
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/stable-') }}
+    env:
+      LINUX_DIST_S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
+      AWS_REGION:           ${{ secrets.AWS_REGION }}
+      PUSH_JSON:            ${{ vars.PUSH_JSON || 'false' }}
+    steps:
+      - name: Configure AWS (stable promotion)
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: tachyon-promote-stable-${{ github.run_id }}
+
+      - name: Derive version from stable tag
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAW="${GITHUB_REF_NAME#stable-}"
+          if ! [[ "$RAW" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.].*)?$ ]]; then
+            echo "Bad stable tag format: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          echo "ver=$RAW" >> "$GITHUB_OUTPUT"
+          echo "VER=$RAW" >> "$GITHUB_ENV"
+
+      - name: Fetch per-version manifest (must exist)
+        run: |
+          set -euo pipefail
+          : "${VER:?missing}"
+          KEY_VER="meta/tachyon-${VER}.json"
+          if ! aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY_VER" > head_ver.json 2>/dev/null; then
+            echo "::error:: per-version manifest not found: ${KEY_VER}"
+            exit 1
+          fi
+          aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${KEY_VER}" ver.json >/dev/null
+
+      - name: Extract 24.04 builds from per-version manifest
+        run: |
+          set -euo pipefail
+          jq \
+            --arg schema "https://linux-dist.particle.io/schema/release_metadata_v1.json" \
+            '
+            { "$schema": $schema,
+              builds: ( .builds // [] | map(select(.distribution_version == "24.04")) )
+            }
+            ' ver.json > only_24.json
+          echo "----- 24.04 entries from ${VER} -----"
+          jq -C . only_24.json || cat only_24.json
+          echo "----- end 24.04 -----"
+
+      - name: Load current stable manifest (or seed)
+        run: |
+          set -euo pipefail
+          STABLE_KEY="meta/tachyon-stable.json"
+          if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$STABLE_KEY" > head_stable.json 2>/dev/null; then
+            ETAG=$(jq -r '.ETag' head_stable.json | tr -d '\"')
+            aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${STABLE_KEY}" stable.json >/dev/null
+          else
+            ETAG=""
+            echo '{ "$schema": "https://linux-dist.particle.io/schema/release_metadata_v1.json", "builds": [] }' > stable.json
+          fi
+          echo "STABLE_KEY=$STABLE_KEY" >> "$GITHUB_ENV"
+          echo "ETAG=$ETAG"           >> "$GITHUB_ENV"
+
+      - name: Merge 24.04 into stable (append 24.04 at bottom; de-dupe by region/variant/board)
+        run: |
+          set -euo pipefail
+          jq \
+            --slurpfile add only_24.json \
+            --arg schema "https://linux-dist.particle.io/schema/release_metadata_v1.json" \
+            '
+            . as $root
+            | { "$schema": ($root["$schema"] // $schema), builds: ($root.builds // []) }
+            | .builds |= (
+                [ .[]
+                  | select(
+                      .distribution_version != "24.04"
+                      or (
+                        .distribution_version == "24.04"
+                        and (
+                          [$add[0].builds[] | {r:.region,v:.variant,b:.board}]
+                          | any(.r == .region and .v == .variant and .b == .board)
+                          | not
+                        )
+                      )
+                    )
+                ]
+              )
+            | .builds = (
+                [ .builds[] | select(.distribution_version != "24.04") ]
+                + ( [ .builds[] | select(.distribution_version == "24.04") ] + $add[0].builds )
+              )
+            ' stable.json > stable_merged.json
+          echo "----- stable manifest preview (${STABLE_KEY}) -----"
+          jq -C . stable_merged.json || cat stable_merged.json
+          echo "----- end preview -----"
+
+      - name: Upload stable manifest (gated + optimistic lock)
+        run: |
+          # Use strict mode and treat unset variables as errors
+          set -euo pipefail
+          # Determine whether pushing JSON to S3 is enabled (PUSH_JSON env)
+          PUSH="${PUSH_JSON:-false}"
+          # Only proceed if JSON push is enabled; otherwise exit (dry run)
+          if [[ "$PUSH" != "true" ]]; then
+            echo "PUSH_JSON != 'true' → dry run only (not uploading ${STABLE_KEY})."
+            exit 0
+          fi
+          # Attempt to update the stable manifest with optimistic locking (ETag)
+          attempt=1; max=3
+          while :; do
+            # Check if stable manifest exists and get its ETag
+            if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$STABLE_KEY" > head_stable.json 2>/dev/null; then
+              CURRENT_ETAG=$(jq -r '.ETag' head_stable.json | tr -d '\"')
+              # Download the current stable manifest content
+              aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${STABLE_KEY}" stable_cur.json >/dev/null
+            else
+              CURRENT_ETAG=""
+            fi
+            # Merge the new 24.04 entries into the stable manifest (without affecting other versions)
+            if [[ -z "$CURRENT_ETAG" ]]; then
+              # No existing stable manifest; use seeded empty manifest as base
+              cp stable.json stable_base.json
+            else
+              # Use the latest downloaded stable manifest as base for merging
+              mv stable_cur.json stable_base.json
+            fi
+            jq \
+              --slurpfile newSet only_24.json \
+              --arg schema "https://linux-dist.particle.io/schema/release_metadata_v1.json" \
+              '
+              . as $root
+              | { "$schema": ($root["$schema"] // $schema), builds: ($root.builds // []) }
+              | del(
+                  .builds[]
+                  | select(
+                      .distribution_version == "24.04" and
+                      (
+                        [$newSet[0].builds[] | {r:.region, v:.variant, b:.board}]
+                        | any(.r == .region and .v == .variant and .b == .board)
+                      )
+                  )
+                )
+              | .builds = (
+                  [ .builds[] | select(.distribution_version != "24.04") ]
+                  + ( [ .builds[] | select(.distribution_version == "24.04") ] + $newSet[0].builds )
+                )
+              ' stable_base.json > stable_out.json
+            if [[ -z "$CURRENT_ETAG" ]]; then
+              # Create new stable manifest file (no existing file to lock)
+              if aws s3api put-object \
+                   --bucket "$LINUX_DIST_S3_BUCKET" \
+                   --key "$STABLE_KEY" \
+                   --body stable_out.json \
+                   --content-type "application/json" >/dev/null; then
+                echo "✅ Created ${STABLE_KEY} (new stable manifest)."; break
+              fi
+              echo "❌ Failed to create ${STABLE_KEY}." >&2
+              exit 1
+            else
+              # Update existing stable manifest conditionally using the ETag for concurrency control
+              if aws s3api put-object \
+                   --bucket "$LINUX_DIST_S3_BUCKET" \
+                   --key "$STABLE_KEY" \
+                   --body stable_out.json \
+                   --content-type "application/json" \
+                   --if-match "$CURRENT_ETAG" >/dev/null 2>&1; then
+                echo "✅ Updated ${STABLE_KEY} (If-Match successful)."; break
+              fi
+              # If we reach here, the ETag didn't match (stable manifest was updated concurrently)
+              if (( attempt >= max )); then
+                echo "❌ Failed to update ${STABLE_KEY} after ${max} attempts (concurrent modifications)." >&2
+                exit 1
+              fi
+              echo "⚠️  ETag mismatch on attempt ${attempt}/${max} for ${STABLE_KEY}; will retry..."
+              attempt=$((attempt+1))
+              sleep 5
+              continue
+            fi
+          done
+
+      - name: Promote 24.04 entries to stable manifest (append)
+        run: |
+          set -euo pipefail
+          STABLE_KEY="meta/tachyon-stable.json"
+          : "${STABLE_KEY:?missing}"
+          PUSH="${PUSH_JSON:-false}"
+          if [[ "$PUSH" != "true" ]]; then
+            echo "PUSH_JSON != 'true' → dry run only (not uploading ${STABLE_KEY})."
+            exit 0
+          fi
+          if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$STABLE_KEY" > head_stable.json 2>/dev/null; then
+            ETAG=$(jq -r '.ETag' head_stable.json | tr -d '\"')
+            aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${STABLE_KEY}" stable.json >/dev/null
+          else
+            ETAG=""
+            echo '{ "$schema": "https://linux-dist.particle.io/schema/release_metadata_v1.json", "builds": [] }' > stable.json
+          fi
+          # The merging logic above already updated stable manifest; here we simply push stable metadata if needed
+          if [[ -n "$ETAG" ]]; then
+            if ! aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$STABLE_KEY" --if-match "$ETAG" &>/dev/null; then
+              echo "⚠️  Stable manifest was updated since we fetched it; not pushing new stable manifest."
+              exit 0
+            fi
+          fi
+          echo "Stable manifest is up-to-date."
