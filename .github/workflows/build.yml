@@ -345,11 +345,24 @@ jobs:
         id: versel
         run: |
           set -euo pipefail
-          VERSION="$(grep -h '^VERSION=' release_meta/*.txt | head -n1 | cut -d= -f2)"
+          # Grab the version from the region metadata
+          VERSION="$(grep -h '^VERSION=' release_meta/*.txt | head -n1 | cut -d= -f2 | tr -d '\r')"
+
           if [[ -z "$VERSION" ]]; then
             echo "No VERSION in metadata; abort." >&2
             exit 1
           fi
+          # Optional: enforce simple semver (x.y.z[-suffix] is fine; tighten if needed)
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.].*)?$ ]]; then
+            echo "VERSION '$VERSION' doesn't look like semver; abort." >&2
+            exit 1
+          fi
+
+          # Expose both as step outputs (already used elsewhere)…
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          # …and also as an env var for later steps in this job.
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
           git fetch --tags --force
 
