@@ -278,6 +278,8 @@ jobs:
     environment: production
     permissions:
       contents: write
+      id-token: write     # ← add this so OIDC works in this job
+
     # Only publish for tag-mode runs (tag push or workflow_run), and when the build matrix succeeded
     if: ${{ needs.build.result == 'success' && (github.event_name == 'workflow_run' || startsWith(github.ref, 'refs/tags/')) }}
     steps:
@@ -306,11 +308,6 @@ jobs:
           fi
           echo "== ls (prefix) =="
           aws s3 ls "s3://${LINUX_DIST_S3_BUCKET}/meta/" || true
-
-      - name: Checkout (to get tags for compare link)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Download aggregated release metadata
         uses: actions/download-artifact@v4
