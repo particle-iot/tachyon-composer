@@ -482,11 +482,11 @@ jobs:
           echo "NA_VARIANT=$NA_VARIANT" >> $GITHUB_ENV
           echo "ROW_VARIANT=$ROW_VARIANT" >> $GITHUB_ENV
 
-      - name: Update shared S3 release metadata (replace existing 24.04 entries)
+      - name: Update shared S3 release metadata (replace existing 24.04 entries for this {region,variant,board})
         run: |
           set -euo pipefail
 
-          # ---- Inputs via plain envs (no GitHub context in this step) ----
+          # ---- Inputs via plain envs (no GitHub context interpolation here) ----
           : "${LINUX_DIST_S3_BUCKET:?Set LINUX_DIST_S3_BUCKET in your Environment/Variables}"
           KEY="${RELEASE_METADATA_KEY:-meta/releases.json}"
           VERSION="${VERSION:?VERSION must be exported earlier (e.g. from Determine version step)}"
@@ -498,23 +498,19 @@ jobs:
           # Helper: remove existing entries with distribution_version=24.04 and matching {region, variant, board} (for NA/RoW), then append fresh entries.
           apply_merge() {
             jq \
-              --arg ver "$VERSION" \
-              --argjson na  "$(cat na_24_04_$NA_VARIANT.json)" \
-              --argjson row "$(cat row_24_04_$ROW_VARIANT.json)" \
+              --argjson na  "$(cat "na_24_04_${NA_VARIANT}.json")" \
+              --argjson row "$(cat "row_24_04_${ROW_VARIANT}.json")" \
               '
-              .builds |=
-                [ .[]
-                  | select(
-                      not (
-                        .distribution_version == "24.04"
-                        and (
-                          (.region == $na.region  and .variant == $na.variant  and .board == $na.board)
-                          or
-                          (.region == $row.region and .variant == $row.variant  and .board == $row.board)
-                        )
-                      )
-                  )
-                ]
+              del(
+                .builds[]
+                | select(
+                    .distribution_version == "24.04" and
+                    (
+                      (.region == $na.region  and .variant == $na.variant  and .board == $na.board) or
+                      (.region == $row.region and .variant == $row.variant and .board == $row.board)
+                    )
+                )
+              )
               | .builds += [ $na, $row ]
               ' "$1" > "$2"
           }
