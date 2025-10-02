@@ -281,6 +281,32 @@ jobs:
     # Only publish for tag-mode runs (tag push or workflow_run), and when the build matrix succeeded
     if: ${{ needs.build.result == 'success' && (github.event_name == 'workflow_run' || startsWith(github.ref, 'refs/tags/')) }}
     steps:
+      - name: Configure AWS for metadata read/write
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-session-name: tachyon-metadata-${{ github.run_id }}
+
+      - name: Checkout (to get tags for compare link)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify S3 access (debug)
+        run: |
+          set -euo pipefail
+          KEY="${RELEASE_METADATA_KEY:-meta/tachyon-latest.json}"
+          echo "Bucket: $LINUX_DIST_S3_BUCKET"
+          echo "Key:    $KEY"
+          echo "== head-object =="
+          if ! aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$KEY"; then
+            echo "::error:: head-object failed (exit $?)"
+            exit 1
+          fi
+          echo "== ls (prefix) =="
+          aws s3 ls "s3://${LINUX_DIST_S3_BUCKET}/meta/" || true
+
       - name: Checkout (to get tags for compare link)
         uses: actions/checkout@v4
         with:
@@ -377,16 +403,26 @@ jobs:
           NA_FILE="$(grep -h '^FILE=' release_meta/NA-desktop.txt   | cut -d= -f2 || true)"
           ROW_FILE="$(grep -h '^FILE=' release_meta/RoW-desktop.txt | cut -d= -f2 || true)"
 
+          # Take the action's changelog and drop category headings like "## :package: Uncategorized"
+          CLEAN_CHANGES="$(printf '%s\n' "${{ steps.changelog.outputs.changelog }}" \
+            | sed -E '/^##[[:space:]:[:alnum:]_-]+$/d' \
+            | sed -E '/^##[[:space:]]*:package:[[:space:]]*Uncategorized$/Id')"
+
           {
             echo "${VERSION}"
             echo
             echo "Images"
             echo
-            [[ -n "$NA_FILE" ]] && echo "NA" && echo "Tachyon desktop - ${NA_FILE}" && echo
+            [[ -n "$NA_FILE"  ]] && echo "NA"  && echo "Tachyon desktop - ${NA_FILE}"  && echo
             [[ -n "$ROW_FILE" ]] && echo "RoW" && echo "Tachyon desktop - ${ROW_FILE}" && echo
             echo "Changes"
             echo
-            echo "${{ steps.changelog.outputs.changelog }}"
+            # If the sanitized section is empty, print a friendlier default
+            if [ -z "$(printf '%s' "$CLEAN_CHANGES" | sed '/^[[:space:]]*$/d')" ]; then
+              echo "- No categorized changes"
+            else
+              printf '%s\n' "$CLEAN_CHANGES"
+            fi
             echo
             echo "Full Changelog: ${PREV:-0.0.0}...${VERSION}"
             echo
