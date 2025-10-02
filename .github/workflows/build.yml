@@ -29,6 +29,7 @@ jobs:
       fail-fast: false
       matrix:
         region: [RoW, NA]
+        variant: [desktop]
 
     steps:
       - name: Free up disk space
@@ -103,16 +104,16 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${{ steps.ver.outputs.mode }}" == "pr" || "${{ steps.ver.outputs.mode }}" == "other" ]]; then
-            OUTNAME="tachyon-ubuntu-24.04-${{ matrix.region }}-desktop-${{ steps.ver.outputs.base_tag }}-${{ steps.ver.outputs.short_sha }}.zip"
+            OUTNAME="tachyon-ubuntu-24.04-${{ matrix.region }}-${{ matrix.variant }}-${{ steps.ver.outputs.base_tag }}-${{ steps.ver.outputs.short_sha }}.zip"
           else
             # tag / workflow_run(tag)
-            OUTNAME="tachyon-ubuntu-24.04-${{ matrix.region }}-desktop-${{ steps.ver.outputs.version }}.zip"
+            OUTNAME="tachyon-ubuntu-24.04-${{ matrix.region }}-${{ matrix.variant }}-${{ steps.ver.outputs.version }}.zip"
           fi
 
           make build_24.04 \
             VERSIONS_FILE=./versions.json \
             INPUT_REGION=${{ matrix.region }} \
-            INPUT_VARIANT=desktop \
+            INPUT_VARIANT=${{ matrix.variant }} \
             OUTPUT_VERSION=${{ steps.ver.outputs.version }} \
             OUTPUT_24_04_SYSTEM_IMAGE="${OUTNAME}"
 
@@ -167,7 +168,7 @@ jobs:
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            ✅ **PR build uploaded** for **${{ matrix.region }} desktop**
+            ✅ **PR build uploaded** for **${{ matrix.region }} ${{ matrix.variant }}**
 
             **File:** `${{ steps.build_step.outputs.output_name }}`
             **Base tag:** `${{ steps.ver.outputs.base_tag }}`
@@ -251,8 +252,9 @@ jobs:
         if: steps.s3_upload_tag.outputs.s3_uri
         run: |
           mkdir -p release_meta
-          cat > release_meta/${{ matrix.region }}.txt <<EOF
+          cat > release_meta/${{ matrix.region }}-${{ matrix.variant }}.txt <<EOF
           REGION=${{ matrix.region }}
+          VARIANT=${{ matrix.variant }}
           VERSION=${{ steps.ver.outputs.version }}
           FILE=${{ steps.build_step.outputs.output_name }}
           S3_KEY=${{ steps.s3_upload_tag.outputs.obj_key }}
@@ -264,8 +266,8 @@ jobs:
         if: steps.s3_upload_tag.outputs.s3_uri
         uses: actions/upload-artifact@v4
         with:
-          # 👇 unique name per matrix region avoids 409 conflicts
-          name: release-metadata-${{ matrix.region }}
+          # 👇 unique name per matrix region/variant to avoid conflicts
+          name: release-metadata-${{ matrix.region }}-${{ matrix.variant }}
           path: release_meta/*.txt
           if-no-files-found: ignore
           retention-days: 3
@@ -273,6 +275,7 @@ jobs:
   publish_release:
     needs: build
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: write
     # Only publish for tag-mode runs (tag push or workflow_run), and when the build matrix succeeded
@@ -294,8 +297,8 @@ jobs:
         run: |
           set -euo pipefail
           ls -l release_meta || true
-          test -f release_meta/NA.txt
-          test -f release_meta/RoW.txt
+          test -f release_meta/NA-desktop.txt # adjust if more variants added
+          test -f release_meta/RoW-desktop.txt # adjust if more variants added
 
       - name: Parse version and choose previous tag
         id: versel
@@ -308,10 +311,24 @@ jobs:
           fi
 
           git fetch --tags --force
-          PREV="$(git tag -l --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' | grep -B1 "$VERSION" | head -n1 || true)"
+
+          # Sorted descending (semver aware)
+          mapfile -t TAGS < <(git tag -l --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)
+
+          PREV=""
+          for ((i=0; i<${#TAGS[@]}; i++)); do
+            if [[ "${TAGS[$i]}" == "$VERSION" ]]; then
+              # previous tag is the one AFTER current in the sorted list
+              idx=$((i+1))
+              if [[ $idx -lt ${#TAGS[@]} ]]; then
+                PREV="${TAGS[$idx]}"
+              fi
+              break
+            fi
+          done
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "prev=$PREV" >> "$GITHUB_OUTPUT"
+          echo "prev=$PREV"      >> "$GITHUB_OUTPUT"
 
       - name: Build changelog from PRs
         id: changelog
@@ -357,8 +374,8 @@ jobs:
           VERSION="${{ steps.versel.outputs.version }}"
           PREV="${{ steps.versel.outputs.prev }}"
 
-          NA_FILE="$(grep -h '^FILE=' release_meta/NA.txt   | cut -d= -f2 || true)"
-          ROW_FILE="$(grep -h '^FILE=' release_meta/RoW.txt | cut -d= -f2 || true)"
+          NA_FILE="$(grep -h '^FILE=' release_meta/NA-desktop.txt   | cut -d= -f2 || true)"
+          ROW_FILE="$(grep -h '^FILE=' release_meta/RoW-desktop.txt | cut -d= -f2 || true)"
 
           {
             echo "${VERSION}"
@@ -391,7 +408,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build JSON entries for 24.04 desktop (NA & RoW)
+      - name: Export env for metadata steps
+        run: |
+          # Make VERSION available as a plain env var
+          echo "VERSION=${{ steps.versel.outputs.version }}" >> "$GITHUB_ENV"
+
+          # Bucket (from secret) → plain env var (no 'context invalid' warnings later)
+          echo "LINUX_DIST_S3_BUCKET=${{ secrets.LINUX_DIST_S3_BUCKET }}" >> "$GITHUB_ENV"
+
+          # Optional knobs (if you’ve set them as repo/env variables)
+          if [ -n "${{ vars.RELEASE_METADATA_KEY }}" ]; then
+            echo "RELEASE_METADATA_KEY=${{ vars.RELEASE_METADATA_KEY }}" >> "$GITHUB_ENV"
+          fi
+          if [ -n "${{ vars.PUBLIC_RELEASE_BASE_URL }}" ]; then
+            echo "PUBLIC_RELEASE_BASE_URL=${{ vars.PUBLIC_RELEASE_BASE_URL }}" >> "$GITHUB_ENV"
+          fi
+          if [ -n "${{ vars.PUSH_JSON }}" ]; then       # set to 'true' to enable push
+            echo "PUSH_JSON=${{ vars.PUSH_JSON }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build JSON entries for 24.04 (NA & RoW)
         id: json24
         run: |
           set -euo pipefail
@@ -400,21 +436,23 @@ jobs:
 
           BASE_URL="${PUBLIC_RELEASE_BASE_URL:-https://linux-dist.particle.io/releases}"
 
-          NA_FILE="$(grep -h '^FILE='   release_meta/NA.txt   | cut -d= -f2)"
-          NA_SHA="$(grep  -h '^SHA256=' release_meta/NA.txt   | cut -d= -f2)"
-          ROW_FILE="$(grep -h '^FILE='  release_meta/RoW.txt  | cut -d= -f2)"
-          ROW_SHA="$(grep  -h '^SHA256=' release_meta/RoW.txt | cut -d= -f2)"
+          NA_FILE="$(grep -h '^FILE='   release_meta/NA-desktop.txt   | cut -d= -f2)"
+          NA_SHA="$(grep -h '^SHA256='  release_meta/NA-desktop.txt   | cut -d= -f2)"
+          ROW_FILE="$(grep -h '^FILE='  release_meta/RoW-desktop.txt  | cut -d= -f2)"
+          ROW_SHA="$(grep -h '^SHA256=' release_meta/RoW-desktop.txt  | cut -d= -f2)"
 
           NA_URL="${BASE_URL}/${VERSION}/NA/${NA_FILE}"
           ROW_URL="${BASE_URL}/${VERSION}/RoW/${ROW_FILE}"
 
-          jq -n \
-            --arg ver "$VERSION" --arg now "$NOW" --arg url_na "$NA_URL" --arg sha_na "$NA_SHA" \
-            '{
-              release_name: ("tachyon-ubuntu-24.04-NA-desktop-" + $ver),
+          NA_VARIANT="$(grep -h '^VARIANT=' release_meta/NA-desktop.txt   | cut -d= -f2)"
+          ROW_VARIANT="$(grep -h '^VARIANT=' release_meta/RoW-desktop.txt | cut -d= -f2)"
+
+          jq -n             --arg ver "$VERSION" --arg now "$NOW" --arg url_na "$NA_URL" --arg sha_na "$NA_SHA" --arg variant "$NA_VARIANT" \
+          '{
+              release_name: ("tachyon-ubuntu-24.04-NA-" + $variant + "-" + $ver),
               version: $ver,
               region: "NA",
-              variant: "desktop",
+              variant: $variant,
               platform: "qcm6490",
               board: "formfactor_dvt",
               os: "linux",
@@ -423,15 +461,14 @@ jobs:
               distribution_variant: "ubuntu",
               build_date: $now,
               artifacts: [{ artifact_url: $url_na, sha256_checksum: $sha_na, type: "release_image" }]
-            }' > na_24_04_desktop.json
+            }' > na_24_04_$NA_VARIANT.json
 
-          jq -n \
-            --arg ver "$VERSION" --arg now "$NOW" --arg url_row "$ROW_URL" --arg sha_row "$ROW_SHA" \
-            '{
-              release_name: ("tachyon-ubuntu-24.04-RoW-desktop-" + $ver),
+          jq -n             --arg ver "$VERSION" --arg now "$NOW" --arg url_row "$ROW_URL" --arg sha_row "$ROW_SHA" --arg variant "$ROW_VARIANT" \
+          '{
+              release_name: ("tachyon-ubuntu-24.04-RoW-" + $variant + "-" + $ver),
               version: $ver,
               region: "RoW",
-              variant: "desktop",
+              variant: $variant,
               platform: "qcm6490",
               board: "formfactor_dvt",
               os: "linux",
@@ -440,9 +477,12 @@ jobs:
               distribution_variant: "ubuntu",
               build_date: $now,
               artifacts: [{ artifact_url: $url_row, sha256_checksum: $sha_row, type: "release_image" }]
-            }' > row_24_04_desktop.json
+            }' > row_24_04_$ROW_VARIANT.json
 
-      - name: Update shared S3 release metadata (replace existing 24.04 entries for this version)
+          echo "NA_VARIANT=$NA_VARIANT" >> $GITHUB_ENV
+          echo "ROW_VARIANT=$ROW_VARIANT" >> $GITHUB_ENV
+
+      - name: Update shared S3 release metadata (replace existing 24.04 entries)
         run: |
           set -euo pipefail
 
@@ -455,25 +495,22 @@ jobs:
           TMP_IN="$(mktemp)"
           TMP_OUT="$(mktemp)"
 
-          # Helper: remove existing entries for THIS version matching
-          # (distribution_version=24.04 AND same {region, variant, board}) for NA/RoW,
-          # then append fresh NA/RoW entries we just built.
+          # Helper: remove existing entries with distribution_version=24.04 and matching {region, variant, board} (for NA/RoW), then append fresh entries.
           apply_merge() {
             jq \
               --arg ver "$VERSION" \
-              --argjson na  "$(cat na_24_04_desktop.json)" \
-              --argjson row "$(cat row_24_04_desktop.json)" \
+              --argjson na  "$(cat na_24_04_$NA_VARIANT.json)" \
+              --argjson row "$(cat row_24_04_$ROW_VARIANT.json)" \
               '
               .builds |=
                 [ .[]
                   | select(
                       not (
-                        .version == $ver
-                        and .distribution_version == "24.04"
+                        .distribution_version == "24.04"
                         and (
                           (.region == $na.region  and .variant == $na.variant  and .board == $na.board)
                           or
-                          (.region == $row.region and .variant == $row.variant and .board == $row.board)
+                          (.region == $row.region and .variant == $row.variant  and .board == $row.board)
                         )
                       )
                   )
