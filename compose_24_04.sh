@@ -5,9 +5,8 @@
 # Purpose:
 #   Compose a 24.04 system image by:
 #     1) Patching + signing xbl.elf and updating XML sizes
-#     2) Extracting ADSP blobs **only from 20.04** EDL rootfs
-#     3) Building a new rootfs.ext4 and EFI image from the 24.04 base image
-#     4) Swapping the new artifacts into the 24.04 EDL tree + updating XML
+#     2) Building a new rootfs.ext4 and EFI image from the 24.04 base image
+#     3) Swapping the new artifacts into the 24.04 EDL tree + updating XML
 #
 # Inputs (positional):
 #   $1 UBOOT_DIR                 (e.g. "u-boot", dir inside /tmp/work/input/)
@@ -20,7 +19,6 @@
 #   /tmp/work/input/$UBOOT_DIR/u-boot-dtb.bin
 #   /tmp/work/input/$BASE24_IMG_BASENAME
 #   /tmp/work/output/$BASE24_SYSTEM_IMAGE_DIR/images/qcm6490/edl
-#   /tmp/work/input/sys-img-20.04/images/qcm6490/edl     (for ADSP extraction)
 #
 # Outputs (written into the 24.04 EDL directory):
 #   - xbl.elf (patched + signed)
@@ -129,7 +127,6 @@ DEPS_DIR="/tmp/deps"
 mkdir -p "$DEPS_DIR"
 mkdir -p "$DEPS_DIR/particle-iot-inc/tachyon-u-boot" \
          "$DEPS_DIR/image/mount" \
-         "$DEPS_DIR/image/adsp" \
          "$DEPS_DIR/particle-iot-inc/tachyon-ubuntu-24.04" \
          "$DEPS_DIR/image"
 
@@ -176,45 +173,8 @@ xbl_size=$(( xbl_size / 1024 ))                    # in KiB
 python3 "./xml_tools.py" modify --input "$EDL_24_04_PATH/rawprogram1.xml" --label "xbl_a" --field "size_in_KB" --value "${xbl_size}.0" || true
 python3 "./xml_tools.py" modify --input "$EDL_24_04_PATH/rawprogram2.xml" --label "xbl_b" --field "size_in_KB" --value "${xbl_size}.0" || true
 
-# ---------- Extract ADSP (20.04 only, per request) ----------
-section "3) EXTRACT ADSP BLOBS from 20.04 ROOTFS"
-
-found_adsp=0
-mkdir -p "$DEPS_DIR/image/adsp"
-
-rootfs_ext4=$(ls "$EDL_20_04_PATH"/qti-ubuntu-robotics-image-*-sysfs_1.ext4 2>/dev/null | head -n1 || true)
-if [ -z "$rootfs_ext4" ]; then
-  echo "Warning: 20.04 rootfs ext4 not found in $EDL_20_04_PATH – skipping ADSP extraction"
-else
-  echo "INFO: Mounting rootfs ext4 from: $rootfs_ext4"
-  sudo mount -o loop,ro "$rootfs_ext4" "$DEPS_DIR/image/mount"
-
-  adsp_src_dir=""
-  for d in "$DEPS_DIR/image/mount/usr/lib/firmware" "$DEPS_DIR/image/mount/lib/firmware"; do
-    if compgen -G "$d/adsp*" >/dev/null; then
-      adsp_src_dir="$d"
-      break
-    fi
-  done
-
-  if [ -n "$adsp_src_dir" ]; then
-    shopt -s nullglob
-    files=( "$adsp_src_dir"/adsp* )
-    shopt -u nullglob
-    if [ ${#files[@]} -gt 0 ]; then
-      echo "Copying ${#files[@]} ADSP blobs from $adsp_src_dir (EDL: $EDL_20_04_PATH)"
-      sudo rsync -a "${files[@]}" "$DEPS_DIR/image/adsp/"
-      found_adsp=1
-    fi
-  else
-    error "Warning: no adsp* firmware found under /usr/lib/firmware or /lib/firmware in 20.04 rootfs"
-  fi
-
-  sudo umount "$DEPS_DIR/image/mount"
-fi
-
 # ---------- Replace rootfs & build EFI (single pass; offset‑mount aware) ----------
-section "4) REPLACE ROOTFS & BUILD NEW EFI IMAGE"
+section "3) REPLACE ROOTFS & BUILD NEW EFI IMAGE"
 
 mkdir -p "$DEPS_DIR/particle-iot-inc/tachyon-ubuntu-24.04/root" \
          "$DEPS_DIR/particle-iot-inc/tachyon-ubuntu-24.04/efi"
@@ -338,14 +298,6 @@ sudo mkfs.ext4 -q -F -b 4096 -L "$label" -U "$uuid" \
   -d "$DEPS_DIR/particle-iot-inc/tachyon-ubuntu-24.04/root" \
   "$DEPS_DIR/image/root.ext4"
 
-# Add ADSP blobs into the new rootfs (if we found any in 20.04)
-sudo mount -o loop "$DEPS_DIR/image/root.ext4" "$DEPS_DIR/image/mount"
-sudo mkdir -p "$DEPS_DIR/image/mount/lib/firmware/updates/tachyon"
-if compgen -G "$DEPS_DIR/image/adsp/*" > /dev/null; then
-  sudo cp "$DEPS_DIR/image/adsp/"* "$DEPS_DIR/image/mount/lib/firmware/updates/tachyon/"
-fi
-sudo umount "$DEPS_DIR/image/mount"
-
 # Pick the rawprogram file that defines boot_a (fallback to any rawprogram*.xml)
 boot_xml=$(grep -l 'label="boot_a"' "$EDL_24_04_PATH"/rawprogram*.xml | head -n1 || true)
 [ -n "$boot_xml" ] || boot_xml=$(ls "$EDL_24_04_PATH"/rawprogram*.xml 2>/dev/null | head -n1 || true)
@@ -381,7 +333,7 @@ python3 ./xml_tools.py modify --input "$boot_xml" --label "boot_a" --field "file
 python3 ./xml_tools.py modify --input "$boot_xml" --label "boot_b" --field "filename" --value "efi.img"
 
 # ---------- APPLY OVERLAYS to the freshly built ext4 --------------------------
-section "5) APPLY OVERLAYS"
+section "4) APPLY OVERLAYS"
 
 # The sys-img directory we just populated (this is what the overlay expects)
 SYSDIR="/tmp/work/output/${BASE24_SYSTEM_IMAGE_DIR:-sys-img-24.04}"
