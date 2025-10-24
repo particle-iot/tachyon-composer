@@ -366,7 +366,7 @@ $(QTOOLS_STAMP): docker/build
 		fi; \
 		git -C "$(QTOOLS_DIR)" fetch --depth 1 origin "$(QTOOLS_REF)"; \
 		git -C "$(QTOOLS_DIR)" checkout -q FETCH_HEAD; \
-		pip3 install --user --no-cache-dir -r "$(QTOOLS_DIR)/requirements.txt" || \
+		pip3 install --user --no-cache-dir --break-system-packages -r "$(QTOOLS_DIR)/requirements.txt" || \
 		  sudo pip3 install --break-system-packages --no-cache-dir -r "$(QTOOLS_DIR)/requirements.txt"; \
 		{ test -f "$(QTOOLS_DIR)/patchxbl.py" && test -f "$(QTOOLS_DIR)/qtestsign.py"; } \
 		  || { echo "Error: qtestsign scripts not found in $(QTOOLS_DIR)"; exit 1; }; \
@@ -528,7 +528,7 @@ DOCKER_VERSION ?= $(if $(PARTICLE_DOCKERFILE_VERSION),$(PARTICLE_DOCKERFILE_VERS
 
 IMAGE_NAME           ?= tachyon-system-image-builder
 IMAGE_TAG            ?= $(IMAGE_NAME):$(DOCKER_VERSION)
-BASE_IMAGE           ?= ubuntu:22.04
+BASE_IMAGE           ?= ubuntu:24.04
 UID                  ?= $(shell id -u 2>/dev/null || echo 1000)
 GID                  ?= $(shell id -g 2>/dev/null || echo 1000)
 PUSH_IMAGE           ?=

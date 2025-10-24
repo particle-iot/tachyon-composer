@@ -11,39 +11,72 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Core deps (includes xmllint, mkfs.vfat, rsync via libxml2-utils, dosfstools, rsync)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    make \
-    sudo \
+    gcc \
+    gcc-aarch64-linux-gnu \
+    android-sdk-libsparse-utils \
+    bc \
+    bison \
+    build-essential \
+    coccinelle \
     curl \
-    wget \
-    zip \
-    unzip \
+    device-tree-compiler \
+    dosfstools \
+    dfu-util \
+    e2fsprogs \
+    efitools \
+    file \
+    flex \
+    git \
+    git-lfs \
+    gdisk \
+    graphviz \
+    imagemagick \
+    jq \
+    libgnutls28-dev \
+    libguestfs-tools \
+    libncurses-dev \
+    libpython3-dev \
+    libsdl2-dev \
+    libssl-dev \
+    libxml2-utils \
+    livecd-rootfs \
+    lz4 \
+    lzma \
+    lzma-alone \
+    make \
+    openssl \
+    pkg-config \
+    python3 \
+    python3-asteval \
+    python3-coverage \
+    python3-filelock \
+    python3-pkg-resources \
+    python3-pip \
+    python3-pycryptodome \
+    python3-pyelftools \
+    python3-pytest \
+    python3-pytest-xdist \
+    python3-sphinxcontrib.apidoc \
+    python3-sphinx-rtd-theme \
+    python3-subunit \
+    python3-testtools \
+    python3-venv \
     qemu-user-static \
     qemu-utils \
-    e2fsprogs \
-    android-sdk-libsparse-utils \
-    build-essential \
-    device-tree-compiler \
-    file \
-    git \
-    jq \
-    xz-utils \
-    libxml2-utils \
-    dosfstools \
     rsync \
-    git-lfs \
-    livecd-rootfs \
-    flex \
-    bison \
+    sudo \
+    swig \
+    unzip \
+    uuid-dev \
+    wget \
     xxd \
-    libssl-dev \
-    libgnutls28-dev \
+    xz-utils \
+    zip \
  && rm -rf /var/lib/apt/lists/*
 
 # Python tools
-# (This provides extract-dtb; name left as-is from your comment)
-RUN pip3 install --no-cache-dir extract-dtb
+# This provides extract-dtb
+RUN pip3 install --no-cache-dir --break-system-packages extract-dtb
 
 # Ensure per-user pip installs are on PATH for the builder user
 ENV PATH="/home/builder/.local/bin:${PATH}"
