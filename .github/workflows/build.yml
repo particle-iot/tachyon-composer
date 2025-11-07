@@ -288,7 +288,8 @@ jobs:
       LINUX_DIST_S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
       AWS_REGION:           ${{ secrets.AWS_REGION }}
       RELEASE_METADATA_KEY: ${{ vars.RELEASE_METADATA_KEY || 'meta/tachyon-latest.json' }}
-      PUBLIC_RELEASE_BASE_URL: ${{ vars.PUBLIC_RELEASE_BASE_URL || 'https://linux-dist.particle.io/releases' }}
+      # NOTE: ensure this matches your public CDN route (singular vs plural).
+      PUBLIC_RELEASE_BASE_URL: ${{ vars.PUBLIC_RELEASE_BASE_URL || 'https://linux-dist.particle.io/release' }}
       PUSH_JSON:            ${{ vars.PUSH_JSON || 'false' }}
     steps:
       - name: Configure AWS for metadata read/write
@@ -319,13 +320,6 @@ jobs:
       # --- Ensure artifact dir exists before download to avoid 'No such file or directory'
       - name: Prepare artifact folder
         run: mkdir -p release_meta
-
-      - name: Download aggregated release metadata
-        uses: actions/download-artifact@v4
-        with:
-          pattern: release-metadata-*
-          path: release_meta
-          merge-multiple: true
 
       - name: Download aggregated release metadata
         uses: actions/download-artifact@v4
@@ -421,38 +415,58 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Build release body
+      - name: Build release body (with image links)
         id: body
         run: |
           set -euo pipefail
           VERSION="${{ steps.versel.outputs.version }}"
           PREV="${{ steps.versel.outputs.prev }}"
 
-          NA_FILE="$(grep -h '^FILE=' release_meta/NA-desktop.txt   | cut -d= -f2 || true)"
-          ROW_FILE="$(grep -h '^FILE=' release_meta/RoW-desktop.txt | cut -d= -f2 || true)"
+          NA_FILE="$(grep -h '^FILE='   release_meta/NA-desktop.txt   | cut -d= -f2 || true)"
+          ROW_FILE="$(grep -h '^FILE='  release_meta/RoW-desktop.txt  | cut -d= -f2 || true)"
+          NA_VARIANT="$(grep -h '^VARIANT=' release_meta/NA-desktop.txt   | cut -d= -f2 || true)"
+          ROW_VARIANT="$(grep -h '^VARIANT=' release_meta/RoW-desktop.txt  | cut -d= -f2 || true)"
+
+          BASE_URL="${PUBLIC_RELEASE_BASE_URL:-https://linux-dist.particle.io/release}"
+          NA_URL=""
+          ROW_URL=""
+          if [[ -n "$NA_FILE" ]];  then NA_URL="${BASE_URL}/${VERSION}/NA/${NA_FILE}";  fi
+          if [[ -n "$ROW_FILE" ]]; then ROW_URL="${BASE_URL}/${VERSION}/RoW/${ROW_FILE}"; fi
+
+          NA_LABEL="${NA_FILE%.zip}"
+          ROW_LABEL="${ROW_FILE%.zip}"
 
           # Take the action's changelog and drop category headings like "## :package: Uncategorized"
           CLEAN_CHANGES="$(printf '%s\n' "${{ steps.changelog.outputs.changelog }}" \
-            | sed -E '/^##[[:space:]:[:alnum:]_-]+$/d' \
+            | sed -E '/^##[[:space:]].*$/d' \
             | sed -E '/^##[[:space:]]*:package:[[:space:]]*Uncategorized$/Id')"
 
           {
             echo "${VERSION}"
             echo
-            echo "Images"
+            echo "## Images"
+            echo "### NA"
+            if [[ -n "$NA_URL" ]]; then
+              echo "- formfactor_dvt ${NA_VARIANT:-desktop} - release_image [${NA_LABEL}](${NA_URL})"
+            else
+              echo "- (no NA image found)"
+            fi
+            echo "### RoW"
+            if [[ -n "$ROW_URL" ]]; then
+              echo "- formfactor_dvt ${ROW_VARIANT:-desktop} - release_image [${ROW_LABEL}](${ROW_URL})"
+            else
+              echo "- (no RoW image found)"
+            fi
             echo
-            [[ -n "$NA_FILE"  ]] && echo "NA"  && echo "Tachyon desktop - ${NA_FILE}"  && echo
-            [[ -n "$ROW_FILE" ]] && echo "RoW" && echo "Tachyon desktop - ${ROW_FILE}" && echo
-            echo "Changes"
+            echo "## What's Changed"
             echo
-            # If the sanitized section is empty, print a friendlier default
             if [ -z "$(printf '%s' "$CLEAN_CHANGES" | sed '/^[[:space:]]*$/d')" ]; then
               echo "- No categorized changes"
             else
               printf '%s\n' "$CLEAN_CHANGES"
             fi
             echo
-            echo "Full Changelog: ${PREV:-0.0.0}...${VERSION}"
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV:-0.0.0}...${VERSION}"
             echo
             echo "Contributors"
             echo "${{ steps.contribs.outputs.contributors }}"
@@ -509,7 +523,7 @@ jobs:
           VERSION="${{ steps.versel.outputs.version }}"
           NOW="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
-          BASE_URL="${PUBLIC_RELEASE_BASE_URL:-https://linux-dist.particle.io/releases}"
+          BASE_URL="${PUBLIC_RELEASE_BASE_URL:-https://linux-dist.particle.io/release}"
 
           NA_FILE="$(grep -h '^FILE='   release_meta/NA-desktop.txt   | cut -d= -f2)"
           NA_SHA="$(grep -h '^SHA256='  release_meta/NA-desktop.txt   | cut -d= -f2)"

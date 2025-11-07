@@ -264,10 +264,14 @@ else
   sudo mount -o ro "$PART_LOOP_P15" "$DEPS_DIR/particle-iot-inc/tachyon-ubuntu-24.04/efi"
 fi
 
-# Create new root.ext4 sized to the full 24.04 disk image (4KiB aligned)
+# Create new root.ext4 sized to the full 24.04 disk image + extra space for overlays (4KiB aligned)
 rootfs_size=$(stat --printf="%s" "/tmp/work/input/$BASE24_IMG_BASENAME")
+
+# Add 4GB padding for overlay packages
+rootfs_padding=$((4 * 1024 * 1024 * 1024))
+rootfs_size=$((rootfs_size + rootfs_padding))
 rootfs_size=$(( ((rootfs_size + 4095) / 4096) * 4096 ))
-echo "INFO: rootfs_size (aligned): $rootfs_size bytes"
+echo "INFO: rootfs_size (aligned): $rootfs_size bytes (with 2GB padding for overlays)"
 truncate -s "$rootfs_size" "$DEPS_DIR/image/root.ext4"
 
 # Carry over LABEL/UUID if available; otherwise fallback
