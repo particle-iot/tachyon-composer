@@ -148,22 +148,10 @@ jobs:
           aws s3 cp "${{ steps.build_step.outputs.output_path }}" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
           echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
 
-      - name: Presign PR artifact
-        id: presign_pr
-        if: steps.s3_upload_pr.outputs.s3_uri &&
-            github.event_name == 'pull_request' &&
-            env.UPLOAD_PR_ASSETS != 'false'
-        env:
-          S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
-          OBJ_KEY: "${{ steps.build_step.outputs.output_name }}"
-        run: |
-          URL="$(aws s3 presign "s3://${S3_BUCKET}/${OBJ_KEY}" --expires-in 604800)"
-          echo "url=${URL}" >> "$GITHUB_OUTPUT"
-
       - name: Comment with download link (peter-evans)
-        if: steps.presign_pr.outputs.url &&
-            github.event_name == 'pull_request' &&
-            env.UPLOAD_PR_ASSETS != 'false'
+        if: steps.build_step.outputs.output_name &&
+          github.event_name == 'pull_request' &&
+          env.UPLOAD_PR_ASSETS != 'false'
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
@@ -174,7 +162,7 @@ jobs:
             **Base tag:** `${{ steps.ver.outputs.base_tag }}`
             **Commit:** `${{ steps.ver.outputs.short_sha }}`
 
-            **Download:** [Presigned URL](${{ steps.presign_pr.outputs.url }}) _(expires in ~7 days)_
+            **Download:** [URL](https://linux-dist.particle.io/${{ steps.build_step.outputs.output_name }})
 
       - name: Invalidate CloudFront (optional for PR)
         if: steps.s3_upload_pr.outputs.s3_uri &&
