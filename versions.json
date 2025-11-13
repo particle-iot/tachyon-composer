@@ -10,7 +10,7 @@
     },
     "particle-iot/tachyon-ubuntu-24.04": {
       "type": "git_release",
-      "param": "18-32fd4db"
+      "param": "19-3f364db"
     },
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
