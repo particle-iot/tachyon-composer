@@ -6,6 +6,9 @@
 #  - the dockerfile is cached. There is a version tag in the top of the file that should be updated with each release.
 ####################################################################################################################
 
+# Helper variables
+comma := ,
+
 # Derive VERSION from the latest semantic tag in the repo
 VERSION := $(shell \
   tag=$$(git describe --tags --abbrev=0 2>/dev/null || echo ""); \
@@ -481,6 +484,10 @@ build_24.04: version print-config fetch_tachyon_overlays fetch_overlay_tool fetc
 			exit 1; \
 		fi; \
 	fi
+	$(eval GENERATED_DISTRO_ENV := DISTRO_VERSION=$(OUTPUT_VERSION)$(comma)DISTRO_STACK=$(if $(INPUT_OVERLAY_STACK),$(INPUT_OVERLAY_STACK),ubuntu-$(INPUT_VARIANT)-24.04)$(comma)DISTRO_VARIANT=$(INPUT_VARIANT)$(comma)DISTRO_REGION=$(INPUT_REGION)$(comma)DISTRO_BOARD=formfactor_dvt$(comma)DISTRO_DISTRIBUTION=ubuntu$(comma)DISTRO_DISTRIBUTION_VERSION=24.04)
+	$(eval GENERATED_SRC_ENV := SRC_TACHYON_COMPOSER=$(VERSION)$(comma)SRC_UBUNTU_20_04=$(INPUT_BASE_20_04_VERSION)$(comma)SRC_UBUNTU_24_04=$(INPUT_BASE_24_04_VERSION)$(comma)SRC_U_BOOT=$(INPUT_UBOOT_VERSION)$(comma)SRC_OVERLAYS=$(OVERLAYS_REF))
+	$(eval GENERATED_ENV := $(GENERATED_DISTRO_ENV)$(comma)$(GENERATED_SRC_ENV))
+	$(eval COMBINED_ENV := $(if $(strip $(INPUT_ENV)),$(INPUT_ENV)$(comma),)$(GENERATED_ENV))
 	$(call validate_output_24_04,OUTPUT_24_04_SYSTEM_IMAGE)
 	@echo "Configuration:"
 	@echo "  Base 20.04 Version: $(INPUT_BASE_20_04_VERSION)"
@@ -491,8 +498,9 @@ build_24.04: version print-config fetch_tachyon_overlays fetch_overlay_tool fetc
 	@echo "  Output File:        $(OUTPUT_24_04_SYSTEM_IMAGE)"
 	@echo "  Temp Directory:     $(TMP_INPUT_DIR)"
 	@echo "  Temp Output Dir:    $(TMP_OUTPUT_DIR)"
-	@echo "  Debug:       			 $(DEBUG)"
+	@echo "  Debug:              $(DEBUG)"
 	@echo "  Input Env:          $(if $(INPUT_ENV),$(INPUT_ENV),<none>)"
+	@echo "  Generated Env:      $(GENERATED_ENV)"
 	@echo "  Input Overlay Path: $(INPUT_OVERLAY_PATH)"
 	@echo ""
 	@mkdir -p $(TMP_INPUT_DIR)
@@ -502,7 +510,7 @@ build_24.04: version print-config fetch_tachyon_overlays fetch_overlay_tool fetc
 	@echo "  - U-Boot: $(notdir $(UBOOT_ZIP)) in $(TMP_INPUT_DIR)/u-boot"
 	@echo "  - 24.04 img: $(notdir $(BASE24_IMG)) in $(TMP_INPUT_DIR)/sys-img-24.04"
 	@echo ""
-	@$(DOCKER_RUN) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(INPUT_ENV)"
+	@$(DOCKER_RUN) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(COMBINED_ENV)"
 	@echo ""
 	@echo "Build completed successfully!"
 	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(notdir $(OUTPUT_24_04_SYSTEM_IMAGE))"
