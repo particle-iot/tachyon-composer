@@ -387,7 +387,7 @@ OVERLAY_TOOL_DIR      := /tmp/work/tools/tachyon-overlay-tool
 OVERLAY_TOOL_CLONE_URL = https://github.com/particle-iot/tachyon-overlay-tool.git
 
 # Pin to a branch/tag/commit if desired: OVERLAY_TOOL_REF=main (or a SHA)
-OVERLAY_TOOL_REF      ?= main
+OVERLAY_TOOL_REF      ?= a6f92f6b563aa9cc1ec3e62e7c89c2dca338350c
 OVERLAY_TOOL_STAMP    := $(OVERLAY_TOOL_DIR)/.installed
 
 .PHONY: fetch_overlay_tool
