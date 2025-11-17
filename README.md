@@ -8,9 +8,32 @@ For more background and documentation, see the [Particle Tachyon Ubuntu 24.04 Ov
 
 ## 📦 Prerequisites
 
-- **GNU Make** installed  
-- **Docker** installed and running (the build happens inside Docker)  
-- **Sufficient disk space** for temporary files and output archives (around 12GB)  
+- **GNU Make** installed
+- **Docker** installed and running (the build happens inside Docker)
+- **Sufficient disk space** for temporary files and output archives (around 12GB)
+- **Architecture requirements**:
+  - **ARM64/aarch64 host**: Native execution (recommended for best performance)
+  - **x86_64/amd64 host**: Requires QEMU user-mode emulation for ARM64 binaries
+
+### x86_64 Host Setup
+
+If you're building on an **x86_64/amd64** machine, QEMU ARM64 emulation is required and will be **automatically configured** on first build.
+
+The build system will:
+1. Detect your architecture
+2. Check if QEMU is registered
+3. Automatically set it up if needed using Docker
+
+**Manual setup (optional):**
+```bash
+# Manually trigger QEMU setup
+make setup_qemu
+
+# Or directly:
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+```
+
+This only needs to be done once per host machine and persists across reboots.
 
 ---
 
@@ -138,9 +161,35 @@ make build_24.04 ... DEBUG=true
 
 The Makefile validates:
 
-- Missing required parameters  
-- Invalid region values (must be `NA` or `RoW`)  
-- Directory creation permissions  
+- Missing required parameters
+- Invalid region values (must be `NA` or `RoW`)
+- Directory creation permissions
+- Architecture compatibility and QEMU configuration
+
+### Common Errors
+
+#### "Exec format error" during build
+
+**Symptom:**
+```
+chroot: failed to run command '/usr/bin/env': Exec format error
+```
+
+**Cause:** You're building on an x86_64 machine and QEMU ARM64 emulation setup failed.
+
+**Solution:**
+
+The build should automatically set up QEMU. If it fails, try manually:
+```bash
+make setup_qemu
+```
+
+Or if Docker is not working:
+```bash
+sudo apt-get install -y qemu-user-static binfmt-support
+```
+
+Then retry your build. See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for more details.
 
 ---
 
