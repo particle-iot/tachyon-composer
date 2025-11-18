@@ -216,7 +216,9 @@ help:
 	@echo "  fetch_uboot                 Download U-Boot zip to $(TMP_INPUT_DIR)"
 	@echo "  fetch_24_04                 Download Ubuntu 24.04 .img.xz to $(TMP_INPUT_DIR)"
 	@echo "  fetch_24_04_unxz            Decompress 24.04 .img.xz to .img using Docker"
-	@echo "  doctor                      Minimal host prerequisites check (docker, git)"
+	@echo "  doctor                      Minimal host prerequisites check (docker, git, QEMU)"
+	@echo "  check_qemu                  Check if QEMU ARM64 emulation is configured"
+	@echo "  setup_qemu                  Setup QEMU ARM64 emulation (x86_64 hosts only)"
 	@echo ""
 	@echo "Required parameters:"
 	@echo "  INPUT_BASE_20_04_VERSION    Base 20.04 version (semver, e.g., 1.0.167)"
@@ -464,7 +466,7 @@ fetch_tachyon_overlays: docker/build
 BASE24_IMG_BASENAME := $(notdir $(BASE24_IMG))
 
 .PHONY: build_24.04
-build_24.04: version print-config fetch_tachyon_overlays fetch_overlay_tool fetch_qtools fetch_20_04 fetch_uboot fetch_24_04_unxz prepare_base_24_04 docker/build 
+build_24.04: version print-config check_qemu fetch_tachyon_overlays fetch_overlay_tool fetch_qtools fetch_20_04 fetch_uboot fetch_24_04_unxz prepare_base_24_04 docker/build 
 	@echo "Building Tachyon System Image for Ubuntu 24.04..."
 	@echo ""
 	$(call check_required_param,INPUT_BASE_20_04_VERSION)
@@ -627,6 +629,41 @@ doctor:
 	@docker version >/dev/null 2>&1 || { echo "Error: Docker daemon not reachable (is Docker Desktop/daemon running, and do you have permission to use it?)."; exit 1; }
 	@command -v git >/dev/null 2>&1 || { echo "Error: git not found. Please install git."; exit 1; }
 	@echo "Host OK: docker and git are available."
+	@$(MAKE) check_qemu
+
+.PHONY: check_qemu
+check_qemu:
+	@HOST_ARCH=$$(uname -m); \
+	HOST_OS=$$(uname -s); \
+	if [ "$$HOST_ARCH" = "x86_64" ] || [ "$$HOST_ARCH" = "amd64" ]; then \
+		if [ "$$HOST_OS" = "Linux" ]; then \
+			if [ ! -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then \
+				echo "==> Setting up QEMU ARM64 emulation for x86_64 Linux host"; \
+				echo "Running: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes"; \
+				docker run --rm --privileged multiarch/qemu-user-static --reset -p yes; \
+				if [ -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then \
+					echo "QEMU ARM64 emulation configured successfully"; \
+				else \
+					echo "ERROR: Failed to configure QEMU emulation"; \
+					echo "Please manually install qemu-user-static:"; \
+					echo "  sudo apt-get install -y qemu-user-static binfmt-support"; \
+					exit 1; \
+				fi; \
+			fi; \
+		fi; \
+	fi
+
+.PHONY: setup_qemu
+setup_qemu:
+	@echo "==> Setting up QEMU user-mode emulation"
+	@HOST_ARCH=$$(uname -m); \
+	if [ "$$HOST_ARCH" = "x86_64" ] || [ "$$HOST_ARCH" = "amd64" ]; then \
+		echo "Registering QEMU binfmt_misc handlers..."; \
+		docker run --rm --privileged multiarch/qemu-user-static --reset -p yes; \
+		echo "QEMU setup complete"; \
+	else \
+		echo "Not needed on $$HOST_ARCH architecture"; \
+	fi
 
 ##########################################################
 # Main targets
