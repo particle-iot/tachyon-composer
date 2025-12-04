@@ -14,7 +14,7 @@
     },
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "HEAD"
+      "param": "feature/modem_enable"
     }
   },
   "env": {
