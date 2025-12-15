@@ -39,7 +39,9 @@ make build_24.04 ... DEBUG=true
 make help                    # Show all available commands
 make version                 # Show current version
 make clean                   # Remove temporary files
-make doctor                  # Check prerequisites (docker, git)
+make doctor                  # Check prerequisites (docker, git, QEMU)
+make check_qemu              # Check if QEMU ARM64 emulation is configured
+make setup_qemu              # Manually setup QEMU ARM64 emulation (x86_64 only)
 make docker/shell            # Open interactive shell in builder container
 make docker/rebuild          # Force rebuild of Docker image
 ```
@@ -83,6 +85,20 @@ The build process follows this sequence:
 - Host working directory mounted at `/project`
 - Temporary files mounted at `/tmp/work` (maps to `./.tmp` on host)
 - Version tracked via `particle-dockerfile-version` comment in Dockerfile (currently 1.3)
+- Includes `qemu-user-static` for ARM64 emulation support
+
+### Architecture Requirements
+
+The build system produces **ARM64 (aarch64)** system images and requires the ability to execute ARM64 binaries via `chroot`:
+
+- **ARM64 hosts**: Native execution (recommended for best performance)
+- **x86_64 Linux hosts**: Requires QEMU user-mode emulation with binfmt_misc registration
+  - **Automatically configured** on first build via `check_qemu` target
+  - Runs: `docker run --rm --privileged multiarch/qemu-user-static --reset -p yes`
+  - Only needs to be done once per host (persists across reboots)
+- **macOS/Windows**: Docker Desktop handles emulation automatically (no setup needed)
+
+If you encounter `chroot: failed to run command '/usr/bin/env': Exec format error`, the QEMU setup failed. Run `make setup_qemu` to fix.
 
 ### External Tools Fetched at Build Time
 
@@ -189,3 +205,25 @@ When testing changes:
 3. Verify partition sizes in `rawprogram*.xml` files match actual file sizes
 4. Test both regions (NA/RoW) and variants (headless/desktop)
 5. Use `make docker/shell` to debug issues interactively inside the container
+6. Test on different architectures if possible (x86_64 Linux, ARM64, macOS)
+
+## Common Issues
+
+### "Exec format error" when building on x86_64 Linux
+
+**Symptom:** `chroot: failed to run command '/usr/bin/env': Exec format error`
+
+**Cause:** QEMU ARM64 emulation not configured on the host kernel.
+
+**Solution:** The build automatically attempts to configure QEMU. If it fails:
+```bash
+make setup_qemu
+# Or manually:
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+```
+
+See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for more details.
+
+### Build works on macOS but fails on Linux
+
+This is likely due to QEMU not being configured on the Linux host. macOS Docker Desktop handles ARM64 emulation automatically, but Linux requires explicit binfmt_misc registration.
