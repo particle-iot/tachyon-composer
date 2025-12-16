@@ -92,6 +92,39 @@ rsync -a "$SRC20_DIR/" "$BASEDIR/"
 echo "Post-populate top-level:"
 ls -la "$BASEDIR" | sed 's/^/  /'
 
+# --- Verify modem firmware region (MD5 checksums) -----------------------------
+section "Verifying modem firmware checksums"
+NON_HLOS_BIN="$BASEDIR/images/qcm6490/edl/NON-HLOS.bin"
+if [ -f "$NON_HLOS_BIN" ]; then
+  echo "NON-HLOS.bin MD5: $(md5sum "$NON_HLOS_BIN" | awk '{print $1}')"
+  echo "NON-HLOS.bin size: $(stat -c%s "$NON_HLOS_BIN") bytes"
+
+  # Extract and check a few modem files to verify region
+  TEMP_MOUNT=$(mktemp -d)
+  echo "Extracting sample modem files from NON-HLOS.bin for verification..."
+  mcopy -i "$NON_HLOS_BIN" '::/image/modem.b00' "$TEMP_MOUNT/" 2>/dev/null || true
+  mcopy -i "$NON_HLOS_BIN" '::/image/modem.mdt' "$TEMP_MOUNT/" 2>/dev/null || true
+  mcopy -i "$NON_HLOS_BIN" '::/image/modemr.jsn' "$TEMP_MOUNT/" 2>/dev/null || true
+
+  if [ -f "$TEMP_MOUNT/modem.b00" ]; then
+    echo "  modem.b00 MD5: $(md5sum "$TEMP_MOUNT/modem.b00" | awk '{print $1}')"
+    echo "  modem.b00 size: $(stat -c%s "$TEMP_MOUNT/modem.b00") bytes"
+  fi
+  if [ -f "$TEMP_MOUNT/modem.mdt" ]; then
+    echo "  modem.mdt MD5: $(md5sum "$TEMP_MOUNT/modem.mdt" | awk '{print $1}')"
+    echo "  modem.mdt size: $(stat -c%s "$TEMP_MOUNT/modem.mdt") bytes"
+  fi
+
+  rm -rf "$TEMP_MOUNT"
+else
+  echo "WARNING: NON-HLOS.bin not found at $NON_HLOS_BIN"
+fi
+
+# Print which 20.04 zip was used
+echo "20.04 source: $(basename "$BASE20_ZIP")"
+DETECTED_REGION=$(basename "$BASE20_ZIP" | grep -oP '(NA|RoW)' || echo 'UNKNOWN')
+echo "Detected region from filename: $DETECTED_REGION"
+
 # --- Copy the 24.04 .img next to sys-img (optional; not inside) --------------
 section "Copying 24.04 .img next to sys-img (optional)"
 cp -f "$BASE24_IMG" "$TMP_OUTPUT_DIR/" || true

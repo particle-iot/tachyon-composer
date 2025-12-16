@@ -266,6 +266,14 @@ $(BASE20_ZIP):
 		curl -fL --retry 3 -o "$@" "$(BASE20_URL)" || { echo "Error: failed to download $(BASE20_URL)"; rm -f "$@"; exit 1; }; \
 		test -s "$@" || { echo "Error: downloaded file is empty: $@"; exit 1; }; \
 		echo "Downloaded 20.04: $@"; \
+		echo "Downloaded file: $(BASE20_FILENAME)"; \
+		echo "MD5 of downloaded 20.04 zip: $$(md5sum "$@" | awk "{print \$$1}")"; \
+		DETECTED_REGION=$$(echo "$(BASE20_FILENAME)" | grep -oE "(NA|RoW)" || echo "UNKNOWN"); \
+		echo "Detected region from filename: $$DETECTED_REGION"; \
+		echo "Expected region (INPUT_REGION): $(INPUT_REGION)"; \
+		if [ "$$DETECTED_REGION" != "$(INPUT_REGION)" ]; then \
+			echo "WARNING: Region mismatch! Expected $(INPUT_REGION) but got $$DETECTED_REGION"; \
+		fi; \
 		unzip -o "$@" -d "$(TMP_INPUT_DIR)/sys-img-20.04"; \
 		echo "Unzipped 20.04 base to $(TMP_INPUT_DIR)/sys-img-20.04"'
 

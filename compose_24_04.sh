@@ -405,6 +405,29 @@ fi
 
 ( cd "$SYSDIR" && zip -r -"$COMPRESSION_FACTOR" -v "$OUTPUT_24_04_SYSTEM_IMAGE_FULLPATH" . )
 
+# ---------- Final modem firmware verification ----------
+section "Final modem firmware verification"
+if [ -f "$EDL_24_04_PATH/NON-HLOS.bin" ]; then
+  echo "Final NON-HLOS.bin MD5: $(md5sum "$EDL_24_04_PATH/NON-HLOS.bin" | awk '{print $1}')"
+  echo "Final NON-HLOS.bin size: $(stat -c%s "$EDL_24_04_PATH/NON-HLOS.bin") bytes"
+
+  # Extract and verify final modem files
+  FINAL_TEMP=$(mktemp -d)
+  mcopy -i "$EDL_24_04_PATH/NON-HLOS.bin" '::/image/modem.b00' "$FINAL_TEMP/" 2>/dev/null || true
+  mcopy -i "$EDL_24_04_PATH/NON-HLOS.bin" '::/image/modem.mdt' "$FINAL_TEMP/" 2>/dev/null || true
+
+  if [ -f "$FINAL_TEMP/modem.b00" ]; then
+    echo "Final modem.b00 MD5: $(md5sum "$FINAL_TEMP/modem.b00" | awk '{print $1}')"
+  fi
+  if [ -f "$FINAL_TEMP/modem.mdt" ]; then
+    echo "Final modem.mdt MD5: $(md5sum "$FINAL_TEMP/modem.mdt" | awk '{print $1}')"
+  fi
+
+  rm -rf "$FINAL_TEMP"
+else
+  echo "WARNING: Final NON-HLOS.bin not found at $EDL_24_04_PATH/NON-HLOS.bin"
+fi
+
 # ---------- Completed ----------
 section "COMPLETED"
 echo "EDL 24.04 path     : $EDL_24_04_PATH"
