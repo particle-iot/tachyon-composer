@@ -48,6 +48,7 @@ ifdef VERSIONS_FILE
   JSON_UBOOT_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print(j.get('sources',{}).get('particle-iot/tachyon-u-boot',{}).get('param',''))" $(VERSIONS_FILE))
   JSON_BASE20_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print(j.get('sources',{}).get('particle-iot-inc/tachyon-release-builder',{}).get('param',''))" $(VERSIONS_FILE))
   JSON_BASE24_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print(j.get('sources',{}).get('particle-iot/tachyon-ubuntu-24.04',{}).get('param',''))" $(VERSIONS_FILE))
+  JSON_KERNEL_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print(j.get('sources',{}).get('particle-iot/tachyon-ubuntu-24.04-kernel',{}).get('param',''))" $(VERSIONS_FILE))
   JSON_OVERLAYS_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); s=j.get('sources',{}); o=s.get('particle-iot/tachyon-overlay') or s.get('particle-iot/tachyon-overlays',{}); print((o or {}).get('param',''))" $(VERSIONS_FILE))
 
   # unified env (preferred); legacy fallback to packages->PKG_* if env missing
@@ -61,6 +62,9 @@ ifdef VERSIONS_FILE
   endif
   ifneq ($(strip $(JSON_BASE24_PARAM)),)
     override INPUT_BASE_24_04_VERSION := $(JSON_BASE24_PARAM)
+  endif
+  ifneq ($(strip $(JSON_KERNEL_PARAM)),)
+    override INPUT_KERNEL_VERSION := $(JSON_KERNEL_PARAM)
   endif
   ifneq ($(strip $(JSON_OVERLAYS_PARAM)),)
     override OVERLAYS_REF := $(JSON_OVERLAYS_PARAM)
@@ -512,7 +516,7 @@ build_24.04: version print-config check_qemu fetch_tachyon_overlays fetch_overla
 	@echo "  - U-Boot: $(notdir $(UBOOT_ZIP)) in $(TMP_INPUT_DIR)/u-boot"
 	@echo "  - 24.04 img: $(notdir $(BASE24_IMG)) in $(TMP_INPUT_DIR)/sys-img-24.04"
 	@echo ""
-	@$(DOCKER_RUN) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(COMBINED_ENV)"
+	@$(DOCKER_RUN) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(COMBINED_ENV)" "$(INPUT_KERNEL_VERSION)"
 	@echo ""
 	@echo "Build completed successfully!"
 	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(notdir $(OUTPUT_24_04_SYSTEM_IMAGE))"
