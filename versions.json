@@ -2,7 +2,11 @@
   "sources": {
     "particle-iot/tachyon-u-boot": {
       "type": "cicd_release",
-      "param": "1.0.16"
+      "param": "1.0.19"
+    },
+    "particle-iot/tachyon-ubuntu-24.04-kernel": {
+      "type": "apt-package",
+      "param": "6.8.0-1056.57+particle6"
     },
     "particle-iot-inc/tachyon-release-builder": {
       "type": "cicd_release",
