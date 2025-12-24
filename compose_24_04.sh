@@ -449,6 +449,61 @@ else
 fi
 
 ###########################################################################
+# COPY DEVICE TREE OVERLAYS from U-Boot to /boot/overlays/
+###########################################################################
+section "6) COPY DEVICE TREE OVERLAYS"
+
+echo "==> Copying qcm6490-tachyon-*.dtbo files from U-Boot to /boot/overlays/"
+
+# Mount the rootfs ext4 for DTBO copy operations
+ROOTFS_EXT4="$EDL_24_04_PATH/qti-ubuntu-robotics-image-qcs6490-odk-sysfs_1.ext4"
+CHROOT_DIR="$DEPS_DIR/dtbo_chroot"
+
+mkdir -p "$CHROOT_DIR"
+
+# Mount the rootfs
+echo "==> Mounting rootfs for DTBO copy"
+sudo mount -o loop "$ROOTFS_EXT4" "$CHROOT_DIR"
+
+# Cleanup function for DTBO operations
+cleanup_dtbo() {
+  set +e
+  sudo umount "$CHROOT_DIR" 2>/dev/null || true
+}
+trap cleanup_dtbo EXIT
+
+# Create /boot/overlays/ directory if it doesn't exist
+sudo mkdir -p "$CHROOT_DIR/boot/overlays"
+
+# Find and copy all qcm6490-tachyon-*.dtbo files from U-Boot directory
+UBOOT_PATH="/tmp/work/input/$UBOOT_DIR"
+DTBO_COUNT=0
+
+if [ -d "$UBOOT_PATH" ]; then
+  for dtbo_file in "$UBOOT_PATH"/qcm6490-tachyon-*.dtbo; do
+    if [ -f "$dtbo_file" ]; then
+      echo "  Copying $(basename "$dtbo_file")"
+      sudo cp "$dtbo_file" "$CHROOT_DIR/boot/overlays/"
+      DTBO_COUNT=$((DTBO_COUNT + 1))
+    fi
+  done
+
+  if [ $DTBO_COUNT -eq 0 ]; then
+    echo "  WARNING: No qcm6490-tachyon-*.dtbo files found in $UBOOT_PATH"
+  else
+    echo "==> Successfully copied $DTBO_COUNT DTBO file(s) to /boot/overlays/"
+  fi
+else
+  echo "  WARNING: U-Boot directory not found at $UBOOT_PATH"
+fi
+
+# Unmount
+sudo umount "$CHROOT_DIR"
+trap - EXIT  # Remove the cleanup trap
+
+echo "==> DTBO copy completed"
+
+###########################################################################
 # Package final system image (zip the prepared BASE24_SYSTEM_IMAGE_DIR)
 ###########################################################################
 section "PACKAGE SYSTEM IMAGE (ZIP)"
