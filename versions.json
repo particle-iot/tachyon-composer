@@ -2,11 +2,11 @@
   "sources": {
     "particle-iot/tachyon-u-boot": {
       "type": "cicd_release",
-      "param": "1.0.26"
+      "param": "1.0.26%2Bbuild.f91b3e5a02"
     },
     "particle-iot/tachyon-ubuntu-24.04-kernel": {
       "type": "apt-package",
-      "param": "6.8.0-1056.57+particle6"
+      "param": "6.8.0-1058.59+particle1"
     },
     "particle-iot-inc/tachyon-release-builder": {
       "type": "cicd_release",
@@ -18,7 +18,7 @@
     },
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "HEAD"
+      "param": "test/usb-role-switch-restart-adbd"
     }
   },
   "env": {

@@ -147,8 +147,8 @@ BASE20_ZIP := $(TMP_INPUT_DIR)/$(BASE20_FILENAME)
 
 # U-Boot zip (semver)
 UBOOT_FILENAME := tachyon-u-boot-$(INPUT_UBOOT_VERSION).zip
-UBOOT_URL_PRIMARY := https://linux-dist.particle.io/release/$(UBOOT_FILENAME)
-UBOOT_URL_ENCODED := https://linux-dist.particle.io/release%2F$(UBOOT_FILENAME)
+UBOOT_URL_PRIMARY := https://linux-dist.particle.io/prerelease/$(UBOOT_FILENAME)
+UBOOT_URL_ENCODED := https://linux-dist.particle.io/prerelease%2F$(UBOOT_FILENAME)
 UBOOT_ZIP := $(TMP_INPUT_DIR)/$(UBOOT_FILENAME)
 UBOOT_DIR := u-boot
 
@@ -483,12 +483,6 @@ build_24.04: version print-config check_qemu fetch_tachyon_overlays fetch_overla
 	@if [ -z "$(INPUT_UBOOT_VERSION)" ] && [ -z "$(INPUT_UBOOT_DIR)" ]; then \
 		echo "Error: INPUT_UBOOT_VERSION or INPUT_UBOOT_DIR is required"; \
 		exit 1; \
-	fi
-	@if [ -n "$(INPUT_UBOOT_VERSION)" ]; then \
-		if ! echo "$(INPUT_UBOOT_VERSION)" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$'; then \
-			echo "Error: INPUT_UBOOT_VERSION must be a semantic version (x.y.z), got '$(INPUT_UBOOT_VERSION)'"; \
-			exit 1; \
-		fi; \
 	fi
 	$(eval GENERATED_DISTRO_ENV := PKG_DISTRO_VERSION=$(OUTPUT_VERSION)$(comma)PKG_DISTRO_STACK=$(if $(INPUT_OVERLAY_STACK),$(INPUT_OVERLAY_STACK),ubuntu-$(INPUT_VARIANT)-24.04)$(comma)PKG_DISTRO_VARIANT=$(INPUT_VARIANT)$(comma)PKG_DISTRO_REGION=$(INPUT_REGION)$(comma)PKG_DISTRO_BOARD=formfactor_dvt$(comma)PKG_DISTRO_DISTRIBUTION=ubuntu$(comma)PKG_DISTRO_DISTRIBUTION_VERSION=24.04)
 	$(eval GENERATED_SRC_ENV := PKG_SRC_TACHYON_COMPOSER=$(VERSION)$(comma)PKG_SRC_UBUNTU_20_04=$(INPUT_BASE_20_04_VERSION)$(comma)PKG_SRC_UBUNTU_24_04=$(INPUT_BASE_24_04_VERSION)$(comma)PKG_SRC_U_BOOT=$(INPUT_UBOOT_VERSION)$(comma)PKG_SRC_OVERLAYS=$(OVERLAYS_REF))
