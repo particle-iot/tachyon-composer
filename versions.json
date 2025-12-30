@@ -26,7 +26,7 @@
     "PKG_particle_linux": "0.22.0-1",
     "PKG_particle_tachyon_desktop_setup": "2.7.0",
     "PKG_particle_tachyon_ril": "0.4.5-1",
-    "PKG_particle_tachyon_syscon": "1.0.19-1",
+    "PKG_particle_tachyon_syscon": "1.0.20",
     "PIN_PRIORITY": "900"
   }
 }
