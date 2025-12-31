@@ -18,7 +18,7 @@
     },
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "feature/kernel_pin_fix"
+      "param": "HEAD"
     }
   },
   "env": {
