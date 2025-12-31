@@ -22,6 +22,7 @@
     }
   },
   "env": {
+    "PKG_linux_particle": "6.8.0-1056.57+particle6",
     "PKG_particle_linux": "0.22.0-1",
     "PKG_particle_tachyon_desktop_setup": "2.7.0",
     "PKG_particle_tachyon_ril": "0.4.5-1",

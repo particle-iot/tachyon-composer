@@ -16,7 +16,6 @@
 #   $5 DEBUG (false or true)
 #   $6 INPUT_OVERLAY_PATH
 #   $7 OVERLAY_ENV
-#   $8 INPUT_KERNEL_VERSION (e.g. "6.8.0-1056.57+particle6")
 #
 # Expected paths in the Docker workspace:
 #   /tmp/work/input/$UBOOT_DIR/u-boot-dtb.bin
@@ -97,7 +96,6 @@ OUTPUT_24_04_SYSTEM_IMAGE="${4:?missing arg4 (OUTPUT_24_04_SYSTEM_IMAGE)}"
 OVERLAY_DEBUG="${5:?missing arg5 (DEBUG)}"             # reuse for overlay too
 INPUT_OVERLAY_PATH="${6:?missing arg6 (INPUT_OVERLAY_PATH)}"
 OVERLAY_ENV="${7:-}"                                   # optional (comma-separated KEY=VAL)
-INPUT_KERNEL_VERSION="${8:-}"                          # optional (e.g. "6.8.0-1056.57+particle6")
 
 echo "UBOOT_DIR                 : $UBOOT_DIR"
 echo "BASE24_IMG_BASENAME       : $BASE24_IMG_BASENAME"
@@ -106,7 +104,6 @@ echo "OUTPUT_24_04_SYSTEM_IMAGE : $OUTPUT_24_04_SYSTEM_IMAGE"
 echo "INPUT_OVERLAY_PATH        : $INPUT_OVERLAY_PATH"
 echo "OVERLAY_ENV               : $OVERLAY_ENV"
 echo "OVERLAY_DEBUG             : $OVERLAY_DEBUG"
-echo "INPUT_KERNEL_VERSION      : $INPUT_KERNEL_VERSION"
 
 #create the final location for the system image 
 OUTPUT_24_04_SYSTEM_IMAGE_FULLPATH="/tmp/work/output/$OUTPUT_24_04_SYSTEM_IMAGE"
@@ -386,72 +383,9 @@ pushd "$OVERLAY_TOOL_DIR" >/dev/null
 popd >/dev/null
 
 ###########################################################################
-# PIN KERNEL VERSION if specified
-###########################################################################
-if [ -n "$INPUT_KERNEL_VERSION" ]; then
-  section "5) PIN KERNEL VERSION"
-
-  echo "==> Pinning kernel to version: $INPUT_KERNEL_VERSION"
-
-  # Mount the rootfs ext4 for chroot operations
-  ROOTFS_EXT4="$EDL_24_04_PATH/qti-ubuntu-robotics-image-qcs6490-odk-sysfs_1.ext4"
-  CHROOT_DIR="$DEPS_DIR/kernel_chroot"
-
-  mkdir -p "$CHROOT_DIR"
-
-  # Mount the rootfs
-  echo "==> Mounting rootfs for kernel pinning"
-  sudo mount -o loop "$ROOTFS_EXT4" "$CHROOT_DIR"
-
-  # Cleanup function for kernel pinning
-  cleanup_kernel() {
-    set +e
-    sudo umount "$CHROOT_DIR" 2>/dev/null || true
-  }
-  trap cleanup_kernel EXIT
-
-  # Check if exact kernel version is installed
-  echo "==> Checking installed kernel version"
-  INSTALLED_VERSION=$(sudo chroot "$CHROOT_DIR" dpkg-query -W -f='${Version}' linux-particle 2>/dev/null || echo "")
-
-  if [ "$INSTALLED_VERSION" = "$INPUT_KERNEL_VERSION" ]; then
-    echo "==> Kernel version $INPUT_KERNEL_VERSION is already installed"
-  else
-    echo "==> Installed version: $INSTALLED_VERSION"
-    echo "==> Required version: $INPUT_KERNEL_VERSION"
-    echo "==> Installing pinned kernel version"
-
-    # Update package lists
-    sudo chroot "$CHROOT_DIR" apt-get update
-
-    # Install the specific kernel version
-    sudo chroot "$CHROOT_DIR" apt-get install -y --allow-downgrades \
-      "linux-particle=${INPUT_KERNEL_VERSION}"
-
-    # Verify installation
-    INSTALLED_VERSION=$(sudo chroot "$CHROOT_DIR" dpkg-query -W -f='${Version}' linux-particle 2>/dev/null || echo "")
-    if [ "$INSTALLED_VERSION" = "$INPUT_KERNEL_VERSION" ]; then
-      echo "==> Successfully installed kernel version $INPUT_KERNEL_VERSION"
-    else
-      echo "ERROR: Failed to install kernel version $INPUT_KERNEL_VERSION"
-      echo "       Installed version is: $INSTALLED_VERSION"
-      exit 1
-    fi
-  fi
-
-  # Unmount
-  sudo umount "$CHROOT_DIR"
-  trap - EXIT  # Remove the cleanup trap
-
-  echo "==> Kernel pinning completed"
-else
-  echo "INFO: No kernel version specified, skipping kernel pinning"
-fi
-
-###########################################################################
 # COPY DEVICE TREE OVERLAYS from U-Boot to /boot/overlays/
 ###########################################################################
-section "6) COPY DEVICE TREE OVERLAYS"
+section "5) COPY DEVICE TREE OVERLAYS"
 
 echo "==> Copying qcm6490-tachyon-*.dtbo files from U-Boot to /boot/overlays/"
 
