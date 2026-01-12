@@ -6,7 +6,7 @@
     },
     "particle-iot/tachyon-ubuntu-24.04-kernel": {
       "type": "apt-package",
-      "param": "6.8.0-1056.57+particle6"
+      "param": "6.8.0-1058.59+particle1"
     },
     "particle-iot-inc/tachyon-release-builder": {
       "type": "cicd_release",
