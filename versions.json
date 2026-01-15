@@ -14,7 +14,7 @@
     },
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "PIN_UPDATE"
+      "param": "origin/feature/url_pin"
     },
     "particle-iot/tachyon-ubuntu-24.04-kernel": {
       "type": "PKG definition below",
