@@ -45,8 +45,8 @@ endif
 ifdef VERSIONS_FILE
   $(info Using versions file $(VERSIONS_FILE) to override versions)
 
-  # Parse versions.json once and extract all values (strips // comments, uses ||| delimiter)
-  PARSED_JSON := $(shell python3 -c "import json,sys,re; t=open(sys.argv[1]).read(); t=re.sub(r'//.*','',t); j=json.loads(t); s=j.get('sources',{}); u=s.get('particle-iot/tachyon-u-boot',{}); b20=s.get('particle-iot-inc/tachyon-release-builder',{}); b24=s.get('particle-iot/tachyon-ubuntu-24.04',{}); o=s.get('particle-iot/tachyon-overlay') or s.get('particle-iot/tachyon-overlays',{}); e=j.get('env',{}) or ({('PKG_'+k.replace('-','_')):v for k,v in j.get('packages',{}).items()} if j.get('packages') else {}); print('|||'.join([u.get('param',''), u.get('channel','release'), b20.get('param',''), b20.get('channel','release'), b24.get('param',''), b24.get('channel','release'), (o or {}).get('param',''), ','.join([f'{k}={v}' for k,v in e.items()])]))" $(VERSIONS_FILE))
+  # Parse versions.json once and extract all values (strips // comments at start of lines, uses ||| delimiter)
+  PARSED_JSON := $(shell python3 -c "import json,sys,re; t=open(sys.argv[1]).read(); t=re.sub(r'^\s*//.*$$','',t,flags=re.MULTILINE); j=json.loads(t); s=j.get('sources',{}); u=s.get('particle-iot/tachyon-u-boot',{}); b20=s.get('particle-iot-inc/tachyon-release-builder',{}); b24=s.get('particle-iot/tachyon-ubuntu-24.04',{}); o=s.get('particle-iot/tachyon-overlay') or s.get('particle-iot/tachyon-overlays',{}); e=j.get('env',{}) or ({('PKG_'+k.replace('-','_')):v for k,v in j.get('packages',{}).items()} if j.get('packages') else {}); print('|||'.join([u.get('param',''), u.get('channel','release'), b20.get('param',''), b20.get('channel','release'), b24.get('param',''), b24.get('channel','release'), (o or {}).get('param',''), ','.join([f'{k}={v}' for k,v in e.items()])]))" $(VERSIONS_FILE))
 
   JSON_UBOOT_PARAM := $(word 1,$(subst |||, ,$(PARSED_JSON)))
   JSON_UBOOT_CHANNEL := $(word 2,$(subst |||, ,$(PARSED_JSON)))
