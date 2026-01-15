@@ -25,8 +25,8 @@
     // This is the kernel version
     "PKG_linux_particle": "6.8.0-1058.59+particle1",
     // Optional: URL to manually install kernel .deb (for unpublished PR builds)
-    // Multiple URLs separated by ||| for related packages (image + modules)
-    "PKG_linux_particle_URL": "https://output.circle-artifacts.com/output/job/5b940fc6-c364-4000-858a-9c31ef550599/artifacts/0/debs/linux-image-6.8.0-1058-particle_6.8.0-1058.59+particle1_arm64.deb|||https://output.circle-artifacts.com/output/job/5b940fc6-c364-4000-858a-9c31ef550599/artifacts/0/debs/linux-modules-6.8.0-1058-particle_6.8.0-1058.59+particle1_arm64.deb",
+    // Multiple URLs separated by <;> for related packages (image + modules)
+    "PKG_linux_particle_URL": "https://output.circle-artifacts.com/output/job/5b940fc6-c364-4000-858a-9c31ef550599/artifacts/0/debs/linux-image-6.8.0-1058-particle_6.8.0-1058.59+particle1_arm64.deb<;>https://output.circle-artifacts.com/output/job/5b940fc6-c364-4000-858a-9c31ef550599/artifacts/0/debs/linux-modules-6.8.0-1058-particle_6.8.0-1058.59+particle1_arm64.deb",
     //This is the particle debian package
     "PKG_particle_linux": "0.22.0-1",
     //Version of the setup app being used
