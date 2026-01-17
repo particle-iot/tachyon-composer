@@ -45,13 +45,17 @@ endif
 ifdef VERSIONS_FILE
   $(info Using versions file $(VERSIONS_FILE) to override versions)
 
-  JSON_UBOOT_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print(j.get('sources',{}).get('particle-iot/tachyon-u-boot',{}).get('param',''))" $(VERSIONS_FILE))
-  JSON_BASE20_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print(j.get('sources',{}).get('particle-iot-inc/tachyon-release-builder',{}).get('param',''))" $(VERSIONS_FILE))
-  JSON_BASE24_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print(j.get('sources',{}).get('particle-iot/tachyon-ubuntu-24.04',{}).get('param',''))" $(VERSIONS_FILE))
-  JSON_OVERLAYS_PARAM := $(shell python3 -c "import json,sys; j=json.load(open(sys.argv[1])); s=j.get('sources',{}); o=s.get('particle-iot/tachyon-overlay') or s.get('particle-iot/tachyon-overlays',{}); print((o or {}).get('param',''))" $(VERSIONS_FILE))
+  # Parse versions.json once and extract all values (strips // comments at start of lines, uses ||| delimiter)
+  PARSED_JSON := $(shell python3 -c "import json,sys,re; t=open(sys.argv[1]).read(); t=re.sub(r'^\s*//.*$$','',t,flags=re.MULTILINE); j=json.loads(t); s=j.get('sources',{}); u=s.get('particle-iot/tachyon-u-boot',{}); b20=s.get('particle-iot-inc/tachyon-release-builder',{}); b24=s.get('particle-iot/tachyon-ubuntu-24.04',{}); o=s.get('particle-iot/tachyon-overlay') or s.get('particle-iot/tachyon-overlays',{}); e=j.get('env',{}) or ({('PKG_'+k.replace('-','_')):v for k,v in j.get('packages',{}).items()} if j.get('packages') else {}); print('|||'.join([u.get('param',''), u.get('channel','release'), b20.get('param',''), b20.get('channel','release'), b24.get('param',''), b24.get('channel','release'), (o or {}).get('param',''), ','.join([f'{k}={v}' for k,v in e.items()])]))" $(VERSIONS_FILE))
 
-  # unified env (preferred); legacy fallback to packages->PKG_* if env missing
-  ENV_FROM_JSON := $(shell python3 -c "import json,sys; d=json.load(open(sys.argv[1])); e=d.get('env',{}); e = e or ({('PKG_'+k.replace('-','_')):v for k,v in d.get('packages',{}).items()} if (not e and d.get('packages')) else {}); print(','.join([f'{k}={v}' for k,v in e.items()]))" $(VERSIONS_FILE))
+  JSON_UBOOT_PARAM := $(word 1,$(subst |||, ,$(PARSED_JSON)))
+  JSON_UBOOT_CHANNEL := $(word 2,$(subst |||, ,$(PARSED_JSON)))
+  JSON_BASE20_PARAM := $(word 3,$(subst |||, ,$(PARSED_JSON)))
+  JSON_BASE20_CHANNEL := $(word 4,$(subst |||, ,$(PARSED_JSON)))
+  JSON_BASE24_PARAM := $(word 5,$(subst |||, ,$(PARSED_JSON)))
+  JSON_BASE24_CHANNEL := $(word 6,$(subst |||, ,$(PARSED_JSON)))
+  JSON_OVERLAYS_PARAM := $(word 7,$(subst |||, ,$(PARSED_JSON)))
+  ENV_FROM_JSON := $(word 8,$(subst |||, ,$(PARSED_JSON)))
 
   ifneq ($(strip $(JSON_BASE20_PARAM)),)
     override INPUT_BASE_20_04_VERSION := $(JSON_BASE20_PARAM)
@@ -65,6 +69,15 @@ ifdef VERSIONS_FILE
   ifneq ($(strip $(JSON_OVERLAYS_PARAM)),)
     override OVERLAYS_REF := $(JSON_OVERLAYS_PARAM)
   endif
+  ifneq ($(strip $(JSON_UBOOT_CHANNEL)),)
+    override UBOOT_CHANNEL := $(JSON_UBOOT_CHANNEL)
+  endif
+  ifneq ($(strip $(JSON_BASE20_CHANNEL)),)
+    override BASE20_CHANNEL := $(JSON_BASE20_CHANNEL)
+  endif
+  ifneq ($(strip $(JSON_BASE24_CHANNEL)),)
+    override BASE24_CHANNEL := $(JSON_BASE24_CHANNEL)
+  endif
   ifneq ($(strip $(ENV_FROM_JSON)),)
     override INPUT_ENV_VARS := $(ENV_FROM_JSON)
     override INPUT_ENV := $(ENV_FROM_JSON)
@@ -76,11 +89,16 @@ COMMAND ?=
 INPUT_BASE_20_04_VERSION ?=         # semver, e.g., 1.0.167
 INPUT_REGION ?=                     # NA | RoW
 INPUT_VARIANT ?=                    # headless | desktop
-INPUT_UBOOT_VERSION ?=              # semver, e.g., 1.0.3
+INPUT_UBOOT_VERSION ?=              # semver or prerelease, e.g., 1.0.3 or 1.0.3+build.abc123
 INPUT_BASE_24_04_VERSION ?=         # e.g., 14-276cd6b
 INPUT_ENV	?=                      	# optional, e.g., "VAR1=val1,VAR2=val2"
 INPUT_OVERLAY_PATH ?= $(DEFAULT_OVERLAY_PATH) # optional, path to overlay dir (inside container, e.g., ./os_overlays/24.04)
 OUTPUT_24_04_SYSTEM_IMAGE ?= $(DEFAULT_OUTPUT_PREFIX)-24.04-$(INPUT_REGION)-$(INPUT_VARIANT)-formfactor_dvt-$(OUTPUT_VERSION).zip
+
+# Channel parameters (release, prerelease, or preproduction)
+UBOOT_CHANNEL ?= release
+BASE20_CHANNEL ?= release
+BASE24_CHANNEL ?= release
 
 # Working variables
 TMP_ROOT_DIR ?= $(DEFAULT_TMP_ROOT_DIR)
@@ -138,20 +156,23 @@ endef
 # -------------------------------------------------------------------
 # 20.04 base zip name and URL (depends on region/variant/semver)
 BASE20_FILENAME := tachyon-ubuntu-20.04-$(INPUT_REGION)-$(INPUT_VARIANT)-formfactor_dvt-$(INPUT_BASE_20_04_VERSION).zip
-BASE20_URL := https://linux-dist.particle.io/release/$(BASE20_FILENAME)
+BASE20_URL := https://linux-dist.particle.io/$(BASE20_CHANNEL)/$(BASE20_FILENAME)
 BASE20_ZIP := $(TMP_INPUT_DIR)/$(BASE20_FILENAME)
 
-# U-Boot zip (semver)
-UBOOT_FILENAME := tachyon-u-boot-$(INPUT_UBOOT_VERSION).zip
-UBOOT_URL_PRIMARY := https://linux-dist.particle.io/release/$(UBOOT_FILENAME)
-UBOOT_URL_ENCODED := https://linux-dist.particle.io/release%2F$(UBOOT_FILENAME)
+# U-Boot zip (supports prerelease versions with +)
+# URL-encode the version for the filename (+ becomes %2B)
+UBOOT_VERSION_ENCODED := $(subst +,%2B,$(INPUT_UBOOT_VERSION))
+UBOOT_FILENAME := tachyon-u-boot-$(UBOOT_VERSION_ENCODED).zip
+UBOOT_CHANNEL_ENCODED := $(subst +,%2B,$(UBOOT_CHANNEL))
+UBOOT_URL_PRIMARY := https://linux-dist.particle.io/$(UBOOT_CHANNEL)/$(UBOOT_FILENAME)
+UBOOT_URL_ENCODED := https://linux-dist.particle.io/$(UBOOT_CHANNEL_ENCODED)%2F$(UBOOT_FILENAME)
 UBOOT_ZIP := $(TMP_INPUT_DIR)/$(UBOOT_FILENAME)
 UBOOT_DIR := u-boot
 
 # 24.04 base .img.xz and .img (variant + "build-id" fragment)
 # Example: tachyon-ubuntu-24.04-headless-image-14-276cd6b.img.xz
 BASE24_XZ_FILENAME := tachyon-ubuntu-24.04-$(INPUT_VARIANT)-image-$(INPUT_BASE_24_04_VERSION).img.xz
-BASE24_URL := https://tachyon-ci.particle.io/release/$(BASE24_XZ_FILENAME)
+BASE24_URL := https://tachyon-ci.particle.io/$(BASE24_CHANNEL)/$(BASE24_XZ_FILENAME)
 BASE24_XZ := $(TMP_INPUT_DIR)/$(BASE24_XZ_FILENAME)
 BASE24_IMG := $(TMP_INPUT_DIR)/$(basename $(BASE24_XZ_FILENAME))
 BASE24_SYSTEM_IMAGE_DIR := sys-img-24.04

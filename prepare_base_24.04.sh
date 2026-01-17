@@ -111,13 +111,13 @@ if [ ! -f "$MANIFEST" ]; then
 fi
 
 now="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
-jq --arg now "$now" --arg base24 "$INPUT_BASE_24_04_VERSION" '
+jq --arg now "$now" --arg base24 "$INPUT_BASE_24_04_VERSION" --arg ver "$OUTPUT_VERSION" '
   .distribution_version = "24.04"
   | .release_name |= (
       sub("20\\.04"; "24.04")
-      | sub("-[0-9]+\\.[0-9]+\\.[0-9]+$"; "-$OUTPUT_VERSION")
+      | sub("-[0-9]+\\.[0-9]+\\.[0-9]+$"; "-\($ver)")
     )
-  | .version = "$OUTPUT_VERSION"
+  | .version = $ver
   | .build_date = $now
   | .sources += [{"key":"ubuntu-24.04","value":$base24}]' \
   "$MANIFEST" > "$MANIFEST.tmp"

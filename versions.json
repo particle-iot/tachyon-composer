@@ -4,10 +4,6 @@
       "type": "cicd_release",
       "param": "1.0.28"
     },
-    "particle-iot/tachyon-ubuntu-24.04-kernel": {
-      "type": "apt-package",
-      "param": "6.8.0-1056.57+particle6"
-    },
     "particle-iot-inc/tachyon-release-builder": {
       "type": "cicd_release",
       "param": "1.0.180"
@@ -19,14 +15,33 @@
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
       "param": "HEAD"
+    },
+    "particle-iot/tachyon-ubuntu-24.04-kernel": {
+      "type": "PKG definition below",
+      "param": "See PKG_linux_particle below"
     }
   },
-  "env": {
+  "env": { 
+    // This is the kernel version - it should match a deb package published from kernel CICD
     "PKG_linux_particle": "6.8.0-1056.57+particle6",
+    
+    // Optional: URL to manually install kernel .deb (for unpublished PR builds)
+    // Multiple URLs separated by @@@ for related packages (image + modules)
+    // EXAMPLE: "PKG_linux_particle_URL": "https://output.circle-artifacts.com/output/job/5b940fc6-c364-4000-858a-9c31ef550599/artifacts/0/debs/linux-image-6.8.0-1058-particle_6.8.0-1058.59+particle1_arm64.deb@@@https://output.circle-artifacts.com/output/job/5b940fc6-c364-4000-858a-9c31ef550599/artifacts/0/debs/linux-modules-6.8.0-1058-particle_6.8.0-1058.59+particle1_arm64.deb",
+    
+    //This is the particle debian package
     "PKG_particle_linux": "0.22.0-1",
+    
+    //Version of the setup app being used
     "PKG_particle_tachyon_desktop_setup": "2.7.0",
+    
+    //Radio code (RIL)
     "PKG_particle_tachyon_ril": "0.4.5-1",
+    
+    //The syscon package
     "PKG_particle_tachyon_syscon": "1.0.20-2",
+    
+    //version used in the debian file to pin the version down
     "PIN_PRIORITY": "900"
   }
 }
