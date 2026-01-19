@@ -21,7 +21,7 @@
       "param": "See PKG_linux_particle below"
     }
   },
-  "env": { 
+  "env": {
     // This is the kernel version - it should match a deb package published from kernel CICD
     "PKG_linux_particle": "6.8.0-1058.59+particle1",
     
