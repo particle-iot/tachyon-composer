@@ -2,7 +2,7 @@
   "sources": {
     "particle-iot/tachyon-u-boot": {
       "type": "cicd_release",
-      "param": "1.0.29"
+      "param": "1.0.30"
     },
     "particle-iot-inc/tachyon-release-builder": {
       "type": "cicd_release",
