@@ -14,7 +14,7 @@
     },
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "HEAD"
+      "param": "origin/feature/modem_tftp"
     },
     "particle-iot/tachyon-ubuntu-24.04-kernel": {
       "type": "PKG definition below",
