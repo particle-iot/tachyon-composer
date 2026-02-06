@@ -272,11 +272,11 @@ rootfs_used_kb=$(df -k "$DEPS_DIR/particle-iot-inc/tachyon-ubuntu-24.04/root" | 
 rootfs_size=$((rootfs_used_kb * 1024))
 echo "INFO: rootfs actual usage: $rootfs_size bytes ($rootfs_used_kb KB)"
 
-# Add 4GB padding for overlay packages
-rootfs_padding=$((4 * 1024 * 1024 * 1024))
+# Add 6GB padding for overlay packages (desktop stack with Docker needs more than 4GB)
+rootfs_padding=$((6 * 1024 * 1024 * 1024))
 rootfs_size=$((rootfs_size + rootfs_padding))
 rootfs_size=$(( ((rootfs_size + 4095) / 4096) * 4096 ))
-echo "INFO: rootfs_size (aligned): $rootfs_size bytes (with 4GB padding for overlays)"
+echo "INFO: rootfs_size (aligned): $rootfs_size bytes (with 6GB padding for overlays)"
 truncate -s "$rootfs_size" "$DEPS_DIR/image/root.ext4"
 
 # Carry over LABEL/UUID if available; otherwise fallback
