@@ -22,7 +22,7 @@
     }
   },
   "env": {
-    // This is the kernel version - it should match a deb package published from kernel CICD
+    // This is the kernel version - it should match a deb package published from kernel CICD 
     "PKG_linux_particle": "6.8.0-1058.59+particle1",
     
     // Optional: URL to manually install kernel .deb (for unpublished PR builds)
