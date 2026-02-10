@@ -473,8 +473,16 @@ fetch_tachyon_overlays: docker/build
 			if [ "$(OVERLAYS_REF)" = "HEAD" ]; then \
 				echo "Using latest HEAD of default branch"; \
 			else \
+				echo "Verifying $(OVERLAYS_REF) exists on remote..."; \
+				if ! git -C "$(OVERLAYS_REPO_DIR)" ls-remote --exit-code origin "$(OVERLAYS_REF)" >/dev/null 2>&1; then \
+					echo "ERROR: Branch/ref $(OVERLAYS_REF) does not exist on remote!"; \
+					echo "Available branches:"; \
+					git -C "$(OVERLAYS_REPO_DIR)" ls-remote --heads origin | head -20; \
+					exit 1; \
+				fi; \
 				git -C "$(OVERLAYS_REPO_DIR)" fetch --depth 1 origin "$(OVERLAYS_REF)"; \
 				git -C "$(OVERLAYS_REPO_DIR)" checkout -q FETCH_HEAD; \
+				echo "Successfully checked out $(OVERLAYS_REF) at commit: $$(git -C $(OVERLAYS_REPO_DIR) rev-parse --short HEAD)"; \
 			fi; \
 			touch "$$DEST/.installed"'; \
 		echo "Installed tachyon-overlays into $(INPUT_OVERLAY_DOCKER_PATH)"; \
