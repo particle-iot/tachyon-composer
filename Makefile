@@ -473,8 +473,16 @@ fetch_tachyon_overlays: docker/build
 			if [ "$(OVERLAYS_REF)" = "HEAD" ]; then \
 				echo "Using latest HEAD of default branch"; \
 			else \
+				echo "Verifying $(OVERLAYS_REF) exists on remote..."; \
+				if ! git -C "$(OVERLAYS_REPO_DIR)" ls-remote --exit-code origin "$(OVERLAYS_REF)" >/dev/null 2>&1; then \
+					echo "ERROR: Branch/ref $(OVERLAYS_REF) does not exist on remote!"; \
+					echo "Available branches:"; \
+					git -C "$(OVERLAYS_REPO_DIR)" ls-remote --heads origin | head -20; \
+					exit 1; \
+				fi; \
 				git -C "$(OVERLAYS_REPO_DIR)" fetch --depth 1 origin "$(OVERLAYS_REF)"; \
 				git -C "$(OVERLAYS_REPO_DIR)" checkout -q FETCH_HEAD; \
+				echo "Successfully checked out $(OVERLAYS_REF) at commit: $$(git -C $(OVERLAYS_REPO_DIR) rev-parse --short HEAD)"; \
 			fi; \
 			touch "$$DEST/.installed"'; \
 		echo "Installed tachyon-overlays into $(INPUT_OVERLAY_DOCKER_PATH)"; \
@@ -507,7 +515,8 @@ build_24.04: version print-config check_qemu fetch_tachyon_overlays fetch_overla
 			exit 1; \
 		fi; \
 	fi
-	$(eval GENERATED_DISTRO_ENV := PKG_DISTRO_VERSION=$(OUTPUT_VERSION)$(comma)PKG_DISTRO_STACK=$(if $(INPUT_OVERLAY_STACK),$(INPUT_OVERLAY_STACK),ubuntu-$(INPUT_VARIANT)-24.04)$(comma)PKG_DISTRO_VARIANT=$(INPUT_VARIANT)$(comma)PKG_DISTRO_REGION=$(INPUT_REGION)$(comma)PKG_DISTRO_BOARD=formfactor_dvt$(comma)PKG_DISTRO_DISTRIBUTION=ubuntu$(comma)PKG_DISTRO_DISTRIBUTION_VERSION=24.04)
+	$(eval COMPUTED_OVERLAY_STACK := $(if $(INPUT_OVERLAY_STACK),$(INPUT_OVERLAY_STACK),ubuntu-$(INPUT_VARIANT)-24.04))
+	$(eval GENERATED_DISTRO_ENV := PKG_DISTRO_VERSION=$(OUTPUT_VERSION)$(comma)PKG_DISTRO_STACK=$(COMPUTED_OVERLAY_STACK)$(comma)PKG_DISTRO_VARIANT=$(INPUT_VARIANT)$(comma)PKG_DISTRO_REGION=$(INPUT_REGION)$(comma)PKG_DISTRO_BOARD=formfactor_dvt$(comma)PKG_DISTRO_DISTRIBUTION=ubuntu$(comma)PKG_DISTRO_DISTRIBUTION_VERSION=24.04)
 	$(eval GENERATED_SRC_ENV := PKG_SRC_TACHYON_COMPOSER=$(VERSION)$(comma)PKG_SRC_UBUNTU_20_04=$(INPUT_BASE_20_04_VERSION)$(comma)PKG_SRC_UBUNTU_24_04=$(INPUT_BASE_24_04_VERSION)$(comma)PKG_SRC_U_BOOT=$(INPUT_UBOOT_VERSION)$(comma)PKG_SRC_OVERLAYS=$(OVERLAYS_REF))
 	$(eval GENERATED_ENV := $(GENERATED_DISTRO_ENV)$(comma)$(GENERATED_SRC_ENV))
 	$(eval COMBINED_ENV := $(if $(strip $(INPUT_ENV)),$(INPUT_ENV)$(comma),)$(GENERATED_ENV))
@@ -533,7 +542,7 @@ build_24.04: version print-config check_qemu fetch_tachyon_overlays fetch_overla
 	@echo "  - U-Boot: $(notdir $(UBOOT_ZIP)) in $(TMP_INPUT_DIR)/u-boot"
 	@echo "  - 24.04 img: $(notdir $(BASE24_IMG)) in $(TMP_INPUT_DIR)/sys-img-24.04"
 	@echo ""
-	@$(DOCKER_RUN) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(COMBINED_ENV)"
+	@$(DOCKER_RUN_BASE) -e INPUT_OVERLAY_STACK="$(COMPUTED_OVERLAY_STACK)" $(IMAGE_TAG) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(COMBINED_ENV)"
 	@echo ""
 	@echo "Build completed successfully!"
 	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(notdir $(OUTPUT_24_04_SYSTEM_IMAGE))"
@@ -627,12 +636,13 @@ docker/version:
 # In CI (env CI=true), drop -it to avoid "the input device is not a TTY"
 DOCKER_TTY := $(if $(CI),, -it)
 
-DOCKER_RUN := docker run --rm $(DOCKER_TTY) --privileged \
+DOCKER_RUN_BASE := docker run --rm $(DOCKER_TTY) --privileged \
 	-v $(PWD):/project \
 	-v $(TMP_ROOT_DIR):/tmp/work \
 	-v /dev:/dev \
-	-w /project \
-	$(IMAGE_TAG)
+	-w /project
+
+DOCKER_RUN := $(DOCKER_RUN_BASE) $(IMAGE_TAG)
 
 .PHONY: docker/shell
 docker/shell: docker/build
