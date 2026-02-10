@@ -542,7 +542,7 @@ build_24.04: version print-config check_qemu fetch_tachyon_overlays fetch_overla
 	@echo "  - U-Boot: $(notdir $(UBOOT_ZIP)) in $(TMP_INPUT_DIR)/u-boot"
 	@echo "  - 24.04 img: $(notdir $(BASE24_IMG)) in $(TMP_INPUT_DIR)/sys-img-24.04"
 	@echo ""
-	@$(DOCKER_RUN) -e INPUT_OVERLAY_STACK="$(COMPUTED_OVERLAY_STACK)" bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(COMBINED_ENV)"
+	@$(DOCKER_RUN_BASE) -e INPUT_OVERLAY_STACK="$(COMPUTED_OVERLAY_STACK)" $(IMAGE_TAG) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(COMBINED_ENV)"
 	@echo ""
 	@echo "Build completed successfully!"
 	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(notdir $(OUTPUT_24_04_SYSTEM_IMAGE))"
@@ -636,12 +636,13 @@ docker/version:
 # In CI (env CI=true), drop -it to avoid "the input device is not a TTY"
 DOCKER_TTY := $(if $(CI),, -it)
 
-DOCKER_RUN := docker run --rm $(DOCKER_TTY) --privileged \
+DOCKER_RUN_BASE := docker run --rm $(DOCKER_TTY) --privileged \
 	-v $(PWD):/project \
 	-v $(TMP_ROOT_DIR):/tmp/work \
 	-v /dev:/dev \
-	-w /project \
-	$(IMAGE_TAG)
+	-w /project
+
+DOCKER_RUN := $(DOCKER_RUN_BASE) $(IMAGE_TAG)
 
 .PHONY: docker/shell
 docker/shell: docker/build
