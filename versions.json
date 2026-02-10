@@ -14,7 +14,7 @@
     },
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "feature/modem_nm_set"
+      "param": "HEAD"
     },
     "particle-iot/tachyon-ubuntu-24.04-kernel": {
       "type": "PKG definition below",
