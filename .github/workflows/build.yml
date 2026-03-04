@@ -111,7 +111,7 @@ jobs:
             env.UPLOAD_PR_ASSETS != 'false'
         env:
           S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
-          OBJ_KEY: "${{ steps.build_step.outputs.output_name }}"
+          OBJ_KEY: "prerelease/${{ steps.build_step.outputs.output_name }}"
         run: |
           aws s3 cp "${{ steps.build_step.outputs.output_path }}" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
           echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
@@ -126,14 +126,14 @@ jobs:
           body: |
             **PR build uploaded** for **${{ matrix.region }} ${{ matrix.variant }}**
             **Version:** `${{ steps.ver.outputs.version }}`
-            **Download:** [URL](https://linux-dist.particle.io/${{ steps.build_step.outputs.url_encoded_name }})
+            **Download:** [URL](https://linux-dist.particle.io/prerelease/${{ steps.build_step.outputs.url_encoded_name }})
 
       - name: Invalidate CloudFront (optional for PR)
         if: steps.s3_upload_pr.outputs.s3_uri &&
             env.UPLOAD_PR_ASSETS != 'false'
         env:
           CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
-          INVALIDATION_PATHS: "/${{ steps.build_step.outputs.output_name }}"
+          INVALIDATION_PATHS: "/prerelease/${{ steps.build_step.outputs.output_name }}"
         run: |
           if [ -n "${CF_DIST_ID}" ]; then
             aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" --paths "$INVALIDATION_PATHS"
