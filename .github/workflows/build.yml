@@ -284,10 +284,11 @@ jobs:
             eval "$(sed 's/^[[:space:]]*//' "$TXTFILE")"
             BASENAME="$(basename "$TXTFILE" .txt)"
 
+            ENCODED_FILE="$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$FILE")"
             if [[ "$IS_RELEASE" == "true" ]]; then
-              URL="${PUBLIC_RELEASE_BASE_URL}/${VERSION}/${REGION}/${FILE}"
+              URL="${PUBLIC_RELEASE_BASE_URL}/${VERSION}/${REGION}/${ENCODED_FILE}"
             else
-              URL="${PUBLIC_PRERELEASE_BASE_URL}/${FILE}"
+              URL="${PUBLIC_PRERELEASE_BASE_URL}/${ENCODED_FILE}"
             fi
 
             jq -n --arg ver "$VERSION" --arg now "$NOW" --arg url "$URL" \
