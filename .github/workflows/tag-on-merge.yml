@@ -24,17 +24,20 @@ jobs:
           python-version: '3.12'
 
       - name: Install tachyon-dist-tools
+        env:
+          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}
         run: |
           set -euo pipefail
-          DIST_TOOLS_VERSION="${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}"
           pip install "https://github.com/particle-iot/tachyon-dist-tools/releases/download/${DIST_TOOLS_VERSION}/tachyon_dist_tools-${DIST_TOOLS_VERSION}-py3-none-any.whl"
 
       - name: Determine bump type
         id: bump
+        env:
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: |
           set -euo pipefail
           BUMP="patch"
-          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          LABELS="$PR_LABELS"
           if echo "$LABELS" | jq -e 'any(. == "release:major")' >/dev/null 2>&1; then
             BUMP="major"
           elif echo "$LABELS" | jq -e 'any(. == "release:minor")' >/dev/null 2>&1; then
@@ -45,9 +48,9 @@ jobs:
       - name: Create version tag
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUMP: ${{ steps.bump.outputs.bump }}
         run: |
           set -euo pipefail
-          BUMP="${{ steps.bump.outputs.bump }}"
 
           if [[ "$BUMP" == "patch" ]]; then
             VERSION=$(tachyon-resolve-version --build-type release --create-tag)

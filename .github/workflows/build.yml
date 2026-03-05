@@ -50,17 +50,20 @@ jobs:
           python-version: '3.12'
 
       - name: Install tachyon-dist-tools
+        env:
+          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}
         run: |
           set -euo pipefail
-          DIST_TOOLS_VERSION="${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}"
           pip install "https://github.com/particle-iot/tachyon-dist-tools/releases/download/${DIST_TOOLS_VERSION}/tachyon_dist_tools-${DIST_TOOLS_VERSION}-py3-none-any.whl"
 
       - name: Determine version
         id: ver
         shell: bash
+        env:
+          GH_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          if [[ "$GH_REF" == refs/tags/* ]]; then
             VERSION=$(tachyon-resolve-version --build-type release)
             IS_RELEASE="true"
           else
@@ -76,26 +79,30 @@ jobs:
         id: build_step
         env:
           VERSION: ${{ steps.ver.outputs.version }}
+          REGION: ${{ matrix.region }}
+          VARIANT: ${{ matrix.variant }}
         run: |
           set -euo pipefail
-          OUTNAME="tachyon-ubuntu-24.04-${{ matrix.region }}-${{ matrix.variant }}-${{ steps.ver.outputs.version }}.zip"
+          OUTNAME="tachyon-ubuntu-24.04-${REGION}-${VARIANT}-${VERSION}.zip"
 
           make build_24.04 \
             VERSIONS_FILE=./versions.json \
-            INPUT_REGION=${{ matrix.region }} \
-            INPUT_VARIANT=${{ matrix.variant }} \
-            OUTPUT_VERSION=${{ steps.ver.outputs.version }} \
+            INPUT_REGION="${REGION}" \
+            INPUT_VARIANT="${VARIANT}" \
+            OUTPUT_VERSION="${VERSION}" \
             OUTPUT_24_04_SYSTEM_IMAGE="${OUTNAME}"
 
-          URL_ENCODED="$(python3 -c "import urllib.parse; print(urllib.parse.quote('${OUTNAME}'))")"
+          URL_ENCODED="$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$OUTNAME")"
           echo "output_name=${OUTNAME}" >> "$GITHUB_OUTPUT"
           echo "output_path=.tmp/output/${OUTNAME}" >> "$GITHUB_OUTPUT"
           echo "url_encoded_name=${URL_ENCODED}" >> "$GITHUB_OUTPUT"
 
       - name: Verify artifact exists
+        env:
+          OUTPUT_PATH: ${{ steps.build_step.outputs.output_path }}
         run: |
-          ls -lh "${{ steps.build_step.outputs.output_path }}"
-          test -s "${{ steps.build_step.outputs.output_path }}"
+          ls -lh "$OUTPUT_PATH"
+          test -s "$OUTPUT_PATH"
 
       # ---------- PR uploads ----------
       - name: Configure AWS (PR)
@@ -116,8 +123,9 @@ jobs:
         env:
           S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
           OBJ_KEY: "prerelease/${{ steps.build_step.outputs.output_name }}"
+          OUTPUT_PATH: ${{ steps.build_step.outputs.output_path }}
         run: |
-          aws s3 cp "${{ steps.build_step.outputs.output_path }}" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
+          aws s3 cp "$OUTPUT_PATH" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
           echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
 
       - name: Comment with download link
@@ -162,8 +170,9 @@ jobs:
         env:
           S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
           OBJ_KEY: "releases/${{ steps.ver.outputs.version }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
+          OUTPUT_PATH: ${{ steps.build_step.outputs.output_path }}
         run: |
-          aws s3 cp "${{ steps.build_step.outputs.output_path }}" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
+          aws s3 cp "$OUTPUT_PATH" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
           echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
           echo "obj_key=${OBJ_KEY}" >> "$GITHUB_OUTPUT"
 
@@ -182,31 +191,41 @@ jobs:
       - name: Compute SHA256
         id: sha
         shell: bash
+        env:
+          OUTPUT_PATH: ${{ steps.build_step.outputs.output_path }}
         run: |
           set -euo pipefail
-          SHA="$(sha256sum "${{ steps.build_step.outputs.output_path }}" | awk '{print $1}')"
+          SHA="$(sha256sum "$OUTPUT_PATH" | awk '{print $1}')"
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
 
       # Emit region metadata for every successful build (consumed by publish_metadata job)
       - name: Publish region metadata
         if: steps.s3_upload_tag.outputs.s3_uri || steps.s3_upload_pr.outputs.s3_uri
+        env:
+          IS_RELEASE: ${{ steps.ver.outputs.is_release }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          REGION: ${{ matrix.region }}
+          VARIANT: ${{ matrix.variant }}
+          OUTPUT_NAME: ${{ steps.build_step.outputs.output_name }}
+          S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
+          SHA256: ${{ steps.sha.outputs.sha }}
         run: |
           set -euo pipefail
           mkdir -p release_meta
-          if [[ "${{ steps.ver.outputs.is_release }}" == "true" ]]; then
-            S3_KEY="releases/${{ steps.ver.outputs.version }}/${{ matrix.region }}/${{ steps.build_step.outputs.output_name }}"
+          if [[ "$IS_RELEASE" == "true" ]]; then
+            S3_KEY="releases/${VERSION}/${REGION}/${OUTPUT_NAME}"
           else
-            S3_KEY="prerelease/${{ steps.build_step.outputs.output_name }}"
+            S3_KEY="prerelease/${OUTPUT_NAME}"
           fi
-          cat > release_meta/${{ matrix.region }}-${{ matrix.variant }}.txt <<EOF
-          REGION=${{ matrix.region }}
-          VARIANT=${{ matrix.variant }}
-          VERSION=${{ steps.ver.outputs.version }}
-          IS_RELEASE=${{ steps.ver.outputs.is_release }}
-          FILE=${{ steps.build_step.outputs.output_name }}
+          cat > "release_meta/${REGION}-${VARIANT}.txt" <<EOF
+          REGION=${REGION}
+          VARIANT=${VARIANT}
+          VERSION=${VERSION}
+          IS_RELEASE=${IS_RELEASE}
+          FILE=${OUTPUT_NAME}
           S3_KEY=${S3_KEY}
-          S3_URI=s3://${{ secrets.LINUX_DIST_S3_BUCKET }}/${S3_KEY}
-          SHA256=${{ steps.sha.outputs.sha }}
+          S3_URI=s3://${S3_BUCKET}/${S3_KEY}
+          SHA256=${SHA256}
           EOF
 
       - name: Upload build metadata artifact
@@ -255,9 +274,10 @@ jobs:
           python-version: '3.12'
 
       - name: Install tachyon-dist-tools
+        env:
+          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}
         run: |
           set -euo pipefail
-          DIST_TOOLS_VERSION="${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}"
           pip install "https://github.com/particle-iot/tachyon-dist-tools/releases/download/${DIST_TOOLS_VERSION}/tachyon_dist_tools-${DIST_TOOLS_VERSION}-py3-none-any.whl"
 
       - name: Download build metadata artifacts
@@ -276,10 +296,11 @@ jobs:
 
       - name: Assemble and validate metadata
         id: assemble
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          IS_RELEASE: ${{ needs.build.outputs.is_release }}
         run: |
           set -euo pipefail
-          VERSION="${{ needs.build.outputs.version }}"
-          IS_RELEASE="${{ needs.build.outputs.is_release }}"
           NOW="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
           for TXTFILE in build_meta/*.txt; do
@@ -318,11 +339,11 @@ jobs:
           echo "metadata_key=meta/tachyon-${VERSION}.json" >> "$GITHUB_OUTPUT"
 
       - name: Upload per-version metadata to S3
+        env:
+          METADATA_KEY: ${{ steps.assemble.outputs.metadata_key }}
+          IS_RELEASE: ${{ steps.assemble.outputs.is_release }}
         run: |
           set -euo pipefail
-          METADATA_KEY="${{ steps.assemble.outputs.metadata_key }}"
-          IS_RELEASE="${{ steps.assemble.outputs.is_release }}"
-
           aws s3 cp release_metadata.json \
             "s3://${LINUX_DIST_S3_BUCKET}/${METADATA_KEY}" \
             --only-show-errors
@@ -338,9 +359,9 @@ jobs:
       - name: Invalidate CloudFront for metadata
         env:
           CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
+          METADATA_KEY: ${{ steps.assemble.outputs.metadata_key }}
         run: |
           set -euo pipefail
-          METADATA_KEY="${{ steps.assemble.outputs.metadata_key }}"
           if [ -n "${CF_DIST_ID:-}" ]; then
             aws cloudfront create-invalidation \
               --distribution-id "$CF_DIST_ID" \
@@ -394,9 +415,10 @@ jobs:
           python-version: '3.12'
 
       - name: Install tachyon-dist-tools
+        env:
+          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}
         run: |
           set -euo pipefail
-          DIST_TOOLS_VERSION="${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}"
           pip install "https://github.com/particle-iot/tachyon-dist-tools/releases/download/${DIST_TOOLS_VERSION}/tachyon_dist_tools-${DIST_TOOLS_VERSION}-py3-none-any.whl"
 
       - name: Download release metadata
@@ -425,10 +447,13 @@ jobs:
 
       - name: Compute contributors between tags
         id: contribs
+        env:
+          FROM_TAG: ${{ steps.versel.outputs.prev }}
+          TO_TAG: ${{ steps.versel.outputs.version }}
         run: |
           set -euo pipefail
-          FROM="${{ steps.versel.outputs.prev }}"
-          TO="${{ steps.versel.outputs.version }}"
+          FROM="$FROM_TAG"
+          TO="$TO_TAG"
 
           if [[ -z "$FROM" ]]; then
             RANGE="$TO"
@@ -453,14 +478,17 @@ jobs:
 
       - name: Build release body
         id: body
+        env:
+          VERSION: ${{ steps.versel.outputs.version }}
+          PREV: ${{ steps.versel.outputs.prev }}
+          CHANGELOG: ${{ steps.changelog.outputs.changelog }}
+          GH_REPO: ${{ github.repository }}
+          CONTRIBUTORS: ${{ steps.contribs.outputs.contributors }}
         run: |
           set -euo pipefail
-          VERSION="${{ steps.versel.outputs.version }}"
-          PREV="${{ steps.versel.outputs.prev }}"
-
           tachyon-gh-note-builder release_metadata.json -o images_section.md
 
-          CLEAN_CHANGES="$(printf '%s\n' "${{ steps.changelog.outputs.changelog }}" \
+          CLEAN_CHANGES="$(printf '%s\n' "$CHANGELOG" \
             | sed -E '/^##[[:space:]].*$/d')"
 
           {
@@ -476,10 +504,10 @@ jobs:
               printf '%s\n' "$CLEAN_CHANGES"
             fi
             echo
-            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV:-0.0.0}...${VERSION}"
+            echo "**Full Changelog**: https://github.com/${GH_REPO}/compare/${PREV:-0.0.0}...${VERSION}"
             echo
             echo "Contributors"
-            echo "${{ steps.contribs.outputs.contributors }}"
+            echo "$CONTRIBUTORS"
           } > RELEASE_BODY.md
 
       - name: Create/Update GitHub Release
