@@ -18,6 +18,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-tachyon
+    timeout-minutes: 90
     environment: production
     outputs:
       version: ${{ steps.ver.outputs.version }}
@@ -221,6 +222,7 @@ jobs:
   publish_metadata:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: production
     permissions:
       contents: read
@@ -358,6 +360,7 @@ jobs:
   publish_release:
     needs: [build, publish_metadata]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: production
     permissions:
       contents: write
