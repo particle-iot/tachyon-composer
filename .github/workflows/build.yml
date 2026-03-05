@@ -389,8 +389,7 @@ jobs:
     if: >-
       needs.build.result == 'success'
       && needs.publish_metadata.result == 'success'
-      && github.event_name != 'pull_request'
-      && startsWith(github.ref, 'refs/tags/')
+      && needs.build.outputs.is_release == 'true'
     env:
       LINUX_DIST_S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
       AWS_REGION:           ${{ secrets.AWS_REGION }}
@@ -427,13 +426,11 @@ jobs:
           name: release-metadata-json
           path: .
 
-      - name: Resolve version
+      - name: Resolve previous version
         id: versel
         run: |
           set -euo pipefail
-          VERSION=$(tachyon-resolve-version --build-type release)
           PREV=$(tachyon-resolve-version --build-type release --get-previous-version)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "prev=$PREV" >> "$GITHUB_OUTPUT"
 
       - name: Build changelog from PRs
@@ -441,7 +438,7 @@ jobs:
         uses: mikepenz/release-changelog-builder-action@v4
         with:
           fromTag: ${{ steps.versel.outputs.prev }}
-          toTag:   ${{ steps.versel.outputs.version }}
+          toTag:   ${{ needs.build.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -449,7 +446,7 @@ jobs:
         id: contribs
         env:
           FROM_TAG: ${{ steps.versel.outputs.prev }}
-          TO_TAG: ${{ steps.versel.outputs.version }}
+          TO_TAG: ${{ needs.build.outputs.version }}
         run: |
           set -euo pipefail
           FROM="$FROM_TAG"
@@ -479,7 +476,7 @@ jobs:
       - name: Build release body
         id: body
         env:
-          VERSION: ${{ steps.versel.outputs.version }}
+          VERSION: ${{ needs.build.outputs.version }}
           PREV: ${{ steps.versel.outputs.prev }}
           CHANGELOG: ${{ steps.changelog.outputs.changelog }}
           GH_REPO: ${{ github.repository }}
@@ -513,11 +510,11 @@ jobs:
       - name: Create/Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.versel.outputs.version }}
-          name: ${{ steps.versel.outputs.version }}
+          tag_name: ${{ needs.build.outputs.version }}
+          name: ${{ needs.build.outputs.version }}
           body_path: RELEASE_BODY.md
           draft: false
-          prerelease: ${{ contains(steps.versel.outputs.version, '-') }}
+          prerelease: ${{ contains(needs.build.outputs.version, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
