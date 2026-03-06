@@ -18,56 +18,62 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Compute next version (from labels or default patch)
-        id: nextver
-        shell: bash
-        run: |
-          set -euo pipefail
-          LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo '0.0.0')"
-          BASE="${LATEST_TAG#v}"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-          MAJOR="${BASE%%.*}"
-          REST="${BASE#*.}"
-          MINOR="${REST%%.*}"
-          PATCH="${REST#*.}"
-
-          BUMP="patch"
-          LABELS=$(jq -r '.pull_request.labels[].name' <<< '${{ toJson(github.event) }}' || true)
-          if echo "$LABELS" | grep -q 'release:major'; then
-            BUMP="major"
-          elif echo "$LABELS" | grep -q 'release:minor'; then
-            BUMP="minor"
-          elif echo "$LABELS" | grep -q 'release:patch'; then
-            BUMP="patch"
-          fi
-
-          case "$BUMP" in
-            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0;;
-            minor) MINOR=$((MINOR+1)); PATCH=0;;
-            patch|*) PATCH=$((PATCH+1));;
-          esac
-
-          NEXT="${MAJOR}.${MINOR}.${PATCH}"
-
-          echo "latest=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
-          echo "next=${NEXT}"         >> "$GITHUB_OUTPUT"
-          echo "bump=${BUMP}"         >> "$GITHUB_OUTPUT"
-
-      - name: Create and push tag (no leading 'v')
+      - name: Install tachyon-dist-tools
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
+          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}
         run: |
           set -euo pipefail
-          NEXT="${{ steps.nextver.outputs.next }}"
+          pip install "https://github.com/particle-iot/tachyon-dist-tools/releases/download/${DIST_TOOLS_VERSION}/tachyon_dist_tools-${DIST_TOOLS_VERSION}-py3-none-any.whl"
 
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Determine bump type
+        id: bump
+        env:
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          BUMP="patch"
+          LABELS="$PR_LABELS"
+          if echo "$LABELS" | jq -e 'any(. == "release:major")' >/dev/null 2>&1; then
+            BUMP="major"
+          elif echo "$LABELS" | jq -e 'any(. == "release:minor")' >/dev/null 2>&1; then
+            BUMP="minor"
+          fi
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
 
-          if git rev-parse "refs/tags/${NEXT}" >/dev/null 2>&1; then
-            echo "Tag ${NEXT} already exists; skipping."
-            exit 0
+      - name: Create version tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUMP: ${{ steps.bump.outputs.bump }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$BUMP" == "patch" ]]; then
+            VERSION=$(tachyon-resolve-version --build-type release --create-tag)
+          else
+            # tachyon-resolve-version only auto-bumps patch; major/minor need manual computation
+            LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo '0.0.0')"
+            BASE="${LATEST_TAG#v}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+            case "$BUMP" in
+              major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0;;
+              minor) MINOR=$((MINOR+1)); PATCH=0;;
+            esac
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+            if git rev-parse "refs/tags/${VERSION}" >/dev/null 2>&1; then
+              echo "Tag ${VERSION} already exists; skipping."
+              exit 0
+            fi
+
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${VERSION}" -m "Release ${VERSION}"
+            git push origin "${VERSION}"
           fi
 
-          git tag -a "${NEXT}" -m "Release ${NEXT}"
-          git push origin "${NEXT}"
+          echo "Tagged: ${VERSION}"
