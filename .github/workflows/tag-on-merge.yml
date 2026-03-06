@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   tag:
@@ -46,6 +47,7 @@ jobs:
           echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
 
       - name: Create version tag
+        id: tag
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUMP: ${{ steps.bump.outputs.bump }}
@@ -56,7 +58,8 @@ jobs:
             VERSION=$(tachyon-resolve-version --build-type release --create-tag)
           else
             # tachyon-resolve-version only auto-bumps patch; major/minor need manual computation
-            LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo '0.0.0')"
+            LATEST_TAG="$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)"
+            LATEST_TAG="${LATEST_TAG:-0.0.0}"
             BASE="${LATEST_TAG#v}"
             IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
             case "$BUMP" in
@@ -76,4 +79,15 @@ jobs:
             git push origin "${VERSION}"
           fi
 
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Tagged: ${VERSION}"
+
+      - name: Trigger release build
+        if: steps.tag.outputs.version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          echo "Triggering build workflow for tag ${VERSION}"
+          gh workflow run build.yml --ref "${VERSION}"
