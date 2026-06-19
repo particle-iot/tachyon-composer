@@ -1,0 +1,2 @@
+mcfg_hw/generic/common/Kodiak/STANDALONE/LA/DSDS/mcfg_hw.mbn
+mcfg_hw/generic/common/Kodiak/STANDALONE/LA/SS/mcfg_hw.mbn
