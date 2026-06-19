@@ -1,20 +1,20 @@
 {
   "sources": {
-    "particle-iot/tachyon-u-boot": {
-      "type": "cicd_release",
-      "param": "1.0.26"
+    "particle-iot-inc/tachyon-quectel-bp-fw-sdk-r108": {
+      "type": "s3_release",
+      "param": "2.0.0",
+      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.0.zip"
     },
     "particle-iot/tachyon-ubuntu-24.04-kernel": {
-      "type": "apt-package",
-      "param": "6.8.0-1056.57+particle6"
-    },
-    "particle-iot-inc/tachyon-release-builder": {
-      "type": "cicd_release",
-      "param": "1.0.180"
+      "type": "s3_release",
+      "param": "stable-6.8.0-1058.59particle2",
+      "abi": "1058",
+      "deb_version": "6.8.0-1058.59+particle2",
+      "base_url": "https://linux-dist.particle.io/kernel/release"
     },
     "particle-iot/tachyon-ubuntu-24.04": {
       "type": "git_release",
-      "param": "21-4d6898e"
+      "param": "22-938ac1d"
     },
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
@@ -22,7 +22,7 @@
     }
   },
   "env": {
-    "PKG_linux_particle": "6.8.0-1056.57+particle6",
+    "PKG_linux_particle": "6.8.0-1058.59+particle2",
     "PKG_particle_linux": "0.22.0-1",
     "PKG_particle_tachyon_desktop_setup": "2.7.0",
     "PKG_particle_tachyon_ril": "0.4.5-1",

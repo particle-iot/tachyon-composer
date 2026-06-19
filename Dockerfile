@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# particle-dockerfile-version=1.3
+# particle-dockerfile-version=1.4
 # this is the Dockerfile version.
 # Update this ARG to change the base image and recompile it!
 
@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xz-utils \
     libxml2-utils \
     dosfstools \
+    mtools \
     rsync \
     git-lfs \
     livecd-rootfs \

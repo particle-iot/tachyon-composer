@@ -1,6 +1,8 @@
 # Tachyon System Image Composer
 
-A build system for creating Tachyon System Images that upgrade from Ubuntu 20.04 base images to Ubuntu 24.04 with region-specific and variant-specific configurations.
+A Docker-based build system that produces an EDL-flashable Tachyon Ubuntu 24.04 factory image for the **new BP** (Quectel r108 / QCM6490, UEFI boot chain), with region-specific (`NA`/`RoW`) and variant-specific (`headless`/`desktop`) configurations.
+
+For a step-by-step build guide, see [BUILDING.md](./BUILDING.md). For development conventions, see [AGENTS.md](./AGENTS.md). If you are picking up the new-BP migration, start with [HANDOFF.md](./HANDOFF.md).
 
 For more background and documentation, see the [Particle Tachyon Ubuntu 24.04 Overview](https://developer.particle.io/tachyon/software/ubuntu_24_04/overview).
 
@@ -46,37 +48,28 @@ This only needs to be done once per host machine and persists across reboots.
 make help
 ```
 
-### Build a 24.04 System Image (basic versioned build)
+### Build a 24.04 System Image
 
 ```bash
 make build_24.04 \
   VERSIONS_FILE=./versions.json \
   INPUT_REGION=RoW \
-  INPUT_VARIANT=desktop
+  INPUT_VARIANT=headless
 ```
 
-### Build a 24.04 System Image (full parameters)
-
-Using 20.04 base version `1.0.170`:
-
-```bash
-make build_24.04 \
-  INPUT_BASE_20_04_VERSION=1.0.170 \
-  INPUT_REGION=RoW \
-  INPUT_VARIANT=desktop \
-  INPUT_UBOOT_VERSION=1.0.4 \
-  INPUT_BASE_24_04_VERSION=14-276cd6b \
-  INPUT_OVERLAY_STACK=ubuntu-headless-24.04 \
-  INPUT_ENV_VARS="PKG_particle_linux=0.20.1-1,PKG_particle_tachyon_desktop_setup=2.7.0,PKG_particle_tachyon_ril=0.4.5-1,PKG_particle_tachyon_syscon=1.0.19-1,PIN_PRIORITY=900"
-```
+`versions.json` is the authoritative source of versions (base rootfs, bp-fw, kernel deb,
+overlays) and apt pins. See [BUILDING.md](./BUILDING.md) §3 for its structure. The 24.04 base
+build id and the overlays ref are read from it; you only need to pass `INPUT_REGION` and
+`INPUT_VARIANT` on the command line (plus `OUTPUT_VERSION` for a release).
 
 ---
 
 ## 🛠 Available Commands
 
 ### `build_24.04`
-Builds a Tachyon System Image for Ubuntu 24.04 base.  
-Requires both a 20.04 base zip (from Particle distribution) and a 24.04 `.img` (from CI).
+Builds an EDL-flashable Tachyon Ubuntu 24.04 factory image (new BP / UEFI). Fetches the 24.04
+base rootfs image, bp-fw release, kernel deb and overlays, then composes and assembles the
+flashable `.zip` inside Docker.
 
 ### `help`
 Displays usage information and examples.
@@ -97,13 +90,15 @@ Removes temporary files created during the build process.
 ## ⚙️ Parameters
 
 ### Required Parameters
-- **`INPUT_BASE_20_04_VERSION`**: Semantic version of the 20.04 base zip (e.g., `1.0.167`)  
+- **`VERSIONS_FILE`**: JSON file with the authoritative version mappings (base rootfs, bp-fw,
+  kernel deb, overlays) and apt pins. This is the source of truth for build versions.  
 - **`INPUT_REGION`**: Target deployment region  
-  - `NA` = North America  
-  - `RoW` = Rest of World  
-- **`INPUT_UBOOT_VERSION`**: Semantic version of U-Boot package (e.g., `1.0.3`)  
-- **`INPUT_BASE_24_04_VERSION`**: Build identifier for the 24.04 base image (e.g., `14-276cd6b`)  
-- **`VERSIONS_FILE`**: JSON file containing the official version mappings used to generate the release output. This is the authoritative source of truth for build versions.  
+  - `NA` = North America (nonhlos firmware variant `na`)  
+  - `RoW` = Rest of World (nonhlos firmware variant `em`)  
+- **`INPUT_VARIANT`**: Image variant — `headless` or `desktop` (selects the base image and the
+  default overlay stack `ubuntu-<variant>-24.04`).  
+- **`INPUT_BASE_24_04_VERSION`**: Build identifier for the 24.04 base rootfs image (e.g.,
+  `21-4d6898e`). Normally supplied via `VERSIONS_FILE`.  
 
 ### Optional Parameters
 - **`OUTPUT_24_04_SYSTEM_IMAGE`**: Output filename for the final `.zip`  
@@ -129,11 +124,17 @@ make build_24.04 TMP_INPUT_DIR=/scratch/tmp TMP_OUTPUT_DIR=/scratch/out ...
 
 ## 🔄 Build Process
 
-1. **Parameter Validation** – Ensures all required parameters are provided and valid.  
-2. **Fetch Base Assets** – Downloads the 20.04 base zip, U-Boot, and the 24.04 `.img.xz`.  
-3. **Decompression & Prep** – Decompresses 24.04 `.img.xz`, unpacks 20.04 system image into a 24.04 staging directory, updates manifest.  
-4. **Compose** – Runs `compose_24_04.sh` inside Docker to patch bootloader, extract ADSP blobs, replace rootfs, build EFI image, update XML.  
-5. **Package** – Zips the prepared `sys-img-24.04/` folder into the final output `.zip`.  
+1. **Parameter Validation** – Ensures required parameters are provided and valid.  
+2. **Fetch Assets** – Downloads the 24.04 base rootfs `.img.xz`, the bp-fw release (split into
+   `QCM6490_bootbinaries` + `QCM6490_fw`), the kernel deb, and clones the overlay tool + overlays.  
+3. **Compose** (`compose_24_04.sh`, inside Docker) – Builds `rootfs.ext4` from the base, builds
+   `efi.img`, applies the overlay stack to the rootfs (installs kernel + Particle packages),
+   builds `dtb.img` (`qcm6490-tachyon.dtb`) and `nonhlos-<variant>.img`.  
+4. **Assemble** – Runs `ptool` + `partition_ext.xml` to lay out the partitions
+   (`system`/`efi`/`dtb_a`/`core_nhlos_a` + bootbinaries) into an EDL `rawprogram*/patch*` tree.  
+5. **Package** – Zips the EDL tree into the final output `.zip`.  
+
+See [BUILDING.md](./BUILDING.md) for the full step-by-step guide.
 
 ---
 
@@ -141,7 +142,7 @@ make build_24.04 TMP_INPUT_DIR=/scratch/tmp TMP_OUTPUT_DIR=/scratch/out ...
 
 The build produces:
 
-- A `.zip` archive containing the upgraded system image files (`OUTPUT_24_04_SYSTEM_IMAGE`)  
+- A `.zip` archive containing the EDL-flashable factory image (`OUTPUT_24_04_SYSTEM_IMAGE`)  
 - Logs of the build steps  
 - Temporary work directories under `.tmp` (clean with `make clean`)  
 
@@ -230,4 +231,3 @@ This ensures **consistent versioning**, **reproducible builds**, and **automatic
 ## 🙋 Support
 
 For issues or questions regarding the Tachyon System Image Composer, please refer to the project documentation or contact the development team.
-
