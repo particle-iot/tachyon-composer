@@ -75,7 +75,9 @@ else
 fi
 
 used_kb=$(df -k "$ROOT_MNT" | tail -1 | awk '{print $3}')
-size=$(( used_kb*1024 + 3*1024*1024*1024 ))     # +3GB headroom for overlay packages
+size=$(( used_kb*1024 + 6*1024*1024*1024 ))     # +6GB headroom: overlay installs a full 1058 kernel
+                                                # alongside the base's 1056 kernel (dual modules/headers)
+                                                # plus deps; system partition is 10GB so this fits.
 size=$(( ((size+4095)/4096)*4096 ))
 label=$(sudo blkid -s LABEL -o value "${loopdev}p1" 2>/dev/null || true)
 uuid=$(sudo blkid -s UUID  -o value "${loopdev}p1" 2>/dev/null || true)

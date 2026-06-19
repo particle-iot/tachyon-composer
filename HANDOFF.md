@@ -1,6 +1,6 @@
 # Handoff — tachyon-composer new-BP migration
 
-Date: 2026-06-19 · Branch: `feature/new-bp` · Author handoff for the US team to continue.
+Date: 2026-06-20 · Branch: `feature/new-bp` · Author handoff for the US team to continue.
 
 This document is the practical handoff. For the design rationale see
 [`docs/plans/2026-06-19-composer-new-bp-migration-design.md`](docs/plans/2026-06-19-composer-new-bp-migration-design.md);
@@ -27,42 +27,59 @@ make build_24.04 VERSIONS_FILE=./versions.json INPUT_REGION=RoW INPUT_VARIANT=he
 # in CI add CI=true so docker runs without -it
 ```
 
+A full image was built locally and produced a flashable EDL zip (4.3 GB) — see §6.
+
 ---
 
-## 2. The one non-obvious thing: kernel / base version
+## 2. The two non-obvious gotchas: kernel install + build environment
 
-This is the part most likely to bite you, so read it.
+Read this before touching `versions.json` or running a local x86 build.
 
-- The **rootfs kernel** is baked into the 24.04 **base image** by livecd-rootfs, which installs
-  the latest `linux-particle` from `packages.particle.io/ubuntu noble-stable` at *base*-build
-  time. The composer overlay can only `apt upgrade` the kernel **within the same ABI** — it
-  cannot cross ABIs (e.g. 1056 → 1058). The `check-pinned-packages` overlay **fails** if the
-  pinned `PKG_linux_particle` cannot be installed on the base's kernel line.
-- We want a fully **particle2** image. We get it **without rebuilding the base** by choosing base
-  **`image-22-938ac1d`** (built 2026-01-07, after the 1058 line shipped), whose rootfs kernel is
-  the **1058** line. `versions.json` is set to:
-  - `sources["particle-iot/tachyon-ubuntu-24.04"].param = "22-938ac1d"`
+### 2a. Kernel: the rootfs ends up with TWO kernels
+
+- The **rootfs kernel** is baked into the 24.04 **base image** by livecd-rootfs (it installs the
+  latest `linux-particle` from `packages.particle.io/ubuntu noble-stable` at *base*-build time,
+  no pin). Both `image-21-4d6898e` and `image-22-938ac1d` ship the **1056** line — confirmed by
+  the build log: `Unpacking linux-particle (…1058.59+particle2) over (…1056.57+particle6)`.
+  (My earlier guess that image-22 was the 1058 line was **wrong** — it is 1056particle6.)
+- We want a fully **particle2** image. The `check-pinned-packages` overlay runs
+  `apt install linux-particle=6.8.0-1058.59+particle2 …`. Because `linux-image-6.8.0-1058-particle`
+  is a **different package name** from the base's `…-1056-particle`, apt **adds the whole 1058
+  kernel as a fresh install, alongside the base's 1056 kernel** — there is **no "can't cross ABI"
+  problem**. So particle2 installs fine on a 1056 base.
+- `versions.json` is set to:
+  - `sources["particle-iot/tachyon-ubuntu-24.04"].param = "22-938ac1d"` (a newer base commit than
+    the original image-21; the choice does **not** depend on its kernel line — both are 1056)
   - `env.PKG_linux_particle = "6.8.0-1058.59+particle2"`
-- The overlay then patch-upgrades `linux-image-6.8.0-1058-particle` 1058particle1 → 1058particle2
-  (same ABI → installable), `check-pinned-packages` passes, and `dtb_a` is `qcm6490-tachyon.dtb`
-  from the particle2 kernel deb (independent of the base). → rootfs kernel **and** dtb are both
-  particle2.
+- `dtb_a` is `qcm6490-tachyon.dtb` from the particle2 kernel deb (independent of the base). →
+  the installed/pinned kernel **and** the dtb are both particle2.
 
-Evidence (so you can re-derive it):
+> **Consequences to be aware of** (candidates for cleanup in the overlay stack, not composer):
+> - The rootfs has **both** the 1056 (base) and 1058 (pinned) kernels installed. `dtb_a` is the
+>   1058 dtb, so boot must select the 1058 kernel — **verify on hardware**, and consider removing
+>   the unused 1056 kernel in the overlay stack.
+> - If you ever need a different kernel baked into the base itself, the base repo
+>   `particle-iot/tachyon-ubuntu-24.04` auto-builds + releases a new `image-N` on **any push to
+>   main** (CircleCI; no cron — only when something is pushed); a fresh build picks up the
+>   then-latest noble-stable kernel.
 
-| base | built | latest `linux-particle` then | kernel line |
-|---|---|---|---|
-| `image-21-4d6898e` (old) | 2025-12-04 | 1056particle5 (1058 line not out yet) | **1056** |
-| `image-22-938ac1d` (now) | 2026-01-07 | **1058particle1** (1058 line shipped 2025-12-30) | **1058** |
+### 2b. Disk space + (x86 host only) qemu version
 
-`noble-stable` keeps all versions of the `linux-particle` meta (1056particle3–6, 1058particle1–2);
-the base build has no kernel pin, so it installs the **highest** version available on its build
-day, and `1058.59 > 1056.57`.
-
-> If you ever need a different kernel line in the rootfs, the base repo
-> `particle-iot/tachyon-ubuntu-24.04` auto-builds + releases a new `image-N` on **any push to
-> main** (CircleCI; no cron — it only runs when something is pushed). A fresh build picks up the
-> then-latest noble-stable kernel.
+- **Disk space.** Installing the full 1058 kernel (modules + headers) on top of the base's 1056
+  kernel, plus the pinned Particle packages, the overlay stack's apps and their deps, needs more
+  room than the default rootfs headroom. **+3GB overflowed** (`No space left on device`); it is
+  now **+6GB** in `compose_24_04.sh` step 1 (the `system` partition is 10GB, so an ~8.4GB rootfs
+  fits).
+- **qemu (x86_64 build hosts only).** The overlay runs an arm64 chroot via qemu-user-static. The
+  `ubuntu-common-24.04` stack installs `mpv`, which pulls `python3-mutagen`; its postinst
+  (py3compile) **segfaults (exit 139) under Ubuntu's qemu 8.2.2**. Fix: use a newer qemu — qemu
+  **10.2.3** (from `tonistiigi/binfmt`) builds cleanly. Register it once:
+  ```bash
+  docker run --privileged --rm tonistiigi/binfmt:latest --uninstall qemu-aarch64
+  docker run --privileged --rm tonistiigi/binfmt:latest --install arm64
+  ```
+  This is **only** a local x86 issue. The self-hosted `ubuntu-tachyon` CI runner is real arm64
+  (no qemu), so it is unaffected.
 
 ---
 
@@ -90,7 +107,8 @@ day, and `1058.59 > 1056.57`.
 **Rewritten:**
 - `Makefile` — new-BP orchestration: `fetch_24_04 / fetch_bp_fw / fetch_kernel_deb /
   fetch_overlay_tool / fetch_tachyon_overlays → compose_24_04.sh`. Reads `versions.json`.
-- `compose_24_04.sh` — rootfs → efi → overlay (`run-overlay.sh -f`) → dtb → nonhlos → assemble → zip.
+- `compose_24_04.sh` — rootfs (+6GB headroom) → efi → overlay (`run-overlay.sh -f`) → dtb →
+  nonhlos → assemble → zip.
 - `versions.json` — new-BP sources + env pins (see §2).
 
 **Vendored (new backend, from eugene):**
@@ -111,6 +129,7 @@ day, and `1058.59 > 1056.57`.
 ## 5. Build, flash, verify
 
 ```bash
+# x86_64 host: register newer qemu once (see §2b)
 # build (downloads ~1GB base on first run; later runs reuse ./.tmp/input)
 make build_24.04 VERSIONS_FILE=./versions.json INPUT_REGION=RoW INPUT_VARIANT=headless
 # output: ./.tmp/output/tachyon-ubuntu-24.04-RoW-headless-formfactor_dvt-9.9.999.zip
@@ -120,33 +139,41 @@ tachyon.sh edl
 particle flash --tachyon ./.tmp/output/<the>.zip
 ```
 
-A common failure and its cause are documented in `BUILDING.md` §9 (mostly: `PKG_linux_particle`
-not matching the base kernel line — see §2 here).
+A common failure and its cause are documented in `BUILDING.md` §9 (`check-pinned-packages`,
+disk space, qemu).
 
 ---
 
 ## 6. Verification status
 
-- A prior build of the **particle6** variant (base `image-21` + `PKG_linux_particle=…particle6`)
-  was produced and **flashed successfully**; the boot chain was observed end-to-end
-  (SBL1 → XBL → DTB → UFS → CDT → PMIC → systemd).
-- The **particle2** configuration (base `image-22` + `PKG_linux_particle=…particle2`,
-  the committed state) was built locally to confirm `check-pinned-packages` passes and a flashable
-  zip is produced. <!-- RESULT: confirm before relying on this line -->
+- **Local build (image-22 + particle2): PASS.** `make build_24.04 … RoW … headless` ran end to
+  end with qemu 10.2.3: `check-pinned-packages ✓`, overlay applied, dtb/nonhlos built, ptool
+  assembled, packaged → `tachyon-ubuntu-24.04-RoW-headless-formfactor_dvt-9.9.999.zip`
+  (**4.3 GB**, 88 entries, ~9.8 GB uncompressed; EDL tree: rawprogram*/patch*, bootbinaries,
+  cdt.bin, system/efi/dtb/nonhlos images).
+- **Hardware flash (particle2 zip): not yet done.** An earlier **particle6** image (base image-21)
+  was flashed successfully and the boot chain was observed end-to-end (SBL1 → XBL → DTB → UFS →
+  CDT → PMIC → systemd). The particle2 zip uses the same assembly path; flash it and confirm
+  boot-to-login on hardware.
 
 ---
 
 ## 7. Known issues / next steps
 
-1. **rootfs boot adaptation** — composer's rootfs was designed for U-Boot; under UEFI/new-BP it
+1. **Flash + boot the particle2 zip on hardware** — confirm it boots to login (not just the boot
+   chain), and confirm the **1058** kernel is the one selected at boot (it must match `dtb_a`).
+2. **Headless image is bloated (4.3 GB).** The `ubuntu-common-24.04` overlay stack installs
+   desktop/media apps (`cheese`, `nautilus`, `mpv` + a large GNOME dep tree) for **both** headless
+   and desktop, and the rootfs carries **two** kernels (1056 + 1058). Worth trimming in the
+   overlay repo (this is a `tachyon-overlays` design question, not a composer bug):
+   the camera/media apps and the unused 1056 kernel.
+3. **rootfs boot adaptation** — composer's rootfs was designed for U-Boot; under UEFI/new-BP it
    may need kernel cmdline / fstab / mount-point tweaks. The overlay stack is the place to add new
-   mounts / msm blacklist (see eugene's `tachyon-console` stack). Validate a full boot-to-login on
-   hardware, not just the boot chain.
-2. **Matrix coverage** — only RoW/headless has been exercised locally. Extend to NA and desktop
-   (`INPUT_REGION=NA` → nonhlos `na`; `INPUT_VARIANT=desktop`). The desktop base is larger and the
-   `PKG_particle_tachyon_desktop_setup` pin pulls desktop deps — revisit the env pins per variant.
-3. **CI** — `.github/workflows` still reflect the legacy flow assumptions in places; wire the
-   self-hosted runner build to the new targets and confirm `make build_24.04` runs with `CI=true`.
-4. **Cleanup opportunity** — once a base with particle2 baked in exists (or stays on image-22), the
-   separate `fetch_kernel_deb` could be dropped by extracting `qcm6490-tachyon.dtb` directly from
-   the overlaid rootfs instead of a standalone deb. Not done yet (kept explicit for clarity).
+   mounts / msm blacklist (see eugene's `tachyon-console` stack).
+4. **Matrix coverage** — only RoW/headless built locally. Extend to NA (`INPUT_REGION=NA` →
+   nonhlos `na`) and desktop (`INPUT_VARIANT=desktop`).
+5. **CI** — `.github/workflows` still reflect legacy-flow assumptions in places; wire the
+   self-hosted (real arm64, no qemu) runner build to the new targets with `CI=true`.
+6. **Cleanup opportunity** — once the rootfs kernel story is settled, the separate
+   `fetch_kernel_deb` could be dropped by extracting `qcm6490-tachyon.dtb` directly from the
+   overlaid rootfs instead of a standalone deb. Kept explicit for now.
