@@ -131,6 +131,63 @@ section "5) assemble factory image (ptool)"
   --core_nhlos_a "$OUT/nonhlos.img" \
   --output       "$OUT/factory"
 
+# ---- 5b) manifest.json (required by `particle flash --tachyon`) -------------
+# particle flash reads manifest.json to locate the firehose + program/patch
+# XMLs. The legacy composer inherited it from the 20.04 base; the new-BP
+# assembly does not, so we synthesize it here over the assembled factory tree.
+section "5b) manifest.json"
+python3 - "$OUT/factory" "$OUTPUT_ZIP" "$OVERLAY_ENV" <<'PY'
+import json, os, re, sys
+factory, output_zip, env = sys.argv[1], sys.argv[2], (sys.argv[3] if len(sys.argv) > 3 else "")
+
+m = re.match(r'tachyon-ubuntu-24\.04-([^-]+)-([^-]+)-([^-]+)-(.+)\.zip$', output_zip)
+if not m:
+    sys.exit("ERROR: cannot parse region/variant/board/version from %s" % output_zip)
+region, variant, board, version = m.group(1), m.group(2), m.group(3), m.group(4)
+
+envd = {}
+for kv in env.split(','):
+    if '=' in kv:
+        k, v = kv.split('=', 1); envd[k.strip()] = v.strip()
+
+src_map = [
+    ('ubuntu-24.04', 'PKG_SRC_UBUNTU_24_04'),
+    ('linux-particle', 'PKG_linux_particle'),
+    ('particle-linux', 'PKG_particle_linux'),
+    ('particle-tachyon-desktop-setup', 'PKG_particle_tachyon_desktop_setup'),
+    ('particle-tachyon-ril', 'PKG_particle_tachyon_ril'),
+    ('particle-tachyon-syscon', 'PKG_particle_tachyon_syscon'),
+]
+sources = [{'key': k, 'value': envd[e]} for k, e in src_map if envd.get(e)]
+
+def sorted_xml(prefix):
+    items = [f for f in os.listdir(factory) if re.fullmatch(prefix + r'\d+\.xml', f)]
+    return sorted(items, key=lambda f: int(re.search(r'(\d+)', f).group(1)))
+
+program_xml = sorted_xml('rawprogram')
+patch_xml = sorted_xml('patch')
+firehose = 'prog_firehose_ddr.elf'
+if not os.path.exists(os.path.join(factory, firehose)):
+    sys.exit("ERROR: missing %s in factory" % firehose)
+if not program_xml:
+    sys.exit("ERROR: no rawprogramN.xml in factory")
+
+manifest = {
+    '$schema': 'https://linux-dist.particle.io/schema/image_manifest_v1.json',
+    'release_name': output_zip[:-4] if output_zip.endswith('.zip') else output_zip,
+    'version': version, 'region': region, 'variant': variant,
+    'platform': 'qcm6490', 'board': board, 'os': 'linux',
+    'distribution': 'ubuntu', 'distribution_version': '24.04', 'distribution_variant': 'ubuntu',
+    'sources': sources,
+    'targets': [{'qcm6490': {'edl': {
+        'base': '.', 'firehose': firehose,
+        'program_xml': program_xml, 'patch_xml': patch_xml}}}],
+}
+with open(os.path.join(factory, 'manifest.json'), 'w') as f:
+    json.dump(manifest, f, indent=2)
+print("OK manifest.json: firehose=%s program_xml=%s patch_xml=%s" % (firehose, program_xml, patch_xml))
+PY
+
 # ---- 6) package -------------------------------------------------------------
 section "6) package -> $OUTPUT_ZIP"
 rm -f "$OUT/$OUTPUT_ZIP"

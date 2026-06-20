@@ -81,6 +81,14 @@ Read this before touching `versions.json` or running a local x86 build.
   This is **only** a local x86 issue. The self-hosted `ubuntu-tachyon` CI runner is real arm64
   (no qemu), so it is unaffected.
 
+### 2c. Flashing needs manifest.json
+
+`particle flash --tachyon <zip>` requires a top-level `manifest.json` (its `targets.edl` names the
+firehose + program/patch XMLs). The legacy composer inherited it from the 20.04 base; the new-BP
+`make_factory_img.sh` does not, so `compose_24_04.sh` now synthesizes it after assembly (base `.`,
+`prog_firehose_ddr.elf`, rawprogram0-5, patch0-5). Without it, `particle flash` fails immediately
+with `Unable to find manifest.json`.
+
 ---
 
 ## 3. Component sourcing
@@ -108,7 +116,7 @@ Read this before touching `versions.json` or running a local x86 build.
 - `Makefile` — new-BP orchestration: `fetch_24_04 / fetch_bp_fw / fetch_kernel_deb /
   fetch_overlay_tool / fetch_tachyon_overlays → compose_24_04.sh`. Reads `versions.json`.
 - `compose_24_04.sh` — rootfs (+6GB headroom) → efi → overlay (`run-overlay.sh -f`) → dtb →
-  nonhlos → assemble → zip.
+  nonhlos → assemble → **manifest.json** → zip.
 - `versions.json` — new-BP sources + env pins (see §2).
 
 **Vendored (new backend, from eugene):**
@@ -144,24 +152,23 @@ disk space, qemu).
 
 ---
 
-## 6. Verification status
+## 6. Verification status — PASS (build + flash + boot)
 
-- **Local build (image-22 + particle2): PASS.** `make build_24.04 … RoW … headless` ran end to
-  end with qemu 10.2.3: `check-pinned-packages ✓`, overlay applied, dtb/nonhlos built, ptool
-  assembled, packaged → `tachyon-ubuntu-24.04-RoW-headless-formfactor_dvt-9.9.999.zip`
-  (**4.3 GB**, 88 entries, ~9.8 GB uncompressed; EDL tree: rawprogram*/patch*, bootbinaries,
-  cdt.bin, system/efi/dtb/nonhlos images).
-- **Hardware flash (particle2 zip): not yet done.** An earlier **particle6** image (base image-21)
-  was flashed successfully and the boot chain was observed end-to-end (SBL1 → XBL → DTB → UFS →
-  CDT → PMIC → systemd). The particle2 zip uses the same assembly path; flash it and confirm
-  boot-to-login on hardware.
+- **Build (image-22 + particle2): PASS.** `make build_24.04 … RoW … headless` ran end to end with
+  qemu 10.2.3 → `tachyon-ubuntu-24.04-RoW-headless-formfactor_dvt-9.9.999.zip` (4.3 GB).
+- **Flash via `particle flash --tachyon`: PASS.** With `manifest.json` emitted (§2c),
+  `particle flash --tachyon <zip>` → `OS Download complete` (qdl: `prog_firehose_ddr.elf` +
+  rawprogram0-5 + patch0-5).
+- **Boot: PASS.** Device booted to `ubuntu login:`; logged in (root/particle):
+  `uname -r = 6.8.0-1058-particle` (`#59+particle2`), `Ubuntu 24.04.4 LTS`. `/lib/modules` has
+  both 1056 and 1058 kernels; boot correctly selected **1058** (matches dtb_a).
 
 ---
 
 ## 7. Known issues / next steps
 
-1. **Flash + boot the particle2 zip on hardware** — confirm it boots to login (not just the boot
-   chain), and confirm the **1058** kernel is the one selected at boot (it must match `dtb_a`).
+1. ~~Flash + boot the particle2 zip on hardware~~ — **DONE** (see §6): boots to `ubuntu login:`,
+   runs `6.8.0-1058-particle #59+particle2`, boot selected the 1058 kernel (matches dtb_a).
 2. **Headless image is bloated (4.3 GB).** The `ubuntu-common-24.04` overlay stack installs
    desktop/media apps (`cheese`, `nautilus`, `mpv` + a large GNOME dep tree) for **both** headless
    and desktop, and the rootfs carries **two** kernels (1056 + 1058). Worth trimming in the
