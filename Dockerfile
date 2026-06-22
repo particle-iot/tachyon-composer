@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# particle-dockerfile-version=1.4
+# particle-dockerfile-version=1.5
 # this is the Dockerfile version.
 # Update this ARG to change the base image and recompile it!
 
@@ -44,7 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Python tools
 # (This provides extract-dtb; name left as-is from your comment)
-RUN pip3 install --no-cache-dir extract-dtb
+RUN pip3 install --no-cache-dir --break-system-packages extract-dtb
 
 # Ensure per-user pip installs are on PATH for the builder user
 ENV PATH="/home/builder/.local/bin:${PATH}"
@@ -53,8 +53,11 @@ ENV PATH="/home/builder/.local/bin:${PATH}"
 ARG UID=1000
 ARG GID=1000
 
-# Create 'builder' user with sudo (no password) and correct uid/gid
-RUN if ! getent group "${GID}" >/dev/null; then groupadd -g "${GID}" builder; fi && \
+# Create 'builder' user with sudo (no password) and correct uid/gid.
+# Newer ubuntu:24.04 base images ship a default 'ubuntu' user at UID/GID 1000;
+# remove whoever owns the requested UID first so useradd does not clash.
+RUN if getent passwd "${UID}" >/dev/null; then userdel -rf "$(getent passwd "${UID}" | cut -d: -f1)" 2>/dev/null || true; fi && \
+    if ! getent group "${GID}" >/dev/null; then groupadd -g "${GID}" builder; fi && \
     useradd -m -u "${UID}" -g "${GID}" builder && \
     usermod -aG sudo builder &&   \
     echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder && \
