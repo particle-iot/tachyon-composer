@@ -1,2 +1,5 @@
 .git
 .tmp
+# Vendored SECTOOLS (~59MB) is provided at runtime via the /project bind mount;
+# no need to bake it into the image.
+scripts/signing/sectools
