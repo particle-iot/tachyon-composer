@@ -102,7 +102,9 @@ section "3) overlay stack: $OVERLAY_STACK"
 # run-overlay.sh operates directly on the bare rootfs ext4 (-f). make apply's
 # inplace mode instead expects a full sys-img directory (it looks for
 # images/qcm6490/edl/qti-...sysfs_1.ext4), which the new-BP path does not have.
-RES_DIR="$work/overlay-resources"; mkdir -p "$RES_DIR"     # no extra resources needed
+RES_DIR="$work/overlay-resources"; mkdir -p "$RES_DIR"
+# Expose fetched assets to overlays via $RESOURCES; overlays decide what to install.
+[ -f "$IN/QCM6490_fw.zip" ] && cp "$IN/QCM6490_fw.zip" "$RES_DIR/"
 ENV_OPT=(); [ -n "$OVERLAY_ENV" ] && ENV_OPT=(-e "$OVERLAY_ENV")
 ( cd "$OVERLAY_TOOL_DIR" && bash ./run-overlay.sh \
     -f "$ROOTFS" \
