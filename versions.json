@@ -20,13 +20,17 @@
       "param": "22-938ac1d"
     },
 
-    // Kernel input (single source of truth). Used to (a) extract qcm6490-tachyon.dtb for dtb_a,
-    // and (b) it MUST match the rootfs kernel pin PKG_linux_particle in env below and the kernel
-    // baked into the 24.04 base (ABI 1058), or check-pinned-packages will fail.
+    // Kernel input (single source of truth for the kernel line). Unlike main — where this was the
+    // "See PKG_linux_particle below" placeholder and the kernel was never fetched — the new-BP flow
+    // FETCHES this kernel modules deb to extract qcm6490-tachyon.dtb for dtb_a, so these are real
+    // download coordinates. The version here MUST stay in lock-step with PKG_linux_particle in the
+    // env block below and the kernel baked into the 24.04 base (ABI 1058), or check-pinned-packages
+    // will fail.  <-- deb_version == env.PKG_linux_particle (see below)
     "particle-iot/tachyon-ubuntu-24.04-kernel": {
       "type": "s3_release",
       "param": "stable-6.8.0-1058.59particle2",
       "abi": "1058",
+      // keep this equal to env.PKG_linux_particle below
       "deb_version": "6.8.0-1058.59+particle2",
       "base_url": "https://linux-dist.particle.io/kernel/release"
     },
