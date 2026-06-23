@@ -58,9 +58,10 @@ _SRC      = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$
 _ENV_JSON = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$(VERSIONS_FILE)').read(),flags=re.MULTILINE);e=json.loads(t).get('env',{});print(','.join(f'{k}={v}' for k,v in e.items()))" 2>/dev/null)
 _SIGN     = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$(VERSIONS_FILE)').read(),flags=re.MULTILINE);print(json.loads(t).get('signing',{}).get('$(1)',''))" 2>/dev/null)
 
-JSON_BASE24_PARAM   := $(call _SRC,particle-iot/tachyon-ubuntu-24.04,param)
-JSON_OVERLAYS_PARAM := $(call _SRC,particle-iot/tachyon-overlay,param)
-ENV_FROM_JSON       := $(_ENV_JSON)
+JSON_BASE24_PARAM       := $(call _SRC,particle-iot/tachyon-ubuntu-24.04,param)
+JSON_OVERLAYS_PARAM     := $(call _SRC,particle-iot/tachyon-overlay,param)
+JSON_OVERLAY_TOOL_PARAM := $(call _SRC,particle-iot/tachyon-overlay-tool,param)
+ENV_FROM_JSON           := $(_ENV_JSON)
 
 ifneq ($(strip $(JSON_BASE24_PARAM)),)
   INPUT_BASE_24_04_VERSION ?= $(JSON_BASE24_PARAM)
@@ -314,9 +315,9 @@ vendor_sectools:
 # -------------------------------------------------------------------
 OVERLAY_TOOL_DIR      := /tmp/work/tools/tachyon-overlay-tool
 OVERLAY_TOOL_CLONE_URL = https://github.com/particle-iot/tachyon-overlay-tool.git
-# Pinned to feature/when (PR #3): adds the 'when' env-gate and ENV_* chroot forwarding that the
-# new-BP overlay stack relies on. TODO: revert to main (or a tag) once PR #3 merges.
-OVERLAY_TOOL_REF      ?= feature/when
+# Ref comes from versions.json (sources -> particle-iot/tachyon-overlay-tool -> param),
+# falling back to main. main carries the 'when' env-gate + ENV_* forwarding (PR #3 merged).
+OVERLAY_TOOL_REF      ?= $(if $(strip $(JSON_OVERLAY_TOOL_PARAM)),$(JSON_OVERLAY_TOOL_PARAM),main)
 OVERLAY_TOOL_STAMP    := $(OVERLAY_TOOL_DIR)/.installed
 
 .PHONY: fetch_overlay_tool
