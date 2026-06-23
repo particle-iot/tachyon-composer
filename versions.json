@@ -35,18 +35,16 @@
       "base_url": "https://linux-dist.particle.io/kernel/release"
     },
 
-    // Overlay stack applied to the rootfs (packages, configs, Particle services).
-    // PINNED to tachyon-overlays branch feature/when (PR #26 -> main): it has the new-BP overlays
-    // (add-qcm6490-bp-fw, fstab fix, link-ath11k/qca-bt/gpu/audio/modem, the 24.04 stacks) AND gates
-    // them behind `when: { env: ENV_UBUNTU_24_04_VERSION, min: "1.2" }`.
-    // TODO: bump to HEAD (or a tag) once PR #26 merges.
+    // Overlay stack applied to the rootfs (packages, configs, Particle services). On main: the
+    // new-BP overlays (add-qcm6490-bp-fw, fstab fix, link-ath11k/qca-bt/gpu/audio/modem, the 24.04
+    // stacks) gated behind `when: { env: ENV_UBUNTU_24_04_VERSION, min: "1.2" }` (PR #26 merged).
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "feature/when"
+      "param": "main"
     },
 
     // The overlay TOOL (engine that applies the stack). Provides the `when` env-gate and ENV_*
-    // chroot forwarding the new-BP stack relies on. main has these (PR #3 merged).
+    // chroot forwarding the new-BP stack relies on (PR #3 merged to main).
     "particle-iot/tachyon-overlay-tool": {
       "type": "git_release",
       "param": "main"
