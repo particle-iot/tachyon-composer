@@ -10,7 +10,7 @@ This directory contains a self-contained UFS packaging tool. It does not depend 
 ## Usage
 
 ```bash
-tools/make-factory-img/make_factory_img.sh \
+scripts/assemble/make_factory_img.sh \
   --bootbinaries /path/to/QCM6490_bootbinaries.zip \
   --efi /path/to/efi.img \
   --dtb_a /path/to/dtb.img \

@@ -215,7 +215,7 @@ help:
 	@echo "  fetch_kernel_deb            Download the kernel modules deb (for qcm6490-tachyon.dtb)"
 	@echo "  fetch_overlay_tool          Clone tachyon-overlay-tool inside Docker"
 	@echo "  fetch_tachyon_overlays      Clone tachyon-overlays inside Docker"
-	@echo "  vendor_sectools             Populate scripts/signing/sectools/ (signer; ~59MB, not in git)"
+	@echo "  vendor_sectools             Refresh the committed sectoolsv2 signer in scripts/signing/sectools/ (~38MB)"
 	@echo "  doctor / check_qemu / setup_qemu / clean"
 	@echo ""
 	@echo "Required parameters:"
@@ -225,7 +225,7 @@ help:
 	@echo "Optional parameters:"
 	@echo "  VERSIONS_FILE               Path to versions.json (default: versions.json)"
 	@echo "  OUTPUT_VERSION              Version stamped into the image (default: $(DEFAULT_OUTPUT_VERSION))"
-	@echo "  SIGNING_PROFILE             test | prod (default from versions.json signing.profile)"
+	@echo "  SIGNING_PROFILE             test | prod | none (default from versions.json signing.profile)"
 	@echo "  SIGNING_KEY                 key name under ./keys/ (default from versions.json signing.key)"
 	@echo "  INPUT_OVERLAY_DIR           Local overlays dir (skip cloning tachyon-overlays)"
 	@echo "  INPUT_OVERLAY_STACK         Overlay stack/branch (e.g., ubuntu-headless-24.04)"
@@ -264,13 +264,14 @@ $(BASE24_IMG): $(BASE24_XZ) | docker/build
 fetch_bp_fw: $(BOOTBINARIES_ZIP)
 $(BOOTBINARIES_ZIP): | docker/build
 	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; mkdir -p /tmp/work/input; cd /tmp/work/input; \
-		if [ -s tachyon-bp-fw.zip ]; then \
-			echo "==> Reusing cached bp-fw download: tachyon-bp-fw.zip"; \
+		Z="tachyon-bp-fw-$(BP_FW_VERSION).zip"; \
+		if [ -s "$$Z" ]; then \
+			echo "==> Reusing cached bp-fw download: $$Z"; \
 		else \
-			echo "==> Downloading bp-fw: $(BP_FW_URL)"; \
-			curl $(CURL_OPTS) -o tachyon-bp-fw.zip "$(BP_FW_URL)"; test -s tachyon-bp-fw.zip; \
+			echo "==> Downloading bp-fw $(BP_FW_VERSION): $(BP_FW_URL)"; \
+			curl $(CURL_OPTS) -o "$$Z" "$(BP_FW_URL)"; test -s "$$Z"; \
 		fi; \
-		rm -rf .bpfw && mkdir .bpfw && unzip -oq tachyon-bp-fw.zip -d .bpfw; \
+		rm -rf .bpfw && mkdir .bpfw && unzip -oq "$$Z" -d .bpfw; \
 		test -d .bpfw/QCM6490_bootbinaries || { echo "ERROR: missing QCM6490_bootbinaries"; ls .bpfw; exit 1; }; \
 		test -d .bpfw/QCM6490_fw          || { echo "ERROR: missing QCM6490_fw"; ls .bpfw; exit 1; }; \
 		rm -f QCM6490_bootbinaries.zip QCM6490_fw.zip; \

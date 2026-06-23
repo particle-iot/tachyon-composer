@@ -11,6 +11,8 @@
 
 set -euo pipefail
 
+command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required but not installed" >&2; exit 127; }
+
 VERSION=""
 NA_ZIP=""
 ROW_ZIP=""

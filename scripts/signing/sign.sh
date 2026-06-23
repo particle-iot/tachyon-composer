@@ -22,6 +22,11 @@
 # profile=prod -> sectoolsv2 --signing-mode LOCAL with OEM keys from $SIGNING_KEY_PATH (a mounted
 #                 dir, NEVER committed). Wired but not populated until a prod key exists.
 # profile=none -> passthrough: copy every input unchanged, sign nothing (use the BP test-signing).
+#
+# NOTE: --key / --keys-dir (and versions.json signing.key) are RESERVED for prod (LOCAL) signing
+# and are NOT consumed today: TEST mode uses sectoolsv2's built-in keys. They are accepted now so
+# the Makefile/versions.json wiring is stable; they get wired into the LOCAL key args at prod
+# enablement. Passing them with profile=test/none has no effect.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -163,7 +168,14 @@ resolve_vouch() { local file="$1" srcsel="$2"; [[ "${srcsel}" == fw ]] && echo "
 meta=0
 if [[ -f "${IN_DIR}/${MULTI_IMAGE_FILE}" ]]; then
   vouch_files=() ok=1
+  # --fw-dir is mandatory for regeneration: without it, fw paths would resolve to the absolute
+  # host/container path /lib/firmware/qcom/qcm6490 and could silently vouch for the WRONG blobs.
+  if [[ -z "${FW_DIR}" ]]; then
+    echo "[WARN] multi_image: --fw-dir not given; cannot resolve ADSP/CDSP/WPSS — refusing to regenerate."
+    ok=0
+  fi
   for entry in "${VOUCH_MAP[@]}"; do
+    [[ "${ok}" -eq 1 ]] || break
     IFS=: read -r _id fname srcsel <<<"${entry}"
     p="$(resolve_vouch "${fname}" "${srcsel}")"
     [[ -f "${p}" ]] || { echo "[WARN] multi_image vouch input missing: ${p}"; ok=0; }

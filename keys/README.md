@@ -33,9 +33,11 @@ not belong in git.
 }
 ```
 
-- `profile = test` → `scripts/signing` resolves the key from `./keys/<signing.key>/` (this folder).
-- `profile = prod` → `scripts/signing` resolves the key from the build-time secret path instead
-  (never from this folder, never from git).
+- `profile = test` → sectoolsv2 signs with `--signing-mode TEST` (built-in Qualcomm test keys).
+  `signing.key` is a **nominal selector only** today — the material in `./keys/<signing.key>/` is
+  not consumed in TEST mode (it is retained as the named key and the template for the prod swap).
+- `profile = prod` → sectoolsv2 signs with `--signing-mode LOCAL` using OEM keys resolved from the
+  build-time secret path (`SIGNING_KEY_PATH`), never from this folder, never from git.
 
 ## `.gitignore` guard
 

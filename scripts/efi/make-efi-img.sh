@@ -2,7 +2,9 @@
 
 set -euo pipefail
 
-GRUB_SRC_DIR="grub-efi-src-dir/EFI/BOOT"
+# Resolve sources relative to this script, so it works regardless of the caller's cwd.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GRUB_SRC_DIR="${SCRIPT_DIR}/grub-efi-src-dir/EFI/BOOT"
 
 # 1) Create an empty 512MB image
 dd if=/dev/zero of=efi.img bs=1M count=512

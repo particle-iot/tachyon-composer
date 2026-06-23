@@ -118,6 +118,12 @@ done
 
 mkdir -p "${OUTPUT_DIR}"
 OUTPUT_DIR="$(cd "${OUTPUT_DIR}" && pwd)"
+# Guard: --output is user-supplied and we wipe it below. Refuse paths that would clear the
+# filesystem root (or a top-level dir), since `rm -rf <dir>/*` on those is catastrophic.
+if [[ "${OUTPUT_DIR}" == "/" || "${OUTPUT_DIR}" != /*/* ]]; then
+  echo "ERROR: refusing to wipe unsafe --output path '${OUTPUT_DIR}' (must be at least two levels deep)" >&2
+  exit 1
+fi
 rm -rf "${OUTPUT_DIR:?}/"*
 
 work_dir="$(mktemp -d)"
