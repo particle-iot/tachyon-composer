@@ -314,7 +314,9 @@ vendor_sectools:
 # -------------------------------------------------------------------
 OVERLAY_TOOL_DIR      := /tmp/work/tools/tachyon-overlay-tool
 OVERLAY_TOOL_CLONE_URL = https://github.com/particle-iot/tachyon-overlay-tool.git
-OVERLAY_TOOL_REF      ?= main
+# Pinned to feature/when (PR #3): adds the 'when' env-gate and ENV_* chroot forwarding that the
+# new-BP overlay stack relies on. TODO: revert to main (or a tag) once PR #3 merges.
+OVERLAY_TOOL_REF      ?= feature/when
 OVERLAY_TOOL_STAMP    := $(OVERLAY_TOOL_DIR)/.installed
 
 .PHONY: fetch_overlay_tool

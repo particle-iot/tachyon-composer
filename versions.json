@@ -36,13 +36,14 @@
     },
 
     // Overlay stack applied to the rootfs (packages, configs, Particle services).
-    // PINNED to the new-BP overlay branch (tachyon-overlays PR #25, branch feature/new-bp): it
-    // adds add-qcm6490-bp-fw, the fstab fix, link-ath11k / link-qca-bt / gpu / audio / modem, and
-    // the 24.04 stacks (ubuntu-{headless,desktop}-24.04) this flow needs — none are on main yet.
-    // TODO: bump back to HEAD (or a tag) once PR #25 merges.
+    // PINNED to tachyon-overlays branch feature/when (PR #26, based on feature/new-bp): it has the
+    // new-BP overlays (add-qcm6490-bp-fw, fstab fix, link-ath11k/qca-bt/gpu/audio/modem, the 24.04
+    // stacks) AND gates them behind `when: { env: ENV_UBUNTU_24_04_VERSION, min: "1.2" }`. Requires
+    // overlay-tool feature/when (PR #3, OVERLAY_TOOL_REF below) for the `when` gate + ENV_ chroot
+    // forwarding. TODO: bump back to HEAD (or a tag) once PR #26 + PR #3 merge.
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "feature/new-bp"
+      "param": "feature/when"
     }
   },
 
@@ -75,8 +76,11 @@
     //The syscon package
     "PKG_particle_tachyon_syscon": "1.0.20-2",
 
-    //Ubuntu 24.04 distribution version (consumed by overlays for versioning)
-    "PKG_UBUNTU_24_04_VERSION": "1.2",
+    //Ubuntu 24.04 distribution version. ENV_ (not PKG_) on purpose: check-pinned-packages treats
+    //every PKG_* as an apt package to install, but this is a plain config value. The overlay tool
+    //forwards ENV_* into the chroot, and the new-BP stack gates its firmware/audio/modem overlays
+    //on this via `when: { env: ENV_UBUNTU_24_04_VERSION, min: "1.2" }`.
+    "ENV_UBUNTU_24_04_VERSION": "1.2",
 
     //version used in the debian file to pin the version down
     "PIN_PRIORITY": "900"
