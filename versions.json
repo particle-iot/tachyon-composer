@@ -36,9 +36,13 @@
     },
 
     // Overlay stack applied to the rootfs (packages, configs, Particle services).
+    // PINNED to the new-BP overlay branch (tachyon-overlays PR #25, branch feature/new-bp): it
+    // adds add-qcm6490-bp-fw, the fstab fix, link-ath11k / link-qca-bt / gpu / audio / modem, and
+    // the 24.04 stacks (ubuntu-{headless,desktop}-24.04) this flow needs — none are on main yet.
+    // TODO: bump back to HEAD (or a tag) once PR #25 merges.
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "HEAD"
+      "param": "feature/new-bp"
     }
   },
 
@@ -70,6 +74,9 @@
 
     //The syscon package
     "PKG_particle_tachyon_syscon": "1.0.20-2",
+
+    //Ubuntu 24.04 distribution version (consumed by overlays for versioning)
+    "PKG_UBUNTU_24_04_VERSION": "1.2",
 
     //version used in the debian file to pin the version down
     "PIN_PRIORITY": "900"

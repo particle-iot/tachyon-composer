@@ -107,6 +107,11 @@ echo "OK: $OUT/efi.img"
 # ---- 3) apply tachyon-overlays stack to rootfs.ext4 -------------------------
 section "3) overlay stack: $OVERLAY_STACK"
 RES_DIR="$work/overlay-resources"; mkdir -p "$RES_DIR"
+# The add-qcm6490-bp-fw overlay reads $RESOURCES/QCM6490_fw.zip and unpacks the platform firmware
+# (adsp/cdsp/qupv3fw + DSP libs) into /lib/firmware/qcom and /usr/lib/dsp. The composer must hand
+# that zip to the overlay tool via -r; without it the firmware is silently missing from the rootfs.
+[ -f "$IN/QCM6490_fw.zip" ] || { echo "ERROR: missing $IN/QCM6490_fw.zip (needed by add-qcm6490-bp-fw overlay)" >&2; exit 1; }
+cp "$IN/QCM6490_fw.zip" "$RES_DIR/QCM6490_fw.zip"
 ENV_OPT=(); [ -n "$OVERLAY_ENV" ] && ENV_OPT=(-e "$OVERLAY_ENV")
 ( cd "$OVERLAY_TOOL_DIR" && bash ./run-overlay.sh \
     -f "$ROOTFS" \
