@@ -1,0 +1,13 @@
+# The aarch64 sectoolsv2 signer (sectools/ext/Linux_aarch64/sectools, ~38MB) and the
+# kodiak_security_profile.xml ARE committed here — the composer signs with them and must
+# work in CI without a BP-repo checkout. Run vendor-sectools.sh to refresh them.
+#
+# Guard against accidentally committing other large sectools payloads (a full re-vendored
+# tree, other-arch binaries): ignore everything under sectools/ except the two tracked paths.
+sectools/*
+!sectools/kodiak_security_profile.xml
+!sectools/ext/
+sectools/ext/*
+!sectools/ext/Linux_aarch64/
+sectools/ext/Linux_aarch64/*
+!sectools/ext/Linux_aarch64/sectools

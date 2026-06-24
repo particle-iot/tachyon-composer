@@ -1,233 +1,212 @@
-# Tachyon System Image Composer 
+# Tachyon System Image Composer (24.04 / new-BP)
 
-A build system for creating Tachyon System Images that upgrade from Ubuntu 20.04 base images to Ubuntu 24.04 with region-specific and variant-specific configurations.
+A build system that composes flashable **Tachyon Ubuntu 24.04** EDL system images for the
+QCM6490 (Quectel r108 baseband) platform. It takes a 24.04 base rootfs, the new BP firmware
+artifact, and a kernel device tree, applies an overlay stack, **signs the boot/firmware blobs
+itself with a selectable key**, and assembles an EDL-flashable image.
 
-For more background and documentation, see the [Particle Tachyon Ubuntu 24.04 Overview](https://developer.particle.io/tachyon/software/ubuntu_24_04/overview).
+Boot chain: **XBL → UEFI (from bp-fw) → GRUB → Linux**. There is no Ubuntu 20.04 base, no
+U-Boot, and no `qtestsign` — that legacy path has been retired.
+
+For background, see the
+[Particle Tachyon Ubuntu 24.04 Overview](https://developer.particle.io/tachyon/software/ubuntu_24_04/overview).
 
 ---
 
 ## 📦 Prerequisites
 
-- **GNU Make** installed
-- **Docker** installed and running (the build happens inside Docker)
-- **Sufficient disk space** for temporary files and output archives (around 12GB)
-- **Architecture requirements**:
-  - **ARM64/aarch64 host**: Native execution (recommended for best performance)
-  - **x86_64/amd64 host**: Requires QEMU user-mode emulation for ARM64 binaries
-
-### x86_64 Host Setup
-
-If you're building on an **x86_64/amd64** machine, QEMU ARM64 emulation is required and will be **automatically configured** on first build.
-
-The build system will:
-1. Detect your architecture
-2. Check if QEMU is registered
-3. Automatically set it up if needed using Docker
-
-**Manual setup (optional):**
-```bash
-# Manually trigger QEMU setup
-make setup_qemu
-
-# Or directly:
-docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-```
-
-This only needs to be done once per host machine and persists across reboots.
+- **GNU Make**
+- **Docker** running (the build happens inside an Ubuntu 24.04 builder container)
+- **~20 GB free disk** for inputs, intermediates, and output archives
+- **Architecture**:
+  - **ARM64/aarch64 host** — native execution (recommended; the signer is an aarch64 binary)
+  - **x86_64/amd64 host** — needs QEMU user-mode ARM64 emulation (auto-configured on first build;
+    `make setup_qemu` if it fails)
+  - **macOS** — Docker Desktop handles ARM64 emulation automatically
 
 ---
 
 ## 🚀 Usage
 
-### Quick Start
-
 ```bash
-# Display help and available commands
-make help
-```
-
-### Build a 24.04 System Image (basic versioned build)
-
-```bash
+# Build RoW / headless at version 1.2.0
 make build_24.04 \
   VERSIONS_FILE=./versions.json \
   INPUT_REGION=RoW \
-  INPUT_VARIANT=desktop
+  INPUT_VARIANT=headless \
+  OUTPUT_VERSION=1.2.0
 ```
 
-### Build a 24.04 System Image (full parameters)
+`VERSIONS_FILE` is the authoritative source of component versions; the four required inputs
+(`INPUT_REGION`, `INPUT_VARIANT`, and the 24.04 build id + overlay/signing config from
+`versions.json`) drive the rest. Override any value on the `make` line.
 
-Using 20.04 base version `1.0.170`:
-
-```bash
-make build_24.04 \
-  INPUT_BASE_20_04_VERSION=1.0.170 \
-  INPUT_REGION=RoW \
-  INPUT_VARIANT=desktop \
-  INPUT_UBOOT_VERSION=1.0.4 \
-  INPUT_BASE_24_04_VERSION=14-276cd6b \
-  INPUT_OVERLAY_STACK=ubuntu-headless-24.04 \
-  INPUT_ENV_VARS="PKG_particle_linux=0.20.1-1,PKG_particle_tachyon_desktop_setup=2.7.0,PKG_particle_tachyon_ril=0.4.5-1,PKG_particle_tachyon_syscon=1.0.19-1,PIN_PRIORITY=900"
-```
-
----
-
-## 🛠 Available Commands
-
-### `build_24.04`
-Builds a Tachyon System Image for Ubuntu 24.04 base.  
-Requires both a 20.04 base zip (from Particle distribution) and a 24.04 `.img` (from CI).
-
-### `help`
-Displays usage information and examples.
-
-### `version`
-Shows the current version of the Tachyon System Image Composer as resolved by the CI/CD pipeline or the `Makefile`.
-
-```bash
-make version
-# Example output: 1.2.3
-```
-
-### `clean`
-Removes temporary files created during the build process.
+The full release matrix is `{NA, RoW} × {headless, desktop}` — build all four for a release.
 
 ---
 
 ## ⚙️ Parameters
 
-### Required Parameters
-- **`INPUT_BASE_20_04_VERSION`**: Semantic version of the 20.04 base zip (e.g., `1.0.167`)  
-- **`INPUT_REGION`**: Target deployment region  
-  - `NA` = North America  
-  - `RoW` = Rest of World  
-- **`INPUT_UBOOT_VERSION`**: Semantic version of U-Boot package (e.g., `1.0.3`)  
-- **`INPUT_BASE_24_04_VERSION`**: Build identifier for the 24.04 base image (e.g., `14-276cd6b`)  
-- **`VERSIONS_FILE`**: JSON file containing the official version mappings used to generate the release output. This is the authoritative source of truth for build versions.  
+All parameters are `make` variables (`make build_24.04 VAR=value …`).
 
-### Optional Parameters
-- **`OUTPUT_24_04_SYSTEM_IMAGE`**: Output filename for the final `.zip`  
-  - Default: `tachyon-ubuntu-24.04-<region>-<variant>-formfactor_dvt-9.9.999.zip`  
+### Required
+| Variable | Values | Notes |
+|---|---|---|
+| `INPUT_REGION` | `NA` \| `RoW` | Selects the region NON-HLOS firmware (`na`/`em`). |
+| `INPUT_VARIANT` | `headless` \| `desktop` | `headless` == server. Selects the base image + default overlay stack. |
+| `VERSIONS_FILE` | path | Source of truth for versions/signing/env. Default `versions.json`. |
+| `INPUT_BASE_24_04_VERSION` | e.g. `22-938ac1d` | 24.04 base build id. Defaults from `versions.json` (`tachyon-ubuntu-24.04.param`). |
 
-- **`TMP_INPUT_DIR`**: Temporary input directory  
-  - Default: `./.tmp/input`  
+### Optional
+| Variable | Default | Notes |
+|---|---|---|
+| `OUTPUT_VERSION` | `9.9.999` | Version stamped into the image/zip name. Set explicitly per build (e.g. `1.2.0`). |
+| `OUTPUT_24_04_SYSTEM_IMAGE` | derived | `tachyon-ubuntu-24.04-<region>-<variant>-formfactor_dvt-<version>.zip`. |
+| `SIGNING_PROFILE` | `test` (from `versions.json` `signing.profile`) | `test` \| `prod` \| `none`. See [Signing](#-signing). |
+| `SIGNING_KEY` | from `versions.json` `signing.key` | Key name under `./keys/` (for `test`). |
+| `INPUT_OVERLAY_STACK` | `ubuntu-<variant>-24.04` | Overlay stack to apply. |
+| `INPUT_ENV` | from `versions.json` `env` block | Comma-separated `KEY=VAL` passed to the overlay tool (package pins, `PIN_PRIORITY`, …). |
+| `BASE24_CHANNEL` | `release` | `release` \| `prerelease` \| `preproduction` — channel for the 24.04 base image. |
+| `DEBUG` | `false` | `true` enables `set -x` verbose tracing in the compose script. |
+| `TMP_INPUT_DIR` / `TMP_OUTPUT_DIR` / `TMP_ROOT_DIR` | `./.tmp/...` | Working directories. |
 
-- **`TMP_OUTPUT_DIR`**: Temporary output directory  
-  - Default: `./.tmp/output`  
+> **`OUTPUT_VERSION` vs the git tag:** the repository's own `version` (from the latest semver
+> git tag) identifies the *composer*; `OUTPUT_VERSION` is what gets stamped into the produced
+> image. CI sets `OUTPUT_VERSION` from the resolved release/prerelease version automatically.
 
 ---
 
-## 📑 Examples
+## 📄 `versions.json`
 
-Use a custom temporary directory:
+The authoritative inputs. Supports `//` line comments.
 
-```bash
-make build_24.04 TMP_INPUT_DIR=/scratch/tmp TMP_OUTPUT_DIR=/scratch/out ...
+```jsonc
+{
+  "sources": {
+    // New BP firmware — referenced as a published ARTIFACT ONLY (version + url), never as a
+    // repo dependency. Ships bootbinaries, QCM6490 fw, and pre-built region NON-HLOS images.
+    "bp-fw": { "version": "2.0.3", "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.3.zip" },
+
+    // 24.04 base rootfs (livecd-rootfs). Variants headless (==server) and desktop both published.
+    "particle-iot/tachyon-ubuntu-24.04": { "type": "git_release", "param": "22-938ac1d" },
+
+    // Kernel input (single source of truth) — provides qcm6490-tachyon.dtb AND pins the rootfs
+    // kernel. MUST match PKG_linux_particle in env and the base image ABI.
+    "particle-iot/tachyon-ubuntu-24.04-kernel": {
+      "type": "s3_release", "param": "stable-6.8.0-1058.59particle2",
+      "abi": "1058", "deb_version": "6.8.0-1058.59+particle2",
+      "base_url": "https://linux-dist.particle.io/kernel/release"
+    },
+
+    "particle-iot/tachyon-overlay": { "type": "git_release", "param": "HEAD" }
+  },
+
+  // Composer-owned signing (selectable key).
+  "signing": { "profile": "test", "key": "qti_presigned_certs-key2048_exp257_hashSHA384" },
+
+  // Overlay env (package pins applied to the rootfs). PKG_linux_particle MUST equal the kernel
+  // deb_version above and be installable on the base image ABI, or check-pinned-packages fails.
+  "env": {
+    "PKG_linux_particle": "6.8.0-1058.59+particle2",
+    "PKG_particle_linux": "0.22.0-1",
+    "PKG_particle_tachyon_desktop_setup": "2.7.0",
+    "PKG_particle_tachyon_ril": "0.4.5-1",
+    "PKG_particle_tachyon_syscon": "1.0.20-2",
+    "PIN_PRIORITY": "900"
+  }
+}
+```
+
+The BP firmware repo is **never** a `versions.json` dependency — only its published artifact zip
+(`url` + `version`) is consumed.
+
+---
+
+## 🔏 Signing
+
+The composer **re-signs** every boot/firmware blob itself (the BP artifact ships them TEST-signed),
+using a selectable profile/key. See [`scripts/signing/README.md`](./scripts/signing/README.md)
+and [`keys/README.md`](./keys/README.md).
+
+| `SIGNING_PROFILE` | Behaviour |
+|---|---|
+| `test` (default) | Re-signs with Qualcomm sectoolsv2 `--signing-mode TEST` (stock test keys). **Not production-secure.** |
+| `prod` | `--signing-mode LOCAL` with an OEM key supplied at build time via `SIGNING_KEY_PATH` (a mounted dir, **never committed**). |
+| `none` | Passthrough — keeps the BP test signing, signs nothing. |
+
+After re-signing the individual blobs, `multi_image.mbn` is regenerated to vouch for the
+re-signed hashes (it vouches for 10 boot blobs + ADSP/CDSP/WPSS from `QCM6490_fw`).
+
+> ⚠️ **Only test keys may be committed.** Production/proprietary keys must be supplied at build
+> time via secret/mount and never checked in. See `keys/README.md`.
+
+---
+
+## 🔄 Build Pipeline (`compose_24_04.sh`, in Docker)
+
+1. **rootfs.ext4** — built from the 24.04 base `.img`, sized with headroom.
+2. **Overlay stack** — `tachyon-overlay-tool` applies `ubuntu-<variant>-24.04` (packages,
+   Particle services, kernel pin) using the `INPUT_ENV` pins.
+3. **efi.img** — GRUB ESP (`scripts/efi/make-efi-img.sh`).
+4. **dtb.img** — `qcm6490-tachyon.dtb` extracted from the kernel modules deb (`scripts/dtb/`).
+5. **nonhlos.img** — region firmware (`em`/`na`), shipped pre-built in the bp-fw artifact.
+6. **Sign** — `scripts/signing/sign.sh` re-signs the boot/fw blobs + regenerates `multi_image.mbn`.
+7. **Assemble** — `scripts/assemble/` (ptool + `partition_ext.xml`) produces `rawprogram*/patch*`.
+8. **Package** — `manifest.json` + zip → `.tmp/output/<OUTPUT_24_04_SYSTEM_IMAGE>`.
+
+---
+
+## 🛠 Commands
+
+```
+build_24.04                Build a Tachyon 24.04 EDL system image (new-BP)
+fetch_24_04 / _unxz        Download / decompress the 24.04 base .img.xz
+fetch_bp_fw                Download bp-fw and split bootbinaries + fw + nonhlos images
+fetch_kernel_deb           Download the kernel modules deb (for qcm6490-tachyon.dtb)
+fetch_overlay_tool         Clone tachyon-overlay-tool inside Docker
+fetch_tachyon_overlays     Clone tachyon-overlays inside Docker
+vendor_sectools            Populate scripts/signing/sectools/ (signer; ~59MB)
+docker/shell               Interactive shell in the builder container
+docker/rebuild             Force-rebuild the builder image
+version                    Show the composer version (from git tag)
+doctor / check_qemu / setup_qemu / clean
+help                       Full command + parameter list
+```
+
+`make clean` removes `./.tmp` (all inputs, intermediates, and relocated logs).
+
+---
+
+## 📂 Repository Layout
+
+```
+compose_24_04.sh        Core composition (runs in Docker)
+prepare_base_24.04.sh   Base staging helper
+Makefile                Orchestrator: fetch, validate, signing/matrix plumbing
+versions.json           Authoritative component versions + signing + env
+Dockerfile              Ubuntu 24.04 builder image
+keys/                   Signing keys (TEST keys only — see keys/README.md)
+scripts/
+  efi/                  GRUB ESP image builder
+  dtb/                  qcm6490-tachyon.dtb extractor / dtb.img builder
+  assemble/             ptool + partition tables (rawprogram/patch generation)
+  signing/              sign.sh + image-map + vendored sectoolsv2 (selectable-key signer)
 ```
 
 ---
 
-## 🔄 Build Process
+## ⚡ CI/CD
 
-1. **Parameter Validation** – Ensures all required parameters are provided and valid.  
-2. **Fetch Base Assets** – Downloads the 20.04 base zip, U-Boot, and the 24.04 `.img.xz`.  
-3. **Decompression & Prep** – Decompresses 24.04 `.img.xz`, unpacks 20.04 system image into a 24.04 staging directory, updates manifest.  
-4. **Compose** – Runs `compose_24_04.sh` inside Docker to patch bootloader, extract ADSP blobs, replace rootfs, build EFI image, update XML.  
-5. **Package** – Zips the prepared `sys-img-24.04/` folder into the final output `.zip`.  
+GitHub Actions (`.github/workflows/build.yml`) builds the full matrix
+`{RoW, NA} × {headless, desktop}` on the self-hosted `ubuntu-tachyon` runner:
 
----
-
-## 📂 Output
-
-The build produces:
-
-- A `.zip` archive containing the upgraded system image files (`OUTPUT_24_04_SYSTEM_IMAGE`)  
-- Logs of the build steps  
-- Temporary work directories under `.tmp` (clean with `make clean`)  
+- **Pull requests** → build all four, upload to the `prerelease/` channel, comment download links.
+- **Semver tag push** (`x.y.z`) → build all four, upload to `releases/<version>/<region>/`,
+  publish per-version metadata, and create a GitHub Release with changelog.
 
 ---
 
-## 🐛 Debug
+## 🐛 Troubleshooting
 
-You can debug any command by adding `DEBUG=true` at the end:
-
-```bash
-make build_24.04 ... DEBUG=true
-```
-
----
-
-## ❌ Error Handling
-
-The Makefile validates:
-
-- Missing required parameters
-- Invalid region values (must be `NA` or `RoW`)
-- Directory creation permissions
-- Architecture compatibility and QEMU configuration
-
-### Common Errors
-
-#### "Exec format error" during build
-
-**Symptom:**
-```
-chroot: failed to run command '/usr/bin/env': Exec format error
-```
-
-**Cause:** You're building on an x86_64 machine and QEMU ARM64 emulation setup failed.
-
-**Solution:**
-
-The build should automatically set up QEMU. If it fails, try manually:
-```bash
-make setup_qemu
-```
-
-Or if Docker is not working:
-```bash
-sudo apt-get install -y qemu-user-static binfmt-support
-```
-
-Then retry your build. See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for more details.
-
----
-
-## 🏷 Versioning
-
-- The **version of this project** (starting at **1.1.x**) is **also the version of the binary that is generated**. They are one and the same.  
-- The **`VERSIONS_FILE`** is used to build the output of the release and defines the official version. This ensures that the build artifacts and the repository version stay perfectly aligned.  
-
-You can also print the version locally:
-
-```bash
-make version
-```
-
----
-
-## ⚡ CI/CD Workflow
-
-This repository uses **GitHub Actions** to automate builds and tagging.
-
-- **Tag on Merge**  
-  - When a PR is merged into `main`, the workflow calculates the next semantic version (`patch`/`minor`/`major`) based on PR labels (`release:patch`, `release:minor`, `release:major`).  
-  - A new Git tag (`x.y.z`) is created and pushed automatically.  
-
-- **Build on Tag**  
-  - When a tag is pushed, the build workflow runs on a self-hosted `ubuntu-tachyon` runner.  
-  - The workflow sets the version, runs `make build_24.04`, and produces the system image.  
-  - Artifacts can be uploaded to GitHub Actions, S3, or GitHub Releases depending on configuration.  
-
-- **Pull Request Builds**  
-  - On pull requests, the workflow builds with a `tag-sha` version (e.g., `1.2.3-abcdef0`) to validate changes.  
-  - Optionally, a comment is posted to the PR with artifact links for testing.  
-
-This ensures **consistent versioning**, **reproducible builds**, and **automatic packaging** on every merge or release.
-
----
-
-## 🙋 Support
-
-For issues or questions regarding the Tachyon System Image Composer, please refer to the project documentation or contact the development team.
-
+`chroot: ... Exec format error` on x86_64 means QEMU ARM64 emulation isn't configured — run
+`make setup_qemu`. See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).

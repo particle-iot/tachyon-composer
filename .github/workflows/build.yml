@@ -28,7 +28,7 @@ jobs:
       fail-fast: false
       matrix:
         region: [RoW, NA]
-        variant: [desktop]
+        variant: [headless, desktop]
 
     steps:
       - name: Free up disk space
@@ -285,11 +285,13 @@ jobs:
           path: build_meta
           merge-multiple: true
 
-      - name: Ensure all regions produced metadata
+      - name: Ensure all region/variant builds produced metadata
         run: |
           set -euo pipefail
           ls -l build_meta/
+          test -f build_meta/NA-headless.txt
           test -f build_meta/NA-desktop.txt
+          test -f build_meta/RoW-headless.txt
           test -f build_meta/RoW-desktop.txt
 
       - name: Assemble and validate metadata

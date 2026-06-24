@@ -1,46 +1,91 @@
 {
   "sources": {
-    "particle-iot/tachyon-u-boot": {
-      "type": "cicd_release",
-      "param": "1.0.30"
+    // New BP firmware (Quectel r108) — referenced as a published ARTIFACT ONLY, never as a
+    // repo dependency. Provides the boot chain (xbl/uefi/tz/aop/hyp/...), the QCM6490 fw, and
+    // the pre-built region NON-HLOS images (nonhlos-em.img / nonhlos-na.img). Boot blobs are
+    // TEST-signed; the composer RE-SIGNS them with the selectable key (see signing block).
+    // Replaces the old 20.04 base (tachyon-release-builder) + U-Boot.
+    // 2.0.3 is the tagged release of the NON-HLOS-packaging PR (#7) — first release to ship
+    // nonhlos-em.img / nonhlos-na.img alongside QCM6490_bootbinaries + QCM6490_fw.
+    "bp-fw": {
+      "version": "2.0.3",
+      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.3.zip"
     },
-    "particle-iot-inc/tachyon-release-builder": {
-      "type": "cicd_release",
-      "param": "1.0.180"
-    },
+
+    // The 24.04 base rootfs image (built by particle-iot/tachyon-ubuntu-24.04 via livecd-rootfs).
+    // Consumed as tachyon-ubuntu-24.04-<VARIANT>-image-<param>.img.xz from the release channel.
+    // Variants: headless (== server) and desktop, both published.
     "particle-iot/tachyon-ubuntu-24.04": {
       "type": "git_release",
       "param": "22-938ac1d"
     },
+
+    // Kernel input (single source of truth for the kernel line). Unlike main — where this was the
+    // "See PKG_linux_particle below" placeholder and the kernel was never fetched — the new-BP flow
+    // FETCHES this kernel modules deb to extract qcm6490-tachyon.dtb for dtb_a, so these are real
+    // download coordinates. The version here MUST stay in lock-step with PKG_linux_particle in the
+    // env block below and the kernel baked into the 24.04 base (ABI 1058), or check-pinned-packages
+    // will fail.  <-- deb_version == env.PKG_linux_particle (see below)
+    "particle-iot/tachyon-ubuntu-24.04-kernel": {
+      "type": "s3_release",
+      "param": "stable-6.8.0-1058.59particle2",
+      "abi": "1058",
+      // keep this equal to env.PKG_linux_particle below
+      "deb_version": "6.8.0-1058.59+particle2",
+      "base_url": "https://linux-dist.particle.io/kernel/release"
+    },
+
+    // Overlay stack applied to the rootfs (packages, configs, Particle services). On main: the
+    // new-BP overlays (add-qcm6490-bp-fw, fstab fix, link-ath11k/qca-bt/gpu/audio/modem, the 24.04
+    // stacks) gated behind `when: { env: ENV_UBUNTU_24_04_VERSION, min: "1.2" }` (PR #26 merged).
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "HEAD"
+      "param": "main"
     },
-    "particle-iot/tachyon-ubuntu-24.04-kernel": {
-      "type": "PKG definition below",
-      "param": "See PKG_linux_particle below"
+
+    // The overlay TOOL (engine that applies the stack). Provides the `when` env-gate and ENV_*
+    // chroot forwarding the new-BP stack relies on (PR #3 merged to main).
+    "particle-iot/tachyon-overlay-tool": {
+      "type": "git_release",
+      "param": "main"
     }
   },
+
+  // Signing configuration. The composer signs every boot/firmware blob itself (selectable key).
+  // profile=test  -> local test signer; key resolves to ./keys/<key>/ (committed test keys only).
+  // profile=prod  -> production/proprietary key supplied at build time via secret/mount, NEVER
+  //                  committed. See scripts/signing/README.md and keys/README.md.
+  "signing": {
+    "profile": "test",
+    "key": "qti_presigned_certs-key2048_exp257_hashSHA384"
+  },
+
   "env": {
-    // This is the kernel version - it should match a deb package published from kernel CICD 
-    "PKG_linux_particle": "6.8.0-1058.59+particle1",
-    
-    // Optional: URL to manually install kernel .deb (for unpublished PR builds)
-    // Multiple URLs separated by @@@ for related packages (image + modules)
-    // EXAMPLE: "PKG_linux_particle_URL": "https://output.circle-artifacts.com/output/job/5b940fc6-c364-4000-858a-9c31ef550599/artifacts/0/debs/linux-image-6.8.0-1058-particle_6.8.0-1058.59+particle1_arm64.deb@@@https://output.circle-artifacts.com/output/job/5b940fc6-c364-4000-858a-9c31ef550599/artifacts/0/debs/linux-modules-6.8.0-1058-particle_6.8.0-1058.59+particle1_arm64.deb",
-    
+    // Kernel version pinned INSIDE the rootfs by the overlay. MUST equal the kernel source
+    // deb_version above (6.8.0-1058.59+particle2) and be installable on the base image's ABI.
+    "PKG_linux_particle": "6.8.0-1058.59+particle2",
+
+    // Optional: URL to manually install kernel .deb (for unpublished PR builds).
+    // Multiple URLs separated by @@@ for related packages (image + modules).
+
     //This is the particle debian package
     "PKG_particle_linux": "0.22.0-1",
-    
+
     //Version of the setup app being used
     "PKG_particle_tachyon_desktop_setup": "2.7.0",
-    
+
     //Radio code (RIL)
     "PKG_particle_tachyon_ril": "0.4.5-1",
-    
+
     //The syscon package
     "PKG_particle_tachyon_syscon": "1.0.20-2",
-    
+
+    //Ubuntu 24.04 distribution version. ENV_ (not PKG_) on purpose: check-pinned-packages treats
+    //every PKG_* as an apt package to install, but this is a plain config value. The overlay tool
+    //forwards ENV_* into the chroot, and the new-BP stack gates its firmware/audio/modem overlays
+    //on this via `when: { env: ENV_UBUNTU_24_04_VERSION, min: "1.2" }`.
+    "ENV_UBUNTU_24_04_VERSION": "1.2",
+
     //version used in the debian file to pin the version down
     "PIN_PRIORITY": "900"
   }

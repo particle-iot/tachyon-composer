@@ -1,9 +1,15 @@
 ####################################################################################################################
-# Tachyon System Image Composer
-# Version comes from the tag in git, e.g., v0.1.0 -> 0.1.0
+# Tachyon System Image Composer — 24.04 (new-BP / Quectel r108 / UEFI backend)
 #
-# Notes:
-#  - the dockerfile is cached. There is a version tag in the top of the file that should be updated with each release.
+# `make build_24.04` orchestrates: fetch components (24.04 base rootfs, bp-fw, kernel deb,
+# overlay tool + overlays) -> compose_24_04.sh (inside Docker) builds rootfs (+ overlay stack),
+# efi, dtb, nonhlos, SIGNS the boot/firmware blobs (selectable key), and assembles an
+# EDL-flashable image via ptool + partition_ext.
+#
+# This replaces the legacy 20.04 + U-Boot path: there is no 20.04 base zip, no U-Boot patch,
+# and no qtestsign. Boot is XBL -> UEFI (from bp-fw) -> GRUB -> Linux.
+#
+# Version comes from the git tag (e.g. 1.2.0). The Dockerfile has its own version tag.
 ####################################################################################################################
 
 # Helper variables
@@ -15,7 +21,7 @@ VERSION := $(shell \
   if echo "$$tag" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$'; then \
     echo $$tag; \
   elif [ -z "$$tag" ]; then \
-    echo "Error: No version tag found. Please create one (e.g. git tag 0.1.0)" >&2; \
+    echo "Error: No version tag found. Please create one (e.g. git tag 1.2.0)" >&2; \
     exit 1; \
   else \
     echo "Error: Latest tag '$$tag' is not a valid semantic version (x.y.z)" >&2; \
@@ -32,9 +38,8 @@ DEFAULT_OVERLAY_PATH := input/tachyon-overlays
 
 # optional parameters
 OUTPUT_VERSION ?= $(DEFAULT_OUTPUT_VERSION)
-DEBUG ?= false                       # true | false
-VERSIONS_FILE ?=
-INPUT_UBOOT_DIR ?=
+# DEBUG: true | false
+DEBUG ?= false
 INPUT_OVERLAY_DIR ?=
 INPUT_OVERLAY_STACK ?=
 OVERLAYS_REF ?= HEAD
@@ -42,75 +47,60 @@ ifneq ($(strip $(INPUT_OVERLAY_STACK)),)
 	OVERLAYS_REF := $(INPUT_OVERLAY_STACK)
 endif
 
-ifdef VERSIONS_FILE
-  $(info Using versions file $(VERSIONS_FILE) to override versions)
+# -------------------------------------------------------------------
+# Authoritative source versions (always read from versions.json)
+# -------------------------------------------------------------------
+VERSIONS_FILE ?= versions.json
+# Read sources.<repo>.<field>, the env block, and the signing block from versions.json.
+# Strips `//` line-comments (lines starting with optional whitespace then //) before parsing,
+# preserving `//` inside values like https:// URLs.
+_SRC      = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$(VERSIONS_FILE)').read(),flags=re.MULTILINE);print(json.loads(t)['sources'].get('$(1)',{}).get('$(2)',''))" 2>/dev/null)
+_ENV_JSON = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$(VERSIONS_FILE)').read(),flags=re.MULTILINE);e=json.loads(t).get('env',{});print(','.join(f'{k}={v}' for k,v in e.items()))" 2>/dev/null)
+_SIGN     = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$(VERSIONS_FILE)').read(),flags=re.MULTILINE);print(json.loads(t).get('signing',{}).get('$(1)',''))" 2>/dev/null)
 
-  # Parse versions.json once and extract all values (strips // comments at start of lines, uses ||| delimiter)
-  PARSED_JSON := $(shell python3 -c "import json,sys,re; t=open(sys.argv[1]).read(); t=re.sub(r'^\s*//.*$$','',t,flags=re.MULTILINE); j=json.loads(t); s=j.get('sources',{}); u=s.get('particle-iot/tachyon-u-boot',{}); b20=s.get('particle-iot-inc/tachyon-release-builder',{}); b24=s.get('particle-iot/tachyon-ubuntu-24.04',{}); o=s.get('particle-iot/tachyon-overlay') or s.get('particle-iot/tachyon-overlays',{}); e=j.get('env',{}) or ({('PKG_'+k.replace('-','_')):v for k,v in j.get('packages',{}).items()} if j.get('packages') else {}); print('|||'.join([u.get('param',''), u.get('channel','release'), b20.get('param',''), b20.get('channel','release'), b24.get('param',''), b24.get('channel','release'), (o or {}).get('param',''), ','.join([f'{k}={v}' for k,v in e.items()])]))" $(VERSIONS_FILE))
+JSON_BASE24_PARAM       := $(call _SRC,particle-iot/tachyon-ubuntu-24.04,param)
+JSON_OVERLAYS_PARAM     := $(call _SRC,particle-iot/tachyon-overlay,param)
+JSON_OVERLAY_TOOL_PARAM := $(call _SRC,particle-iot/tachyon-overlay-tool,param)
+ENV_FROM_JSON           := $(_ENV_JSON)
 
-  JSON_UBOOT_PARAM := $(word 1,$(subst |||, ,$(PARSED_JSON)))
-  JSON_UBOOT_CHANNEL := $(word 2,$(subst |||, ,$(PARSED_JSON)))
-  JSON_BASE20_PARAM := $(word 3,$(subst |||, ,$(PARSED_JSON)))
-  JSON_BASE20_CHANNEL := $(word 4,$(subst |||, ,$(PARSED_JSON)))
-  JSON_BASE24_PARAM := $(word 5,$(subst |||, ,$(PARSED_JSON)))
-  JSON_BASE24_CHANNEL := $(word 6,$(subst |||, ,$(PARSED_JSON)))
-  JSON_OVERLAYS_PARAM := $(word 7,$(subst |||, ,$(PARSED_JSON)))
-  ENV_FROM_JSON := $(word 8,$(subst |||, ,$(PARSED_JSON)))
-
-  ifneq ($(strip $(JSON_BASE20_PARAM)),)
-    override INPUT_BASE_20_04_VERSION := $(JSON_BASE20_PARAM)
-  endif
-  ifneq ($(strip $(JSON_UBOOT_PARAM)),)
-    override INPUT_UBOOT_VERSION := $(JSON_UBOOT_PARAM)
-  endif
-  ifneq ($(strip $(JSON_BASE24_PARAM)),)
-    override INPUT_BASE_24_04_VERSION := $(JSON_BASE24_PARAM)
-  endif
-  ifneq ($(strip $(JSON_OVERLAYS_PARAM)),)
-    override OVERLAYS_REF := $(JSON_OVERLAYS_PARAM)
-  endif
-  ifneq ($(strip $(JSON_UBOOT_CHANNEL)),)
-    override UBOOT_CHANNEL := $(JSON_UBOOT_CHANNEL)
-  endif
-  ifneq ($(strip $(JSON_BASE20_CHANNEL)),)
-    override BASE20_CHANNEL := $(JSON_BASE20_CHANNEL)
-  endif
-  ifneq ($(strip $(JSON_BASE24_CHANNEL)),)
-    override BASE24_CHANNEL := $(JSON_BASE24_CHANNEL)
-  endif
-  ifneq ($(strip $(ENV_FROM_JSON)),)
-    override INPUT_ENV_VARS := $(ENV_FROM_JSON)
-    override INPUT_ENV := $(ENV_FROM_JSON)
-  endif
+ifneq ($(strip $(JSON_BASE24_PARAM)),)
+  INPUT_BASE_24_04_VERSION ?= $(JSON_BASE24_PARAM)
+endif
+ifneq ($(strip $(JSON_OVERLAYS_PARAM)),)
+  override OVERLAYS_REF := $(JSON_OVERLAYS_PARAM)
+endif
+ifneq ($(strip $(ENV_FROM_JSON)),)
+  INPUT_ENV ?= $(ENV_FROM_JSON)
 endif
 
+# -------------------------------------------------------------------
 # Parameters (overridable)
+# -------------------------------------------------------------------
 COMMAND ?=
-INPUT_BASE_20_04_VERSION ?=         # semver, e.g., 1.0.167
 INPUT_REGION ?=                     # NA | RoW
-INPUT_VARIANT ?=                    # headless | desktop
-INPUT_UBOOT_VERSION ?=              # semver or prerelease, e.g., 1.0.3 or 1.0.3+build.abc123
-INPUT_BASE_24_04_VERSION ?=         # e.g., 14-276cd6b
-INPUT_ENV	?=                      	# optional, e.g., "VAR1=val1,VAR2=val2"
-INPUT_OVERLAY_PATH ?= $(DEFAULT_OVERLAY_PATH) # optional, path to overlay dir (inside container, e.g., ./os_overlays/24.04)
+INPUT_VARIANT ?=                    # headless | desktop  (headless == server)
+INPUT_BASE_24_04_VERSION ?=         # e.g., 22-938ac1d
+INPUT_ENV ?=
+INPUT_OVERLAY_PATH ?= $(DEFAULT_OVERLAY_PATH)
 OUTPUT_24_04_SYSTEM_IMAGE ?= $(DEFAULT_OUTPUT_PREFIX)-24.04-$(INPUT_REGION)-$(INPUT_VARIANT)-formfactor_dvt-$(OUTPUT_VERSION).zip
 
-# Channel parameters (release, prerelease, or preproduction)
-UBOOT_CHANNEL ?= release
-BASE20_CHANNEL ?= release
+# Channel for the 24.04 base image (release | prerelease | preproduction)
 BASE24_CHANNEL ?= release
 
 # Working variables
 TMP_ROOT_DIR ?= $(DEFAULT_TMP_ROOT_DIR)
 TMP_INPUT_DIR ?= $(DEFAULT_TMP_INPUT_DIR)
 TMP_OUTPUT_DIR ?= $(DEFAULT_TMP_OUTPUT_DIR)
-BUILD_SCRIPT := $(TMP_INPUT_DIR)/build_24.04.sh
 INPUT_OVERLAY_DOCKER_PATH := $(strip /tmp/work/$(subst $(DEFAULT_TMP_ROOT_DIR)/,,$(INPUT_OVERLAY_PATH)))
 
-#default INPUT_ENV to INPUT_ENV_VARS if set
-ifneq ($(strip $(INPUT_ENV_VARS)),)
-	INPUT_ENV := $(strip $(INPUT_ENV_VARS))
-endif
+# overlay stack defaults to ubuntu-<variant>-24.04 unless INPUT_OVERLAY_STACK is set
+OVERLAY_STACK := $(if $(strip $(INPUT_OVERLAY_STACK)),$(INPUT_OVERLAY_STACK),ubuntu-$(INPUT_VARIANT)-24.04)
+
+# -------------------------------------------------------------------
+# Signing (composer-owned, selectable key). See scripts/signing/ and keys/.
+# -------------------------------------------------------------------
+SIGNING_PROFILE ?= $(if $(strip $(call _SIGN,profile)),$(call _SIGN,profile),test)
+SIGNING_KEY     ?= $(call _SIGN,key)
 
 # -------------------------------------------------------------------
 # Validation helpers
@@ -118,76 +108,71 @@ endif
 define check_required_param
 	@if [ -z "$($(1))" ]; then \
 		echo "Error: $(1) parameter is required"; \
-		echo "Usage: make $(COMMAND) INPUT_BASE_20_04_VERSION=<x.y.z> INPUT_REGION=<NA|RoW> INPUT_VARIANT=<headless|desktop> INPUT_UBOOT_VERSION=<x.y.z> INPUT_BASE_24_04_VERSION=<build-id> [OUTPUT_24_04_SYSTEM_IMAGE=<filename>] [TMP_INPUT_DIR=<dir>]"; \
+		echo "Usage: make build_24.04 VERSIONS_FILE=./versions.json INPUT_REGION=<NA|RoW> INPUT_VARIANT=<headless|desktop> [OUTPUT_VERSION=<x.y.z>]"; \
 		exit 1; \
 	fi
 endef
 
 define validate_region
 	@if [ "$(INPUT_REGION)" != "NA" ] && [ "$(INPUT_REGION)" != "RoW" ]; then \
-		echo "Error: INPUT_REGION must be either 'NA' or 'RoW', got '$(INPUT_REGION)'"; \
-		exit 1; \
-	fi
+		echo "Error: INPUT_REGION must be 'NA' or 'RoW', got '$(INPUT_REGION)'"; exit 1; fi
 endef
 
 define validate_variant
 	@if [ "$(INPUT_VARIANT)" != "headless" ] && [ "$(INPUT_VARIANT)" != "desktop" ]; then \
-		echo "Error: INPUT_VARIANT must be either 'headless' or 'desktop', got '$(INPUT_VARIANT)'"; \
-		exit 1; \
-	fi
-endef
-
-define validate_semver
-	@if ! echo "$($(1))" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$'; then \
-		echo "Error: $(1) must be a semantic version (x.y.z), got '$($(1))'"; \
-		exit 1; \
-	fi
+		echo "Error: INPUT_VARIANT must be 'headless' or 'desktop', got '$(INPUT_VARIANT)'"; exit 1; fi
 endef
 
 define validate_output_24_04
 	@if [ -z "$(OUTPUT_24_04_SYSTEM_IMAGE)" ]; then \
-		echo "Error: OUTPUT_24_04_SYSTEM_IMAGE not set and no default provided."; \
-		exit 1; \
-	fi
+		echo "Error: OUTPUT_24_04_SYSTEM_IMAGE not set and no default provided."; exit 1; fi
 endef
 
 # -------------------------------------------------------------------
 # Derived filenames/URLs
 # -------------------------------------------------------------------
-# 20.04 base zip name and URL (depends on region/variant/semver)
-BASE20_FILENAME := tachyon-ubuntu-20.04-$(INPUT_REGION)-$(INPUT_VARIANT)-formfactor_dvt-$(INPUT_BASE_20_04_VERSION).zip
-BASE20_URL := https://linux-dist.particle.io/$(BASE20_CHANNEL)/$(BASE20_FILENAME)
-BASE20_ZIP := $(TMP_INPUT_DIR)/$(BASE20_FILENAME)
-
-# U-Boot zip (supports prerelease versions with +)
-# URL-encode the version for the filename (+ becomes %2B)
-UBOOT_VERSION_ENCODED := $(subst +,%2B,$(INPUT_UBOOT_VERSION))
-UBOOT_FILENAME := tachyon-u-boot-$(UBOOT_VERSION_ENCODED).zip
-UBOOT_CHANNEL_ENCODED := $(subst +,%2B,$(UBOOT_CHANNEL))
-UBOOT_URL_PRIMARY := https://linux-dist.particle.io/$(UBOOT_CHANNEL)/$(UBOOT_FILENAME)
-UBOOT_URL_ENCODED := https://linux-dist.particle.io/$(UBOOT_CHANNEL_ENCODED)%2F$(UBOOT_FILENAME)
-UBOOT_ZIP := $(TMP_INPUT_DIR)/$(UBOOT_FILENAME)
-UBOOT_DIR := u-boot
-
-# 24.04 base .img.xz and .img (variant + "build-id" fragment)
-# Example: tachyon-ubuntu-24.04-headless-image-14-276cd6b.img.xz
+# 24.04 base .img.xz / .img (rootfs source). Variant in {headless,desktop}, both published.
+# Example: tachyon-ubuntu-24.04-headless-image-22-938ac1d.img.xz
 BASE24_XZ_FILENAME := tachyon-ubuntu-24.04-$(INPUT_VARIANT)-image-$(INPUT_BASE_24_04_VERSION).img.xz
 BASE24_URL := https://tachyon-ci.particle.io/$(BASE24_CHANNEL)/$(BASE24_XZ_FILENAME)
 BASE24_XZ := $(TMP_INPUT_DIR)/$(BASE24_XZ_FILENAME)
 BASE24_IMG := $(TMP_INPUT_DIR)/$(basename $(BASE24_XZ_FILENAME))
-BASE24_SYSTEM_IMAGE_DIR := sys-img-24.04
+BASE24_IMG_BASENAME := $(notdir $(BASE24_IMG))
+
+# bp-fw: referenced as an ARTIFACT ONLY (version + S3 url), never as a repo source.
+# The BP firmware repo must not be a versions.json dependency; the composer consumes
+# only its published release zip (S3 release, or a PR prerelease URL while testing the
+# unsigned/nosign artifact). The zip carries bootbinaries, fw, and the pre-built
+# region NON-HLOS images (nonhlos-em.img / nonhlos-na.img).
+BP_FW_VERSION      := $(call _SRC,bp-fw,version)
+BP_FW_URL          := $(call _SRC,bp-fw,url)
+BOOTBINARIES_ZIP   := $(TMP_INPUT_DIR)/QCM6490_bootbinaries.zip
+
+# kernel modules deb (single-sourced from versions.json) -> qcm6490-tachyon.dtb
+KERNEL_TAG         := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,param)
+KERNEL_ABI         := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,abi)
+KERNEL_DEB_VERSION := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,deb_version)
+KERNEL_BASE_URL    := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,base_url)
+KERNEL_MODULES_DEB := linux-modules-6.8.0-$(KERNEL_ABI)-particle_$(KERNEL_DEB_VERSION)_arm64.deb
+KERNEL_MODULES_URL := $(KERNEL_BASE_URL)/$(KERNEL_TAG)/$(subst +,%2B,$(KERNEL_MODULES_DEB))
+KERNEL_DEB_FILE    := $(TMP_INPUT_DIR)/kernel/$(KERNEL_MODULES_DEB)
+
+# region (NA|RoW) -> nonhlos firmware variant (na|em); image is shipped pre-built in the bp-fw artifact
+NONHLOS_VARIANT := $(if $(filter NA,$(INPUT_REGION)),na,em)
+NONHLOS_IMG     := $(TMP_INPUT_DIR)/nonhlos-$(NONHLOS_VARIANT).img
+
+CURL_OPTS := -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 30 -C -
 
 # ------------------------------------------------------------
 # Pretty header + resolved configuration printer
 # ------------------------------------------------------------
-
-CONFIG_SOURCE := $(if $(strip $(VERSIONS_FILE)),versions.json: $(VERSIONS_FILE),CLI args)
+CONFIG_SOURCE := versions.json: $(VERSIONS_FILE)
 
 define PRINT_BANNER
 	@printf '%s\n' \
 	'**************************************************' \
 	'*                                                *' \
-	'*        Tachyon System Image — Configuration    *' \
+	'*     Tachyon System Image (24.04 / new-BP)      *' \
 	'*                                                *' \
 	'**************************************************'
 endef
@@ -197,26 +182,19 @@ define PRINT_CONFIG
 	@echo "Version Tag:       $(VERSION)"
 	@echo
 	@echo "Inputs (resolved)"
-	@echo "  Base 20.04 Ver:  $(INPUT_BASE_20_04_VERSION)"
-	@echo "  24.04 Build ID:  $(INPUT_BASE_24_04_VERSION)"
-	@echo "  Region:          $(INPUT_REGION)"
+	@echo "  24.04 Build ID:  $(INPUT_BASE_24_04_VERSION)  ($(BASE24_IMG_BASENAME))"
+	@echo "  Region:          $(INPUT_REGION)   (nonhlos: $(NONHLOS_VARIANT))"
 	@echo "  Variant:         $(INPUT_VARIANT)"
-	@echo "  U-Boot Ver:      $(if $(INPUT_UBOOT_VERSION),$(INPUT_UBOOT_VERSION),<using INPUT_UBOOT_DIR>)"
-	@echo "  Overlays Ref:    $(OVERLAYS_REF)"
-	@echo
-	@echo "Paths"
-	@echo "  Tmp Input Dir:   $(TMP_INPUT_DIR)"
-	@echo "  Tmp Output Dir:  $(TMP_OUTPUT_DIR)"
-	@echo "  Overlay Path:    $(INPUT_OVERLAY_PATH)"
-	@echo "  Overlay Dir OV:  $(INPUT_OVERLAY_DIR)"
-	@echo "  U-Boot Dir OV:   $(INPUT_UBOOT_DIR)"
+	@echo "  bp-fw URL:       $(BP_FW_URL)"
+	@echo "  Kernel:          $(KERNEL_TAG)  (abi $(KERNEL_ABI), deb $(KERNEL_DEB_VERSION))"
+	@echo "  Overlay Stack:   $(OVERLAY_STACK)   (overlays ref: $(OVERLAYS_REF))"
+	@echo "  Signing:         profile=$(SIGNING_PROFILE)  key=$(SIGNING_KEY)"
 	@echo
 	@echo "Output"
 	@echo "  System Image:    $(OUTPUT_24_04_SYSTEM_IMAGE)"
 	@echo "  Debug:           $(DEBUG)"
-	@echo "  Input Env:       $(if $(strip $(INPUT_ENV)), $(INPUT_ENV), <none>)"
-	@echo ""
-	@echo	"**************************************************"
+	@echo "  Input Env:       $(if $(strip $(INPUT_ENV)),$(INPUT_ENV),<none>)"
+	@echo "**************************************************"
 endef
 
 .PHONY: print-config
@@ -229,330 +207,196 @@ print-config:
 # -------------------------------------------------------------------
 .PHONY: help
 help:
-	@echo "Tachyon System Image Composer v$(VERSION)"
+	@echo "Tachyon System Image Composer v$(VERSION) (24.04 / new-BP / UEFI)"
 	@echo ""
 	@echo "Available commands:"
-	@echo "  build_24.04                 Build a Tachyon System Image for Ubuntu 24.04 base"
-	@echo "  fetch_20_04                 Download Ubuntu 20.04 base zip to $(TMP_INPUT_DIR)"
-	@echo "  fetch_uboot                 Download U-Boot zip to $(TMP_INPUT_DIR)"
-	@echo "  fetch_24_04                 Download Ubuntu 24.04 .img.xz to $(TMP_INPUT_DIR)"
-	@echo "  fetch_24_04_unxz            Decompress 24.04 .img.xz to .img using Docker"
-	@echo "  doctor                      Minimal host prerequisites check (docker, git, QEMU)"
-	@echo "  check_qemu                  Check if QEMU ARM64 emulation is configured"
-	@echo "  setup_qemu                  Setup QEMU ARM64 emulation (x86_64 hosts only)"
+	@echo "  build_24.04                 Build a Tachyon 24.04 EDL system image (new-BP)"
+	@echo "  fetch_24_04 / _unxz         Download / decompress the 24.04 base .img.xz"
+	@echo "  fetch_bp_fw                 Download bp-fw and split bootbinaries + fw zips"
+	@echo "  fetch_kernel_deb            Download the kernel modules deb (for qcm6490-tachyon.dtb)"
+	@echo "  fetch_overlay_tool          Clone tachyon-overlay-tool inside Docker"
+	@echo "  fetch_tachyon_overlays      Clone tachyon-overlays inside Docker"
+	@echo "  vendor_sectools             Refresh the committed sectoolsv2 signer in scripts/signing/sectools/ (~38MB)"
+	@echo "  doctor / check_qemu / setup_qemu / clean"
 	@echo ""
 	@echo "Required parameters:"
-	@echo "  INPUT_BASE_20_04_VERSION    Base 20.04 version (semver, e.g., 1.0.167)"
 	@echo "  INPUT_REGION                NA or RoW"
-	@echo "  INPUT_VARIANT               headless or desktop"
-	@echo "  INPUT_UBOOT_VERSION         U-Boot version (semver, e.g., 1.0.3)"
-	@echo "  INPUT_BASE_24_04_VERSION    24.04 base build id (e.g., 14-276cd6b)"
+	@echo "  INPUT_VARIANT               headless (==server) or desktop"
 	@echo ""
 	@echo "Optional parameters:"
-	@echo "  TMP_INPUT_DIR							 Temporary directory (default: ./tmp)"
-	@echo "  OUTPUT_24_04_SYSTEM_IMAGE   Output filename"
-	@echo "  VERSIONS_FILE               Path to a JSON file with source versions (overrides individual inputs)"
-	@echo "  INPUT_UBOOT_DIR             Path to local U-Boot directory (skip downloading U-Boot if set)"
-	@echo "  INPUT_OVERLAY_DIR           Path to local overlays directory (skip cloning tachyon-overlays if set)"
-	@echo "  INPUT_OVERLAY_STACK         Overlay stack/branch name to use (e.g., ubuntu-headless-24.04)"
-	@echo "  INPUT_ENV_VARS              Comma-separated package version env vars (e.g., PKG_name=ver,...)"
+	@echo "  VERSIONS_FILE               Path to versions.json (default: versions.json)"
+	@echo "  OUTPUT_VERSION              Version stamped into the image (default: $(DEFAULT_OUTPUT_VERSION))"
+	@echo "  SIGNING_PROFILE             test | prod | none (default from versions.json signing.profile)"
+	@echo "  SIGNING_KEY                 key name under ./keys/ (default from versions.json signing.key)"
+	@echo "  INPUT_OVERLAY_DIR           Local overlays dir (skip cloning tachyon-overlays)"
+	@echo "  INPUT_OVERLAY_STACK         Overlay stack/branch (e.g., ubuntu-headless-24.04)"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make build_24.04 COMMAND=build_24.04 INPUT_BASE_20_04_VERSION=1.0.167 INPUT_REGION=RoW INPUT_VARIANT=desktop INPUT_UBOOT_VERSION=1.0.3 INPUT_BASE_24_04_VERSION=14-276cd6b"
-	@echo "  make fetch_20_04 INPUT_BASE_20_04_VERSION=1.0.167 INPUT_REGION=RoW INPUT_VARIANT=desktop"
-	@echo "  make build_24.04 VERSIONS_FILE=./versions.json INPUT_REGION=RoW INPUT_VARIANT=headless"
-	@echo "  make build_24.04 INPUT_BASE_20_04_VERSION=1.0.169 INPUT_REGION=RoW INPUT_VARIANT=desktop INPUT_BASE_24_04_VERSION=14-276cd6b INPUT_UBOOT_DIR=../my-uboot-build INPUT_OVERLAY_DIR=./my-overlays"
+	@echo "  make build_24.04 VERSIONS_FILE=./versions.json INPUT_REGION=RoW INPUT_VARIANT=headless OUTPUT_VERSION=1.2.0"
 	@echo ""
 
 # -------------------------------------------------------------------
-# Fetch targets (run inside Docker)
+# Fetch: 24.04 base rootfs image
 # -------------------------------------------------------------------
-.PHONY: fetch_20_04 fetch_uboot fetch_24_04 fetch_24_04_unxz
-
-fetch_20_04: $(BASE20_ZIP)
-$(BASE20_ZIP):
-	$(call check_required_param,INPUT_BASE_20_04_VERSION)
-	$(call check_required_param,INPUT_REGION)
-	$(call check_required_param,INPUT_VARIANT)
-	$(call validate_region)
-	$(call validate_variant)
-	$(call validate_semver,INPUT_BASE_20_04_VERSION)
-	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
-		mkdir -p "$(TMP_INPUT_DIR)"; \
-		if [ -f "$@" ]; then \
-			echo "File $@ already exists, skipping download"; \
-			exit 0; \
-		fi; \
-		echo "==> Downloading 20.04 base: $(BASE20_URL) to $(TMP_INPUT_DIR)"; \
-		curl -fL --retry 3 -o "$@" "$(BASE20_URL)" || { echo "Error: failed to download $(BASE20_URL)"; rm -f "$@"; exit 1; }; \
-		test -s "$@" || { echo "Error: downloaded file is empty: $@"; exit 1; }; \
-		echo "Downloaded 20.04: $@"; \
-		unzip -o "$@" -d "$(TMP_INPUT_DIR)/sys-img-20.04"; \
-		echo "Unzipped 20.04 base to $(TMP_INPUT_DIR)/sys-img-20.04"'
-
-fetch_uboot: docker/build
-	@if [ -n "$(INPUT_UBOOT_DIR)" ]; then \
-		echo "Using local U-Boot from $(INPUT_UBOOT_DIR)"; \
-		rm -rf "$(TMP_INPUT_DIR)/u-boot"; \
-		mkdir -p "$(TMP_INPUT_DIR)/u-boot"; \
-		cp -r "$(INPUT_UBOOT_DIR)/." "$(TMP_INPUT_DIR)/u-boot/"; \
-		echo "Copied local U-Boot files to $(TMP_INPUT_DIR)/u-boot"; \
-	else \
-		if [ -f "$(UBOOT_ZIP)" ]; then \
-			echo "File $(UBOOT_ZIP) already exists, skipping download"; \
-		else \
-			$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
-				mkdir -p "$(TMP_INPUT_DIR)"; \
-				echo "==> Downloading U-Boot: $(UBOOT_URL_PRIMARY) (fallback: encoded path)"; \
-				{ curl -fL --retry 3 -o "$(UBOOT_ZIP)" "$(UBOOT_URL_PRIMARY)" || curl -fL --retry 3 -o "$(UBOOT_ZIP)" "$(UBOOT_URL_ENCODED)"; } \
-				  || { echo "Error: failed to download U-Boot from both $(UBOOT_URL_PRIMARY) and $(UBOOT_URL_ENCODED)"; rm -f "$(UBOOT_ZIP)"; exit 1; }; \
-				test -s "$(UBOOT_ZIP)" || { echo "Error: downloaded file is empty: $(UBOOT_ZIP)"; exit 1; }; \
-				echo "Downloaded U-Boot: $(UBOOT_ZIP)"; \
-				unzip -o "$(UBOOT_ZIP)" -d "$(TMP_INPUT_DIR)/u-boot" >/dev/null; \
-				echo "Unzipped U-Boot to $(TMP_INPUT_DIR)/u-boot"'; \
-		fi; \
-	fi
-
+.PHONY: fetch_24_04 fetch_24_04_unxz
 fetch_24_04: $(BASE24_XZ)
-$(BASE24_XZ):
+$(BASE24_XZ): | docker/build
 	$(call check_required_param,INPUT_BASE_24_04_VERSION)
 	$(call check_required_param,INPUT_VARIANT)
 	$(call validate_variant)
-	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
-		mkdir -p "$(TMP_INPUT_DIR)"; \
-		if [ -f "$@" ]; then \
-			echo "File $@ already exists, skipping download"; \
-			exit 0; \
-		fi; \
-		echo "==> Downloading 24.04 base (xz): $(BASE24_URL)"; \
-		curl -fL --retry 3 -o "$@" "$(BASE24_URL)" || { echo "Error: failed to download $(BASE24_URL)"; rm -f "$@"; exit 1; }; \
-		test -s "$@" || { echo "Error: downloaded file is empty: $@"; exit 1; }; \
-		echo "Downloaded 24.04: $@"'
+	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; mkdir -p "$(TMP_INPUT_DIR)"; \
+		echo "==> Downloading 24.04 base: $(BASE24_URL)"; \
+		curl $(CURL_OPTS) -o "$@" "$(BASE24_URL)"; test -s "$@"; echo "Downloaded: $@"'
 
-# Decompress the .img.xz -> .img via Docker
-fetch_24_04_unxz: fetch_24_04 docker/build $(BASE24_IMG)
-$(BASE24_IMG): $(BASE24_XZ)
-	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
-		echo "==> Decompressing $(notdir $<) -> $(notdir $@) using Docker from $(TMP_INPUT_DIR)"; \
-		cd "$(TMP_INPUT_DIR)"; \
-		if [ -f "$(notdir $@)" ]; then \
-			echo "File $(notdir $@) already exists, skipping decompression"; \
-			exit 0; \
-		fi; \
-		xz -T0 -d -k -v "$(notdir $<)"; \
-		test -s "$(notdir $@)" || { echo "Error: decompression failed, missing $(notdir $@)"; exit 1; }; \
-		echo "Decompressed: $(notdir $@)"'
+fetch_24_04_unxz: $(BASE24_IMG)
+$(BASE24_IMG): $(BASE24_XZ) | docker/build
+	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; cd "$(TMP_INPUT_DIR)"; \
+		if [ -f "$(notdir $@)" ]; then echo "$(notdir $@) exists, skipping"; exit 0; fi; \
+		echo "==> Decompressing $(notdir $<)"; \
+		xz -T0 -d -k -v "$(notdir $<)"; test -s "$(notdir $@)"; echo "Decompressed: $(notdir $@)"'
 
 # -------------------------------------------------------------------
-# Prepare 24.04 base folder
+# Fetch: bp-fw artifact -> QCM6490_bootbinaries.zip + QCM6490_fw.zip
+#                          + nonhlos-em.img / nonhlos-na.img (selected by region at compose)
+# (point BP_FW_URL/versions.json at the feature/nosign PR prerelease to get sign-ready blobs
+#  AND the pre-built NON-HLOS images)
 # -------------------------------------------------------------------
-
-# Prepare a 24.04 base folder by unzipping the 20.04 source base into it,
-# copying the 24.04 .img alongside, and updating manifest.json fields.
-.PHONY: prepare_base_24_04
-prepare_base_24_04: fetch_20_04 fetch_24_04_unxz docker/build
-	@$(DOCKER_RUN) bash -lc '\
-		set -euo pipefail; \
-		TMP_OUTPUT_DIR="/tmp/work/output" \
-		TMP_INPUT_DIR="/tmp/work/input" \
-		BASE24_SYSTEM_IMAGE_DIR="$(BASE24_SYSTEM_IMAGE_DIR)" \
-		BASE20_ZIP="/tmp/work/input/$(notdir $(BASE20_ZIP))" \
-		BASE24_IMG="/tmp/work/input/$(notdir $(BASE24_IMG))" \
-		INPUT_BASE_24_04_VERSION="$(INPUT_BASE_24_04_VERSION)" \
-		OUTPUT_VERSION="$(OUTPUT_VERSION)" \
-		DEBUG="$${DEBUG:-false}" \
-		./prepare_base_24.04.sh'
-
-# -------------------------------------------------------------------
-# qtools (qtestsign) fetch/setup inside Docker
-# -------------------------------------------------------------------
-
-#the dir INSIDE the container where qtools will be cloned
-QTOOLS_DIR        := /tmp/work/tools/qtestsign
-
-#use the HTTPS URL
-QTOOLS_CLONE_URL = https://github.com/msm8916-mainline/qtestsign.git
-
-# pin to a branch/tag/commit: QTOOLS_REF=main (or a sha) etc...
-QTOOLS_REF        ?= main
-QTOOLS_STAMP      := $(QTOOLS_DIR)/.installed
-
-.PHONY: fetch_qtools
-fetch_qtools: $(QTOOLS_STAMP)
-
-# Clone and install qtestsign requirements inside the builder container
-$(QTOOLS_STAMP): docker/build
-	@echo "==> Setting up qtestsign (qtools) inside Docker"
-	@mkdir -p "$(QTOOLS_DIR)"
-	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
-		if [ ! -d "$(QTOOLS_DIR)/.git" ]; then \
-			git clone --depth 1 "$(QTOOLS_CLONE_URL)" "$(QTOOLS_DIR)"; \
+.PHONY: fetch_bp_fw
+fetch_bp_fw: $(BOOTBINARIES_ZIP)
+$(BOOTBINARIES_ZIP): | docker/build
+	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; mkdir -p /tmp/work/input; cd /tmp/work/input; \
+		Z="tachyon-bp-fw-$(BP_FW_VERSION).zip"; \
+		if [ -s "$$Z" ]; then \
+			echo "==> Reusing cached bp-fw download: $$Z"; \
 		else \
-			echo "$(QTOOLS_DIR) already present"; \
+			echo "==> Downloading bp-fw $(BP_FW_VERSION): $(BP_FW_URL)"; \
+			curl $(CURL_OPTS) -o "$$Z" "$(BP_FW_URL)"; test -s "$$Z"; \
 		fi; \
-		git -C "$(QTOOLS_DIR)" fetch --depth 1 origin "$(QTOOLS_REF)"; \
-		git -C "$(QTOOLS_DIR)" checkout -q FETCH_HEAD; \
-		pip3 install --user --no-cache-dir -r "$(QTOOLS_DIR)/requirements.txt" || \
-		  sudo pip3 install --break-system-packages --no-cache-dir -r "$(QTOOLS_DIR)/requirements.txt"; \
-		{ test -f "$(QTOOLS_DIR)/patchxbl.py" && test -f "$(QTOOLS_DIR)/qtestsign.py"; } \
-		  || { echo "Error: qtestsign scripts not found in $(QTOOLS_DIR)"; exit 1; }; \
-		touch "$(QTOOLS_DIR)/.installed"'
-	@echo "Installed qtools to $(QTOOLS_DIR)"
+		rm -rf .bpfw && mkdir .bpfw && unzip -oq "$$Z" -d .bpfw; \
+		test -d .bpfw/QCM6490_bootbinaries || { echo "ERROR: missing QCM6490_bootbinaries"; ls .bpfw; exit 1; }; \
+		test -d .bpfw/QCM6490_fw          || { echo "ERROR: missing QCM6490_fw"; ls .bpfw; exit 1; }; \
+		rm -f QCM6490_bootbinaries.zip QCM6490_fw.zip; \
+		( cd .bpfw && zip -rq ../QCM6490_bootbinaries.zip QCM6490_bootbinaries && zip -rq ../QCM6490_fw.zip QCM6490_fw ); \
+		rm -f nonhlos-em.img nonhlos-na.img; \
+		if ls .bpfw/nonhlos-*.img >/dev/null 2>&1; then \
+			cp .bpfw/nonhlos-*.img .; echo "OK: bp-fw split (+ $$(ls nonhlos-*.img | tr "\n" " "))"; \
+		else \
+			echo "WARNING: this bp-fw artifact has no nonhlos-*.img (predates NON-HLOS packaging)."; \
+			echo "         The build will fail at compose stage 4 until versions.json points at a"; \
+			echo "         bp-fw release that ships nonhlos-em.img / nonhlos-na.img."; \
+			echo "OK: bp-fw split (no nonhlos images)"; \
+		fi'
 
 # -------------------------------------------------------------------
-# tachyon-overlay-tool tool fetch/setup inside Docker
+# Fetch: kernel modules deb (for qcm6490-tachyon.dtb)
 # -------------------------------------------------------------------
+.PHONY: fetch_kernel_deb
+fetch_kernel_deb: $(KERNEL_DEB_FILE)
+$(KERNEL_DEB_FILE): | docker/build
+	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; mkdir -p /tmp/work/input/kernel; cd /tmp/work/input/kernel; \
+		echo "==> Downloading kernel deb: $(KERNEL_MODULES_URL)"; \
+		curl $(CURL_OPTS) -o "$(KERNEL_MODULES_DEB)" "$(KERNEL_MODULES_URL)"; \
+		test -s "$(KERNEL_MODULES_DEB)"; echo "OK: $(KERNEL_MODULES_DEB)"'
 
-# Directory INSIDE the container where tachyon-overlay-tool will be cloned
+# -------------------------------------------------------------------
+# Vendor the SECTOOLS signer into scripts/signing/sectools/ (host-side; ~59MB, gitignored)
+# -------------------------------------------------------------------
+.PHONY: vendor_sectools
+vendor_sectools:
+	@if [ ! -d scripts/signing/sectools ] || [ -z "$$(ls -A scripts/signing/sectools 2>/dev/null)" ]; then \
+		echo "==> Vendoring SECTOOLS into scripts/signing/sectools"; \
+		./scripts/signing/vendor-sectools.sh; \
+	else \
+		echo "SECTOOLS already vendored in scripts/signing/sectools"; \
+	fi
+
+# -------------------------------------------------------------------
+# Fetch: tachyon-overlay-tool (clone inside Docker)
+# -------------------------------------------------------------------
 OVERLAY_TOOL_DIR      := /tmp/work/tools/tachyon-overlay-tool
-
-# Clone URL for the overlay tool
 OVERLAY_TOOL_CLONE_URL = https://github.com/particle-iot/tachyon-overlay-tool.git
-
-# Pin to a branch/tag/commit if desired: OVERLAY_TOOL_REF=main (or a SHA)
-OVERLAY_TOOL_REF      ?= main
+# Ref comes from versions.json (sources -> particle-iot/tachyon-overlay-tool -> param),
+# falling back to main. main carries the 'when' env-gate + ENV_* forwarding (PR #3 merged).
+OVERLAY_TOOL_REF      ?= $(if $(strip $(JSON_OVERLAY_TOOL_PARAM)),$(JSON_OVERLAY_TOOL_PARAM),main)
 OVERLAY_TOOL_STAMP    := $(OVERLAY_TOOL_DIR)/.installed
 
 .PHONY: fetch_overlay_tool
 fetch_overlay_tool: $(OVERLAY_TOOL_STAMP)
-
-# Clone (or update) tachyon-overlay-tool inside the builder container
-$(OVERLAY_TOOL_STAMP): docker/build
-	@echo "==> Setting up tachyon-overlay-tool tool inside Docker"
+$(OVERLAY_TOOL_STAMP): | docker/build
+	@echo "==> Setting up tachyon-overlay-tool inside Docker"
 	@mkdir -p "$(OVERLAY_TOOL_DIR)"
 	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
 		if [ ! -d "$(OVERLAY_TOOL_DIR)/.git" ]; then \
-			echo "Cloning $(OVERLAY_TOOL_CLONE_URL) -> $(OVERLAY_TOOL_DIR)"; \
 			git clone --depth 1 "$(OVERLAY_TOOL_CLONE_URL)" "$(OVERLAY_TOOL_DIR)"; \
-		else \
-			echo "$(OVERLAY_TOOL_DIR) already present"; \
 		fi; \
-		echo "Checking out $(OVERLAY_TOOL_REF)"; \
 		git -C "$(OVERLAY_TOOL_DIR)" fetch --depth 1 origin "$(OVERLAY_TOOL_REF)"; \
 		git -C "$(OVERLAY_TOOL_DIR)" checkout -q FETCH_HEAD; \
-		# Optional: install Python deps if the project defines them \
 		if [ -f "$(OVERLAY_TOOL_DIR)/requirements.txt" ]; then \
 			pip3 install --user --no-cache-dir -r "$(OVERLAY_TOOL_DIR)/requirements.txt" || \
 			  sudo pip3 install --break-system-packages --no-cache-dir -r "$(OVERLAY_TOOL_DIR)/requirements.txt"; \
 		fi; \
-		# Sanity check expected entrypoints exist \
-		{ test -f "$(OVERLAY_TOOL_DIR)/overlay.py" && test -f "$(OVERLAY_TOOL_DIR)/run-overlay.sh"; } || { \
-			echo "Error: expected overlay.py and run-overlay.sh not found in $(OVERLAY_TOOL_DIR)"; exit 1; }; \
+		{ test -f "$(OVERLAY_TOOL_DIR)/overlay.py" && test -f "$(OVERLAY_TOOL_DIR)/run-overlay.sh"; } \
+		  || { echo "Error: overlay.py / run-overlay.sh missing"; exit 1; }; \
 		touch "$(OVERLAY_TOOL_DIR)/.installed"'
-	@echo "Installed tachyon-overlay-tool to $(OVERLAY_TOOL_DIR)"
 
 # -------------------------------------------------------------------
-# tachyon-overlays fetch/setup inside Docker
+# Fetch: tachyon-overlays (clone inside Docker, or use INPUT_OVERLAY_DIR)
 # -------------------------------------------------------------------
-
-# Directory INSIDE the container where the repo will be cloned
-OVERLAYS_REPO_DIR      := $(INPUT_OVERLAY_DOCKER_PATH)
+OVERLAYS_REPO_DIR := $(INPUT_OVERLAY_DOCKER_PATH)
 
 .PHONY: fetch_tachyon_overlays
-fetch_tachyon_overlays: docker/build
+fetch_tachyon_overlays: | docker/build
 	@if [ -n "$(INPUT_OVERLAY_DIR)" ]; then \
 		echo "Using local overlays from $(INPUT_OVERLAY_DIR)"; \
-		rm -rf $(TMP_ROOT_DIR)/input/tachyon-overlays; \
-		mkdir -p $(TMP_ROOT_DIR)/input/tachyon-overlays; \
+		rm -rf $(TMP_ROOT_DIR)/input/tachyon-overlays; mkdir -p $(TMP_ROOT_DIR)/input/tachyon-overlays; \
 		cp -r "$(INPUT_OVERLAY_DIR)/." $(TMP_ROOT_DIR)/input/tachyon-overlays/; \
-		echo "Copied local overlays to $(TMP_ROOT_DIR)/input/tachyon-overlays"; \
-		touch $(TMP_ROOT_DIR)/input/tachyon-overlays/.installed; \
 	else \
-		echo "==> Fetching tachyon-overlays into $(INPUT_OVERLAY_DOCKER_PATH) inside Docker"; \
+		echo "==> Fetching tachyon-overlays into $(INPUT_OVERLAY_DOCKER_PATH)"; \
 		$(DOCKER_RUN) bash -lc 'set -euo pipefail; \
-			DEST="$(INPUT_OVERLAY_DOCKER_PATH)"; \
-			echo "Using overlay destination: $$DEST"; \
-			mkdir -p "$(dir $(OVERLAYS_REPO_DIR))" "$$DEST"; \
+			mkdir -p "$(dir $(OVERLAYS_REPO_DIR))"; \
 			if [ ! -d "$(OVERLAYS_REPO_DIR)/.git" ]; then \
-				echo "Cloning https://github.com/particle-iot/tachyon-overlays.git -> $(OVERLAYS_REPO_DIR)"; \
 				git clone --depth 1 https://github.com/particle-iot/tachyon-overlays.git "$(OVERLAYS_REPO_DIR)"; \
-			else \
-				echo "$(OVERLAYS_REPO_DIR) already present"; \
 			fi; \
-			echo "Checking out $(OVERLAYS_REF)"; \
-			if [ "$(OVERLAYS_REF)" = "HEAD" ]; then \
-				echo "Using latest HEAD of default branch"; \
-			else \
-				echo "Verifying $(OVERLAYS_REF) exists on remote..."; \
-				if ! git -C "$(OVERLAYS_REPO_DIR)" ls-remote --exit-code origin "$(OVERLAYS_REF)" >/dev/null 2>&1; then \
-					echo "ERROR: Branch/ref $(OVERLAYS_REF) does not exist on remote!"; \
-					echo "Available branches:"; \
-					git -C "$(OVERLAYS_REPO_DIR)" ls-remote --heads origin | head -20; \
-					exit 1; \
-				fi; \
+			if [ "$(OVERLAYS_REF)" != "HEAD" ]; then \
 				git -C "$(OVERLAYS_REPO_DIR)" fetch --depth 1 origin "$(OVERLAYS_REF)"; \
 				git -C "$(OVERLAYS_REPO_DIR)" checkout -q FETCH_HEAD; \
-				echo "Successfully checked out $(OVERLAYS_REF) at commit: $$(git -C $(OVERLAYS_REPO_DIR) rev-parse --short HEAD)"; \
-			fi; \
-			touch "$$DEST/.installed"'; \
-		echo "Installed tachyon-overlays into $(INPUT_OVERLAY_DOCKER_PATH)"; \
+			fi'; \
 	fi
 
 # -------------------------------------------------------------------
-# Main build command for Ubuntu 24.04
+# Main build
 # -------------------------------------------------------------------
-# Helper basenames for use inside the container
-BASE24_IMG_BASENAME := $(notdir $(BASE24_IMG))
-
 .PHONY: build_24.04
-build_24.04: version print-config check_qemu fetch_tachyon_overlays fetch_overlay_tool fetch_qtools fetch_20_04 fetch_uboot fetch_24_04_unxz prepare_base_24_04 docker/build 
-	@echo "Building Tachyon System Image for Ubuntu 24.04..."
-	@echo ""
-	$(call check_required_param,INPUT_BASE_20_04_VERSION)
+build_24.04: version print-config check_qemu vendor_sectools fetch_24_04_unxz fetch_bp_fw fetch_kernel_deb fetch_overlay_tool fetch_tachyon_overlays docker/build
+	@echo "Building Tachyon 24.04 (new-BP) System Image..."
 	$(call check_required_param,INPUT_REGION)
 	$(call check_required_param,INPUT_VARIANT)
 	$(call check_required_param,INPUT_BASE_24_04_VERSION)
 	$(call validate_region)
 	$(call validate_variant)
-	$(call validate_semver,INPUT_BASE_20_04_VERSION)
-	@if [ -z "$(INPUT_UBOOT_VERSION)" ] && [ -z "$(INPUT_UBOOT_DIR)" ]; then \
-		echo "Error: INPUT_UBOOT_VERSION or INPUT_UBOOT_DIR is required"; \
-		exit 1; \
-	fi
-	@if [ -n "$(INPUT_UBOOT_VERSION)" ]; then \
-		if ! echo "$(INPUT_UBOOT_VERSION)" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$'; then \
-			echo "Error: INPUT_UBOOT_VERSION must be a semantic version (x.y.z), got '$(INPUT_UBOOT_VERSION)'"; \
-			exit 1; \
-		fi; \
-	fi
-	$(eval COMPUTED_OVERLAY_STACK := $(if $(INPUT_OVERLAY_STACK),$(INPUT_OVERLAY_STACK),ubuntu-$(INPUT_VARIANT)-24.04))
-	$(eval GENERATED_DISTRO_ENV := PKG_DISTRO_VERSION=$(OUTPUT_VERSION)$(comma)PKG_DISTRO_STACK=$(COMPUTED_OVERLAY_STACK)$(comma)PKG_DISTRO_VARIANT=$(INPUT_VARIANT)$(comma)PKG_DISTRO_REGION=$(INPUT_REGION)$(comma)PKG_DISTRO_BOARD=formfactor_dvt$(comma)PKG_DISTRO_DISTRIBUTION=ubuntu$(comma)PKG_DISTRO_DISTRIBUTION_VERSION=24.04)
-	$(eval GENERATED_SRC_ENV := PKG_SRC_TACHYON_COMPOSER=$(VERSION)$(comma)PKG_SRC_UBUNTU_20_04=$(INPUT_BASE_20_04_VERSION)$(comma)PKG_SRC_UBUNTU_24_04=$(INPUT_BASE_24_04_VERSION)$(comma)PKG_SRC_U_BOOT=$(INPUT_UBOOT_VERSION)$(comma)PKG_SRC_OVERLAYS=$(OVERLAYS_REF))
+	$(call validate_output_24_04)
+	$(eval GENERATED_DISTRO_ENV := PKG_DISTRO_VERSION=$(OUTPUT_VERSION)$(comma)PKG_DISTRO_STACK=$(OVERLAY_STACK)$(comma)PKG_DISTRO_VARIANT=$(INPUT_VARIANT)$(comma)PKG_DISTRO_REGION=$(INPUT_REGION)$(comma)PKG_DISTRO_BOARD=formfactor_dvt$(comma)PKG_DISTRO_DISTRIBUTION=ubuntu$(comma)PKG_DISTRO_DISTRIBUTION_VERSION=24.04)
+	$(eval GENERATED_SRC_ENV := PKG_SRC_TACHYON_COMPOSER=$(VERSION)$(comma)PKG_SRC_UBUNTU_24_04=$(INPUT_BASE_24_04_VERSION)$(comma)PKG_SRC_OVERLAYS=$(OVERLAYS_REF))
 	$(eval GENERATED_ENV := $(GENERATED_DISTRO_ENV)$(comma)$(GENERATED_SRC_ENV))
 	$(eval COMBINED_ENV := $(if $(strip $(INPUT_ENV)),$(INPUT_ENV)$(comma),)$(GENERATED_ENV))
-	$(call validate_output_24_04,OUTPUT_24_04_SYSTEM_IMAGE)
-	@echo "Configuration:"
-	@echo "  Base 20.04 Version: $(INPUT_BASE_20_04_VERSION)"
-	@echo "  24.04 Base Build:   $(INPUT_BASE_24_04_VERSION)"
-	@echo "  Region:             $(INPUT_REGION)"
-	@echo "  Variant:            $(INPUT_VARIANT)"
-	@echo "  U-Boot Version:     $(INPUT_UBOOT_VERSION)"
-	@echo "  Output File:        $(OUTPUT_24_04_SYSTEM_IMAGE)"
-	@echo "  Temp Directory:     $(TMP_INPUT_DIR)"
-	@echo "  Temp Output Dir:    $(TMP_OUTPUT_DIR)"
-	@echo "  Debug:              $(DEBUG)"
-	@echo "  Input Env:          $(if $(INPUT_ENV),$(INPUT_ENV),<none>)"
-	@echo "  Generated Env:      $(GENERATED_ENV)"
-	@echo "  Input Overlay Path: $(INPUT_OVERLAY_PATH)"
-	@echo ""
-	@mkdir -p $(TMP_INPUT_DIR)
-	@mkdir -p $(TMP_OUTPUT_DIR)
-	@echo "Step 1: Base assets available in $(TMP_INPUT_DIR)"
-	@echo "  - 20.04: $(notdir $(BASE20_ZIP)) in $(TMP_INPUT_DIR)/sys-img-20.04"
-	@echo "  - U-Boot: $(notdir $(UBOOT_ZIP)) in $(TMP_INPUT_DIR)/u-boot"
-	@echo "  - 24.04 img: $(notdir $(BASE24_IMG)) in $(TMP_INPUT_DIR)/sys-img-24.04"
-	@echo ""
-	@$(DOCKER_RUN_BASE) -e INPUT_OVERLAY_STACK="$(COMPUTED_OVERLAY_STACK)" $(IMAGE_TAG) bash ./compose_24_04.sh "$(UBOOT_DIR)" "$(BASE24_IMG_BASENAME)" "$(BASE24_SYSTEM_IMAGE_DIR)" "$(OUTPUT_24_04_SYSTEM_IMAGE)" "$(DEBUG)" "$(INPUT_OVERLAY_DOCKER_PATH)" "$(COMBINED_ENV)"
+	@mkdir -p $(TMP_INPUT_DIR) $(TMP_OUTPUT_DIR)
+	@$(DOCKER_RUN) bash ./compose_24_04.sh \
+		"$(BASE24_IMG_BASENAME)" \
+		"$(OUTPUT_24_04_SYSTEM_IMAGE)" \
+		"$(NONHLOS_VARIANT)" \
+		"$(OVERLAY_STACK)" \
+		"$(INPUT_OVERLAY_DOCKER_PATH)" \
+		"$(COMBINED_ENV)" \
+		"$(DEBUG)" \
+		"$(SIGNING_PROFILE)" \
+		"$(SIGNING_KEY)"
 	@echo ""
 	@echo "Build completed successfully!"
-	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(notdir $(OUTPUT_24_04_SYSTEM_IMAGE))"
+	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(OUTPUT_24_04_SYSTEM_IMAGE)"
 
 ##########################################################
 # Docker-related targets
-###########################################################
-
-# --- Docker image build targets (self-contained, no build.sh) -----------------
-
+##########################################################
 DOCKERFILE           ?= Dockerfile
 DOCKER_CONTEXT       ?= .
 
@@ -560,15 +404,12 @@ define GET_COMMENT_KV
 sed -nE 's/^[[:space:]]*#[[:space:]]*$(1)[[:space:]]*=[[:space:]]*([^[:space:]]+).*/\1/p' $(DOCKERFILE) | head -n1
 endef
 
-PARTICLE_DOCKERFILE_VERSION      := $(strip $(shell $(call GET_COMMENT_KV,particle-dockerfile-version)))
-
-# Use the parsed version unless the caller already set VERSION.
-# Fallback to 'dev' if the syntax line is missing.
+PARTICLE_DOCKERFILE_VERSION := $(strip $(shell $(call GET_COMMENT_KV,particle-dockerfile-version)))
 DOCKER_VERSION ?= $(if $(PARTICLE_DOCKERFILE_VERSION),$(PARTICLE_DOCKERFILE_VERSION),dev)
 
 IMAGE_NAME           ?= tachyon-system-image-builder
 IMAGE_TAG            ?= $(IMAGE_NAME):$(DOCKER_VERSION)
-BASE_IMAGE           ?= ubuntu:22.04
+BASE_IMAGE           ?= ubuntu:24.04
 UID                  ?= $(shell id -u 2>/dev/null || echo 1000)
 GID                  ?= $(shell id -g 2>/dev/null || echo 1000)
 PUSH_IMAGE           ?=
@@ -579,13 +420,12 @@ STAMP_DIR            := .tmp/.build/docker
 STAMP_NAME           := $(subst /,_,$(subst :,_,$(IMAGE_TAG)))
 DOCKER_STAMP         := $(STAMP_DIR)/$(STAMP_NAME).stamp
 
-.PHONY: docker docker/build docker/push docker/clean docker/rebuild
+.PHONY: docker docker/build docker/push docker/clean docker/rebuild docker/version docker/shell
 
 docker: docker/build
-
 docker/build: $(DOCKER_STAMP)
 
-# rule to build the docker image
+# Build (or pull) the builder image
 $(DOCKER_STAMP): $(DOCKERFILE)
 	@mkdir -p $(STAMP_DIR)
 	@echo "==> Checking if Docker image $(IMAGE_TAG) exists locally..."
@@ -597,7 +437,7 @@ $(DOCKER_STAMP): $(DOCKERFILE)
 	    echo "Image $(IMAGE_TAG) pulled from registry"; \
 	  else \
 	    echo "==> Building Docker image $(IMAGE_TAG)"; \
-	    docker build -t "$(IMAGE_TAG)" \
+	    docker build --network=host -t "$(IMAGE_TAG)" \
 	      --load \
 	      --file "$(DOCKERFILE)" \
 	      --build-arg UID="$(UID)" \
@@ -608,10 +448,8 @@ $(DOCKER_STAMP): $(DOCKERFILE)
 	    if echo "$(IMAGE_TAG)" | cut -d '/' -f1 | grep -q 'particle' && [ -n "$(PUSH_IMAGE)" ]; then \
 	      echo "==> Pushing image $(IMAGE_TAG)"; \
 	      docker push "$(IMAGE_TAG)" || echo "Failed to push (docker login needed)"; \
-	    else \
-	      echo "PUSH_IMAGE not set, skipping push"; \
-	    fi \
-	  fi \
+	    fi; \
+	  fi; \
 	fi
 	@touch "$@"
 
@@ -626,70 +464,51 @@ docker/clean:
 
 docker/rebuild: docker/clean docker/build
 
-.PHONY: docker/version
 docker/version:
-	@echo "Dockerfile syntax version: $(DOCKERFILE_SYNTAX_VERSION)"
-	@echo "VERSION: $(DOCKER_VERSION)"
-	@echo "IMAGE_TAG: $(IMAGE_TAG)"
+	@echo "Dockerfile version: $(DOCKER_VERSION)"
+	@echo "IMAGE_TAG:          $(IMAGE_TAG)"
 
-# --- Docker run helpers -------------------------------------------------------
+# --- Docker run helper --------------------------------------------------------
 # In CI (env CI=true), drop -it to avoid "the input device is not a TTY"
 DOCKER_TTY := $(if $(CI),, -it)
 
-DOCKER_RUN_BASE := docker run --rm $(DOCKER_TTY) --privileged \
+DOCKER_RUN := docker run --network=host --rm $(DOCKER_TTY) --privileged \
 	-v $(PWD):/project \
 	-v $(TMP_ROOT_DIR):/tmp/work \
 	-v /dev:/dev \
-	-w /project
+	-w /project \
+	$(IMAGE_TAG)
 
-DOCKER_RUN := $(DOCKER_RUN_BASE) $(IMAGE_TAG)
-
-.PHONY: docker/shell
 docker/shell: docker/build
 	@echo "==> Starting interactive shell in $(IMAGE_TAG)"
 	$(DOCKER_RUN) bash
 
 ##########################################################
 # Host prerequisites
-###########################################################
-
-.PHONY: doctor
+##########################################################
+.PHONY: doctor check_qemu setup_qemu
 doctor:
 	@echo "==> Checking minimal host prerequisites"
-	@command -v docker >/dev/null 2>&1 || { echo "Error: Docker CLI not found. Please install Docker Desktop or Docker Engine."; exit 1; }
-	@docker version >/dev/null 2>&1 || { echo "Error: Docker daemon not reachable (is Docker Desktop/daemon running, and do you have permission to use it?)."; exit 1; }
-	@command -v git >/dev/null 2>&1 || { echo "Error: git not found. Please install git."; exit 1; }
+	@command -v docker >/dev/null 2>&1 || { echo "Error: Docker CLI not found."; exit 1; }
+	@docker version >/dev/null 2>&1 || { echo "Error: Docker daemon not reachable."; exit 1; }
+	@command -v git >/dev/null 2>&1 || { echo "Error: git not found."; exit 1; }
 	@echo "Host OK: docker and git are available."
 	@$(MAKE) check_qemu
 
-.PHONY: check_qemu
 check_qemu:
-	@HOST_ARCH=$$(uname -m); \
-	HOST_OS=$$(uname -s); \
-	if [ "$$HOST_ARCH" = "x86_64" ] || [ "$$HOST_ARCH" = "amd64" ]; then \
-		if [ "$$HOST_OS" = "Linux" ]; then \
-			if [ ! -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then \
-				echo "==> Setting up QEMU ARM64 emulation for x86_64 Linux host"; \
-				echo "Running: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes"; \
-				docker run --rm --privileged multiarch/qemu-user-static --reset -p yes; \
-				if [ -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then \
-					echo "QEMU ARM64 emulation configured successfully"; \
-				else \
-					echo "ERROR: Failed to configure QEMU emulation"; \
-					echo "Please manually install qemu-user-static:"; \
-					echo "  sudo apt-get install -y qemu-user-static binfmt-support"; \
-					exit 1; \
-				fi; \
-			fi; \
+	@HOST_ARCH=$$(uname -m); HOST_OS=$$(uname -s); \
+	if { [ "$$HOST_ARCH" = "x86_64" ] || [ "$$HOST_ARCH" = "amd64" ]; } && [ "$$HOST_OS" = "Linux" ]; then \
+		if [ ! -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then \
+			echo "==> Registering QEMU arm64 emulation for x86_64 Linux host"; \
+			docker run --rm --privileged multiarch/qemu-user-static --reset -p yes; \
+			[ -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ] || { echo "ERROR: QEMU setup failed"; exit 1; }; \
 		fi; \
 	fi
 
-.PHONY: setup_qemu
 setup_qemu:
 	@echo "==> Setting up QEMU user-mode emulation"
 	@HOST_ARCH=$$(uname -m); \
 	if [ "$$HOST_ARCH" = "x86_64" ] || [ "$$HOST_ARCH" = "amd64" ]; then \
-		echo "Registering QEMU binfmt_misc handlers..."; \
 		docker run --rm --privileged multiarch/qemu-user-static --reset -p yes; \
 		echo "QEMU setup complete"; \
 	else \
@@ -697,20 +516,18 @@ setup_qemu:
 	fi
 
 ##########################################################
-# Main targets
-###########################################################
-
-# Version information
-.PHONY: version
+# Misc
+##########################################################
+.PHONY: version clean
 version:
 	@echo "Tachyon System Image Composer v$(VERSION)"
 
-# Clean temporary files
-.PHONY: clean
 clean:
 	@echo "Cleaning temporary files..."
 	@rm -rf $(DEFAULT_TMP_ROOT_DIR)
+	@# Sweep stray CI-log downloads that land in the repo root as
+	@# "N_build (REGION, VARIANT).txt" files and "build (REGION, VARIANT)/" dirs.
+	@rm -rf ./*"_build ("*").txt" "./build ("*")" 2>/dev/null || true
 	@echo "Cleanup completed."
 
-# Default target
 .DEFAULT_GOAL := help

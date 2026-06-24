@@ -1,0 +1,13 @@
+# Guard: DO NOT CHECK IN ANYTHING BUT TEST KEYS.
+# Ignore everything in keys/ by default, then re-include only the known stock TEST cert config
+# and this folder's docs. Production/proprietary keys are supplied at build time and must never
+# be tracked here.
+*
+
+# re-include docs + guard
+!.gitignore
+!README.md
+
+# re-include ONLY the stock Qualcomm test cert config (SecTools Test User)
+!qti_presigned_certs-key2048_exp257_hashSHA384/
+!qti_presigned_certs-key2048_exp257_hashSHA384/**
