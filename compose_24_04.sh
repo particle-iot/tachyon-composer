@@ -209,15 +209,29 @@ python3 - "$OUT/factory" "$OUTPUT_ZIP" "$OVERLAY_ENV" <<'PY'
 import json, os, re, sys
 factory, output_zip, env = sys.argv[1], sys.argv[2], (sys.argv[3] if len(sys.argv) > 3 else "")
 
-m = re.match(r'tachyon-ubuntu-24\.04-([^-]+)-([^-]+)-([^-]+)-(.+)\.zip$', output_zip)
-if not m:
-    sys.exit("ERROR: cannot parse region/variant/board/version from %s" % output_zip)
-region, variant, board, version = m.group(1), m.group(2), m.group(3), m.group(4)
-
 envd = {}
 for kv in env.split(','):
     if '=' in kv:
         k, v = kv.split('=', 1); envd[k.strip()] = v.strip()
+
+# Authoritative metadata comes from the PKG_DISTRO_* env the Makefile injects (region/variant/
+# board/version). The zip NAME is not reliable to parse: release names are
+# tachyon-ubuntu-24.04-<region>-<variant>-<version>.zip (no board), and a clean semver version
+# like 1.2.0 has no dashes -- the old 4-field regex only matched dev versions whose dashes
+# happened to fill the 4th group, and errored on real releases. Parse the name (board optional)
+# only as a fallback when the env is absent.
+region  = envd.get('PKG_DISTRO_REGION')
+variant = envd.get('PKG_DISTRO_VARIANT')
+board   = envd.get('PKG_DISTRO_BOARD') or 'formfactor_dvt'
+version = envd.get('PKG_DISTRO_VERSION')
+if not (region and variant and version):
+    m = re.match(r'tachyon-ubuntu-24\.04-(NA|RoW)-(headless|desktop)(?:-([^-]+))?-(.+)\.zip$', output_zip)
+    if not m:
+        sys.exit("ERROR: cannot derive region/variant/version from PKG_DISTRO_* env or name %s" % output_zip)
+    region  = region  or m.group(1)
+    variant = variant or m.group(2)
+    board   = board   or (m.group(3) or 'formfactor_dvt')
+    version = version or m.group(4)
 
 src_map = [
     ('ubuntu-24.04', 'PKG_SRC_UBUNTU_24_04'),
@@ -256,6 +270,9 @@ with open(os.path.join(factory, 'manifest.json'), 'w') as f:
     json.dump(manifest, f, indent=2)
 print("OK manifest.json: firehose=%s program_xml=%s patch_xml=%s" % (firehose, program_xml, patch_xml))
 PY
+# Guard: never package/ship a system image without its manifest.json. `particle flash --tachyon`
+# reads it to locate the firehose + program/patch XMLs, so a manifest-less zip is a broken release.
+[ -s "$OUT/factory/manifest.json" ] || { echo "ERROR: manifest.json was not generated in $OUT/factory" >&2; exit 1; }
 
 # ---- 7) package -------------------------------------------------------------
 section "7) package -> $OUTPUT_ZIP"
