@@ -51,6 +51,28 @@ SIGNING_KEY="${9:-}"
 [ "$DEBUG" = "true" ] && set -x
 
 section(){ echo; echo "==================== $* ===================="; }
+
+# Reconcile + verify ext4 metadata. `mkfs.ext4 -d <dir>` can leave the SUPERBLOCK summary
+# counts (s_free_blocks_count / s_free_inodes_count) stale: they disagree with the per-group
+# descriptors, which are authoritative. A filesystem shipped that way reports far more free
+# space than it has, so on the device the block allocator (or growfs/resize2fs) hands out
+# blocks that already hold file data -> cross-linked blocks and inodes whose extents point
+# past the (under-counted) end of the fs -> "end of extent exceeds allowed value" -> the
+# initramfs fsck drops to BusyBox. e2fsck -fy rewrites the superblock summaries from the
+# group descriptors. This caught a real corrupt build (free-count off by ~5 GiB). NEVER ship
+# a rootfs that hasn't passed this gate. Exit codes: 0=clean, 1=errors corrected,
+# 2=corrected+reboot-advised; >=4 = uncorrectable / operational error (fatal).
+fsck_gate(){
+  local img="$1" stage="$2" rc=0
+  echo "INFO: e2fsck gate ($stage): $img"
+  sudo e2fsck -fy "$img" || rc=$?
+  if [ "$rc" -ge 4 ]; then
+    echo "ERROR: e2fsck found uncorrectable errors in $img (stage=$stage, rc=$rc)" >&2
+    exit 1
+  fi
+  [ "$rc" -eq 0 ] || echo "WARN: e2fsck corrected metadata in $img (stage=$stage, rc=$rc) — investigate the build step that produced it"
+}
+
 mkdir -p "$OUT"
 work="$(mktemp -d)"
 
@@ -97,6 +119,8 @@ truncate -s "$size" "$ROOTFS"
 UU=(); [ -n "$uuid" ] && UU=(-U "$uuid")
 sudo mkfs.ext4 -q -F -b 4096 -L "${label:-rootfs}" "${UU[@]}" -d "$ROOT_MNT" "$ROOTFS"
 sudo umount "$ROOT_MNT"; cleanup; trap - EXIT
+# Fix mkfs.ext4 -d's stale superblock summary counts before the overlay tool mounts the image.
+fsck_gate "$ROOTFS" post-mkfs
 echo "OK: $ROOTFS"
 
 # ---- 2) efi.img (vendored GRUB) ---------------------------------------------
@@ -121,6 +145,9 @@ ENV_OPT=(); [ -n "$OVERLAY_ENV" ] && ENV_OPT=(-e "$OVERLAY_ENV")
     -E "$OUT/efi.img" \
     -d "$DEBUG" \
     "${ENV_OPT[@]}" ) || { echo "ERROR: overlay apply failed" >&2; exit 1; }
+# Final gate: the overlay tool dd-roundtrips and re-mounts the fs; verify the SHIPPED image is
+# metadata-consistent (superblock counts == group descriptors) before it gets assembled/flashed.
+fsck_gate "$ROOTFS" post-overlay
 echo "OK: overlay applied to $ROOTFS"
 
 # ---- 4) dtb.img + nonhlos-<variant>.img -------------------------------------
