@@ -17,7 +17,7 @@
     // Variants: headless (== server) and desktop, both published.
     "particle-iot/tachyon-ubuntu-24.04": {
       "type": "git_release",
-      "param": "22-938ac1d"
+      "param": "23-dfe823b"
     },
 
     // Kernel input (single source of truth for the kernel line). Unlike main — where this was the
@@ -28,10 +28,10 @@
     // will fail.  <-- deb_version == env.PKG_linux_particle (see below)
     "particle-iot/tachyon-ubuntu-24.04-kernel": {
       "type": "s3_release",
-      "param": "stable-6.8.0-1058.59particle2",
+      "param": "stable-6.8.0-1058.59particle3",
       "abi": "1058",
       // keep this equal to env.PKG_linux_particle below
-      "deb_version": "6.8.0-1058.59+particle2",
+      "deb_version": "6.8.0-1058.59+particle3",
       "base_url": "https://linux-dist.particle.io/kernel/release"
     },
 
@@ -62,8 +62,8 @@
 
   "env": {
     // Kernel version pinned INSIDE the rootfs by the overlay. MUST equal the kernel source
-    // deb_version above (6.8.0-1058.59+particle2) and be installable on the base image's ABI.
-    "PKG_linux_particle": "6.8.0-1058.59+particle2",
+    // deb_version above (6.8.0-1058.59+particle3) and be installable on the base image's ABI.
+    "PKG_linux_particle": "6.8.0-1058.59+particle3",
 
     // Optional: URL to manually install kernel .deb (for unpublished PR builds).
     // Multiple URLs separated by @@@ for related packages (image + modules).
