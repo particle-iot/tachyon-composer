@@ -315,16 +315,45 @@ fi
 if command -v "$PI" >/dev/null 2>&1; then
   PIMG="$OUT/${OUTPUT_ZIP%.zip}.pimg.zip"
   KEY_ARGS=()
-  if [ "$SIGNING_PROFILE" != "none" ] && [ -f "$PROJ/keys/particle-ota-test-ed25519.key" ]; then
-    KEY_ARGS=(--key "$PROJ/keys/particle-ota-test-ed25519.key" --key-id particle-ota-test)
-  fi
+  OTA_READY=1
+  # Select the OTA signing key by profile. The committed ed25519 key is a
+  # throwaway *test* key and must only ever be used for the `test` profile — a
+  # real/prod profile that silently fell back to it would ship a prod image
+  # signed by an untrusted key. Real profiles must supply their own key via env.
+  case "$SIGNING_PROFILE" in
+    none)
+      : # emit unsigned
+      ;;
+    test)
+      if [ -f "$PROJ/keys/particle-ota-test-ed25519.key" ]; then
+        KEY_ARGS=(--key "$PROJ/keys/particle-ota-test-ed25519.key" --key-id particle-ota-test)
+      fi
+      ;;
+    *)
+      if [ -n "${PARTICLE_OTA_KEY:-}" ]; then
+        KEY_ARGS=(--key "$PARTICLE_OTA_KEY" --key-id "${PARTICLE_OTA_KEY_ID:-particle-ota}")
+      else
+        echo "ERROR: SIGNING_PROFILE=$SIGNING_PROFILE requires a real OTA signing key (set PARTICLE_OTA_KEY[/PARTICLE_OTA_KEY_ID]); refusing to sign with the committed test key — skipping particle_image_v1 emission" >&2
+        OTA_READY=0
+      fi
+      ;;
+  esac
   SLOT_ARGS=()
   [ "$EMIT_FORMAT" != "factory" ] && SLOT_ARGS=(--slot "$EMIT_SLOT")
-  "$PI" generate --factory-dir "$OUT/factory" --out "$PIMG" \
-    --emit "$EMIT_FORMAT" "${SLOT_ARGS[@]}" \
-    --sign-profile "$SIGNING_PROFILE" "${KEY_ARGS[@]}"
-  "$PI" validate "$PIMG" --public-key "$PROJ/keys/particle-ota-pub.pem"
-  echo "OK particle_image_v1: $PIMG"
+  if [ "$OTA_READY" = 1 ]; then
+    # Best-effort and purely additive to the legacy factory zip. This script runs
+    # under `set -euo pipefail`, so a non-zero exit from generate/validate would
+    # otherwise abort the whole compose and fail the legacy build — guard it and
+    # only warn on failure.
+    if "$PI" generate --factory-dir "$OUT/factory" --out "$PIMG" \
+         --emit "$EMIT_FORMAT" "${SLOT_ARGS[@]}" \
+         --sign-profile "$SIGNING_PROFILE" "${KEY_ARGS[@]}" \
+       && "$PI" validate "$PIMG" --public-key "${PARTICLE_OTA_PUBKEY:-$PROJ/keys/particle-ota-pub.pem}"; then
+      echo "OK particle_image_v1: $PIMG"
+    else
+      echo "WARN: particle_image_v1 emission/validation failed; legacy factory zip is unaffected" >&2
+    fi
+  fi
 else
   echo "NOTE: particle-image CLI not found (no PATH binary, no .tmp/vendor tgz); skipping particle_image_v1 emission"
 fi

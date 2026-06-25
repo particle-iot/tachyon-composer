@@ -29,19 +29,15 @@ trust model is a **signed manifest carrying per-partition hashes**, verified aga
 Particle public key before any write; **common logic lives in shared library files that are
 themselves unit-tested**, not re-implemented per consumer.
 
-## Workflow constraints & branch setup
+## Repositories involved
 
-- **Never push.** All work stays local — feature branches and local commits only; no `git push`, no
-  PRs, until the user explicitly asks.
-- **Branch per repo (off the latest default branch):**
-  - `tachyon-composer`: discard the uncommitted `partition_ext.xml` experiment
-    (`git checkout -- scripts/assemble/config/partition_ext.xml`), then branch
-    **`feature/ota-image-format`** off `main` (carry `OTA.md` over).
-  - `particle-cli` (`../../cli/particle-cli`): default branch is **`master`** — pull latest, then
-    branch **`feature/tachyon-ota-ab`**. Leave the existing untracked backup artifacts alone.
-  - `particle-tachyon-image`, `particle-tachyon-ota`: new repos (`git init`, initial local commit).
-- **Everything must run.** Build + unit-test the shared lib and CLI as they're written; the CLI gains
-  a **`--dry-run`** mode (below) so the full flash/slot/update path is exercisable with no hardware.
+The work spans four repos that all consume the shared image library:
+
+- **tachyon-composer** — generates + validates the `particle_image_v1` artifact at build time.
+- **particle-cli** — A/B flash, slot toggle, update, and `--dry-run` (exercises the full
+  flash/slot/update path with no hardware attached).
+- **particle-tachyon-image** — the shared image library (a sibling repo alongside tachyon-composer).
+- **particle-tachyon-ota** — the on-device update service.
 
 ## Evidence from the real published factory image (verified)
 
@@ -72,8 +68,8 @@ Net: the format and library model a **partition operation graph** — `program` 
 
 ## Deliverable 0 (centerpiece) — shared library `particle-tachyon-image`
 
-New repo at **`../particle-tachyon-image`** (i.e. `/Users/nicklambourne/Documents/particle/tachyon/particle-tachyon-image`,
-sibling of tachyon-composer; to be created) — npm package, recommend **TypeScript**, emit CommonJS+ESM
+A sibling repo next to tachyon-composer (**`../particle-tachyon-image`**) — published to npm as
+`@particle/tachyon-image`, written in **TypeScript**, emitting CommonJS+ESM
 (it is a contract shared by four consumers; types prevent drift). Every module is independently unit-tested (the user's explicit
 requirement: *the common files themselves need tests*). Modules:
 

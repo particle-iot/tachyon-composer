@@ -385,13 +385,15 @@ fetch_tachyon_overlays: | docker/build
 # Best-effort: if the lib repo is absent, the build still produces the legacy zip.
 .PHONY: vendor_particle_image
 vendor_particle_image:
-	@if [ -d "$(PARTICLE_IMAGE_LIB)" ]; then \
+	@if [ -d "$(PARTICLE_IMAGE_LIB)" ] && command -v npm >/dev/null 2>&1; then \
 		echo "Vendoring particle-image from $(PARTICLE_IMAGE_LIB) ..."; \
 		mkdir -p "$(VENDOR_DIR)"; \
 		rm -f "$(VENDOR_DIR)"/particle-tachyon-image-*.tgz; \
 		( cd "$(PARTICLE_IMAGE_LIB)" && npm ci --silent && npm run build --silent \
 			&& npm pack --silent --pack-destination "$(abspath $(VENDOR_DIR))" ) \
 		&& echo "Vendored: $$(ls "$(VENDOR_DIR)"/particle-tachyon-image-*.tgz)"; \
+	elif [ -d "$(PARTICLE_IMAGE_LIB)" ]; then \
+		echo "NOTE: $(PARTICLE_IMAGE_LIB) present but npm not found on host; skipping vendoring (particle_image_v1 installs @particle/tachyon-image from the npm registry inside the container)"; \
 	else \
 		echo "NOTE: $(PARTICLE_IMAGE_LIB) not found; particle_image_v1 emission will be skipped"; \
 	fi
