@@ -193,11 +193,16 @@ echo "OK: signed bootbinaries -> $SIGNED_BOOTBIN_ZIP"
 
 # ---- 6) assemble (ptool + partition_ext) ------------------------------------
 section "6) assemble factory image (ptool)"
+# A/B: the one rootfs.ext4 / efi.img is written to BOTH slots at factory (same source file,
+# stored once in the zip, referenced twice), matching the 20.04 dual-slot flash. OTA rewrites
+# only the inactive slot later.
 "$PROJ/scripts/assemble/make_factory_img.sh" \
   --bootbinaries "$SIGNED_BOOTBIN_ZIP" \
-  --system       "$ROOTFS" \
+  --system_a     "$ROOTFS" \
+  --system_b     "$ROOTFS" \
   --dtb_a        "$OUT/dtb.img" \
-  --efi          "$OUT/efi.img" \
+  --efi_a        "$OUT/efi.img" \
+  --efi_b        "$OUT/efi.img" \
   --core_nhlos_a "$OUT/nonhlos.img" \
   --output       "$OUT/factory"
 
