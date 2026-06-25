@@ -547,13 +547,15 @@ jobs:
           LATEST_KEY: ${{ vars.RELEASE_METADATA_KEY || 'meta/tachyon-latest.json' }}
           STABLE_KEY: 'meta/tachyon-stable.json'
           CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
-          BASE_URL: ${{ vars.PUBLIC_RELEASE_BASE_URL || 'https://linux-dist.particle.io/release' }}
+          # Released 24.04 images live at /releases/<ver>/<region>/ (verified HTTP 200);
+          # this matches the existing 24.04 entries, NOT the singular /release/ that 20.04 uses.
+          RELEASES_BASE_URL: 'https://linux-dist.particle.io/releases'
         run: |
           set -euo pipefail
 
           # The two pinned 1.1.43 24.04 desktop builds (NA + RoW). No headless
           # (1.1.43 has none). sha256_checksum left "" so the CLI does not verify.
-          PINNED="$(jq -n --arg ver "$PIN_VERSION" '
+          PINNED="$(jq -n --arg ver "$PIN_VERSION" --arg base "$RELEASES_BASE_URL" '
             ["NA","RoW"] | map({
               release_name: ("tachyon-ubuntu-24.04-" + . + "-desktop-" + $ver),
               version: $ver, region: ., variant: "desktop",
@@ -561,25 +563,41 @@ jobs:
               os: "linux", distribution: "ubuntu",
               distribution_version: "24.04", distribution_variant: "ubuntu",
               artifacts: [{
-                artifact_url: ("https://linux-dist.particle.io/releases/" + $ver + "/" + . + "/tachyon-ubuntu-24.04-" + . + "-desktop-" + $ver + ".zip"),
+                artifact_url: ($base + "/" + $ver + "/" + . + "/tachyon-ubuntu-24.04-" + . + "-desktop-" + $ver + ".zip"),
                 sha256_checksum: "", type: "release_image"
               }]
             })')"
 
           # Replace ONLY the 24.04 builds in a manifest, preserving all others.
-          # $1 = s3 key, $2 = fallback skeleton if the object does not exist yet.
+          # $1 = s3 key, $2 = "seed" to allow creating the object when it genuinely
+          # does not exist (404). We check existence with head-object FIRST: if the
+          # object exists we MUST read it successfully (set -e aborts on a transient
+          # read failure) so we never silently fall back to an empty skeleton and
+          # clobber the other distributions; the skeleton is used ONLY for a true 404.
           pin_24_04 () {
-            local key="$1" skeleton="$2" cur
-            cur="$(aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${key}" - 2>/dev/null || echo "$skeleton")"
-            echo "$cur" | jq --argjson pinned "$PINNED" \
-              '.builds = ([.builds[]? | select(.distribution_version != "24.04")] + $pinned)' \
-              | aws s3 cp - "s3://${LINUX_DIST_S3_BUCKET}/${key}" --content-type application/json --only-show-errors
+            local key="$1" mode="$2" cur new
+            if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$key" >/dev/null 2>&1; then
+              cur="$(aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${key}" -)"
+            elif [ "$mode" = "seed" ]; then
+              echo "note: ${key} does not exist yet; seeding a new manifest"
+              cur="$SKEL"
+            else
+              echo "ERROR: ${key} not found (or unreadable); refusing to overwrite it from an empty skeleton" >&2
+              exit 1
+            fi
+            # Build + sanity-check the result in memory BEFORE uploading, so a jq
+            # failure can never write a truncated/empty object to S3.
+            new="$(printf '%s' "$cur" | jq --argjson pinned "$PINNED" \
+              '.builds = ([.builds[]? | select(.distribution_version != "24.04")] + $pinned)')"
+            printf '%s' "$new" | jq -e '.builds | length > 0' >/dev/null
+            printf '%s' "$new" | aws s3 cp - "s3://${LINUX_DIST_S3_BUCKET}/${key}" \
+              --content-type application/json --only-show-errors
             echo "pinned 24.04 -> ${PIN_VERSION} in ${key}"
           }
 
           SKEL='{"$schema":"https://linux-dist.particle.io/schema/release_metadata_v1.json","builds":[]}'
-          pin_24_04 "$LATEST_KEY" "$SKEL"   # force-replace 24.04 in latest
-          pin_24_04 "$STABLE_KEY" "$SKEL"   # seed/replace 24.04 in stable
+          pin_24_04 "$LATEST_KEY" require   # latest MUST exist; never seed/clobber
+          pin_24_04 "$STABLE_KEY" seed      # stable may not exist yet; seed if 404
 
           if [ -n "${CF_DIST_ID:-}" ]; then
             aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" \
