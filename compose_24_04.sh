@@ -52,9 +52,9 @@ SIGNING_KEY="${9:-}"
 # for ota-image/ota-boot, which slot. factory (default) emits the full image.
 EMIT_FORMAT="${10:-factory}"
 EMIT_SLOT="${11:-a}"
-# git tag of the public @particle/tachyon-image used as a fallback source for the
+# npm version of @particle/tachyon-image used as a fallback source for the
 # particle-image CLI when no PATH binary and no vendored tgz are present (e.g. CI).
-PARTICLE_IMAGE_REF="${12:-v0.0.1}"
+PARTICLE_IMAGE_VERSION="${12:-0.1.0}"
 [ "$DEBUG" = "true" ] && set -x
 
 section(){ echo; echo "==================== $* ===================="; }
@@ -284,10 +284,10 @@ PY
 # ---- 6c) particle_image_v1 (Particle OTA format) ----------------------------
 # Emit the Particle-owned image format from the assembled factory tree using the
 # shared @particle/tachyon-image CLI, then validate it. The CLI is resolved from
-# (1) $PARTICLE_IMAGE, (2) a `particle-image` on PATH, or (3) a vendored tgz the
-# Makefile drops at .tmp/vendor/ (installed here). If none is available the build
-# still produces the legacy factory zip — this step is additive, never fatal to
-# the legacy flow.
+# (1) $PARTICLE_IMAGE, (2) a `particle-image` on PATH, (3) a vendored tgz the
+# Makefile drops at .tmp/vendor/, or (4) the published npm package. If none is
+# available the build still produces the legacy factory zip — this step is
+# additive, never fatal to the legacy flow.
 section "6c) particle_image_v1 ($EMIT_FORMAT)"
 PI="${PARTICLE_IMAGE:-particle-image}"
 if ! command -v "$PI" >/dev/null 2>&1; then
@@ -297,14 +297,12 @@ if ! command -v "$PI" >/dev/null 2>&1; then
     sudo npm install -g "$VENDOR_TGZ" >/dev/null 2>&1 || npm install -g "$VENDOR_TGZ" >/dev/null 2>&1 || true
     PI="particle-image"
   elif command -v npm >/dev/null 2>&1; then
-    # Public fallback: install the shared lib straight from its git tag. The repo
-    # is public and npm builds it via the `prepare` script, so CI can emit the OTA
-    # format without the sibling repo checked out. Use the explicit git+https URL
-    # (not the `github:` shorthand, which tries git+ssh first and fails fast in a
-    # keyless container). Output is shown, not suppressed, so failures are visible.
-    # Best-effort — never fatal to the legacy flow.
-    PI_SPEC="git+https://github.com/particle-iot/particle-tachyon-image.git#${PARTICLE_IMAGE_REF}"
-    echo "installing particle-image from $PI_SPEC"
+    # Install the published, prebuilt package from npm. No git clone, no in-container
+    # build step (the npm tarball already ships dist/), which is what the debianised
+    # container npm could not do for a git dependency. Output is shown, not
+    # suppressed, so failures are visible. Best-effort — never fatal to the legacy flow.
+    PI_SPEC="@particle/tachyon-image@${PARTICLE_IMAGE_VERSION}"
+    echo "installing particle-image from npm: $PI_SPEC"
     sudo npm install -g "$PI_SPEC" 2>&1 | tail -25 || npm install -g "$PI_SPEC" 2>&1 | tail -25 || true
     PI="particle-image"
   fi
