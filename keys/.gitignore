@@ -11,3 +11,9 @@
 # re-include ONLY the stock Qualcomm test cert config (SecTools Test User)
 !qti_presigned_certs-key2048_exp257_hashSHA384/
 !qti_presigned_certs-key2048_exp257_hashSHA384/**
+
+# re-include the particle_image_v1 manifest-signing keys. The public key is needed
+# everywhere to verify; the .key is a THROWAWAY TEST signing key only (sign-profile=test).
+# Production manifest keys are supplied at build time via secret/mount and never tracked.
+!particle-ota-pub.pem
+!particle-ota-test-ed25519.key
