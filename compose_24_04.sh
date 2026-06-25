@@ -48,6 +48,10 @@ OVERLAY_ENV="${6:-}"
 DEBUG="${7:-false}"
 SIGNING_PROFILE="${8:-test}"
 SIGNING_KEY="${9:-}"
+# particle_image_v1 OTA format emission (section 6c): which format to emit and,
+# for ota-image/ota-boot, which slot. factory (default) emits the full image.
+EMIT_FORMAT="${10:-factory}"
+EMIT_SLOT="${11:-a}"
 [ "$DEBUG" = "true" ] && set -x
 
 section(){ echo; echo "==================== $* ===================="; }
@@ -273,6 +277,40 @@ PY
 # Guard: never package/ship a system image without its manifest.json. `particle flash --tachyon`
 # reads it to locate the firehose + program/patch XMLs, so a manifest-less zip is a broken release.
 [ -s "$OUT/factory/manifest.json" ] || { echo "ERROR: manifest.json was not generated in $OUT/factory" >&2; exit 1; }
+
+# ---- 6c) particle_image_v1 (Particle OTA format) ----------------------------
+# Emit the Particle-owned image format from the assembled factory tree using the
+# shared @particle/tachyon-image CLI, then validate it. The CLI is resolved from
+# (1) $PARTICLE_IMAGE, (2) a `particle-image` on PATH, or (3) a vendored tgz the
+# Makefile drops at .tmp/vendor/ (installed here). If none is available the build
+# still produces the legacy factory zip — this step is additive, never fatal to
+# the legacy flow.
+section "6c) particle_image_v1 ($EMIT_FORMAT)"
+PI="${PARTICLE_IMAGE:-particle-image}"
+if ! command -v "$PI" >/dev/null 2>&1; then
+  VENDOR_TGZ="$(ls "$PROJ"/.tmp/vendor/particle-tachyon-image-*.tgz 2>/dev/null | head -1 || true)"
+  if [ -n "$VENDOR_TGZ" ] && command -v npm >/dev/null 2>&1; then
+    echo "installing particle-image from $VENDOR_TGZ"
+    sudo npm install -g "$VENDOR_TGZ" >/dev/null 2>&1 || npm install -g "$VENDOR_TGZ" >/dev/null 2>&1 || true
+    PI="particle-image"
+  fi
+fi
+if command -v "$PI" >/dev/null 2>&1; then
+  PIMG="$OUT/${OUTPUT_ZIP%.zip}.pimg.zip"
+  KEY_ARGS=()
+  if [ "$SIGNING_PROFILE" != "none" ] && [ -f "$PROJ/keys/particle-ota-test-ed25519.key" ]; then
+    KEY_ARGS=(--key "$PROJ/keys/particle-ota-test-ed25519.key" --key-id particle-ota-test)
+  fi
+  SLOT_ARGS=()
+  [ "$EMIT_FORMAT" != "factory" ] && SLOT_ARGS=(--slot "$EMIT_SLOT")
+  "$PI" generate --factory-dir "$OUT/factory" --out "$PIMG" \
+    --emit "$EMIT_FORMAT" "${SLOT_ARGS[@]}" \
+    --sign-profile "$SIGNING_PROFILE" "${KEY_ARGS[@]}"
+  "$PI" validate "$PIMG" --public-key "$PROJ/keys/particle-ota-pub.pem"
+  echo "OK particle_image_v1: $PIMG"
+else
+  echo "NOTE: particle-image CLI not found (no PATH binary, no .tmp/vendor tgz); skipping particle_image_v1 emission"
+fi
 
 # ---- 7) package -------------------------------------------------------------
 section "7) package -> $OUTPUT_ZIP"

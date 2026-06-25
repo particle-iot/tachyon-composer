@@ -103,6 +103,17 @@ SIGNING_PROFILE ?= $(if $(strip $(call _SIGN,profile)),$(call _SIGN,profile),tes
 SIGNING_KEY     ?= $(call _SIGN,key)
 
 # -------------------------------------------------------------------
+# particle_image_v1 OTA format (@particle/tachyon-image)
+# EMIT_FORMAT: factory (default) | ota-image | ota-boot ; EMIT_SLOT: a | b
+# PARTICLE_IMAGE_LIB: path to the shared library repo (vendored into the image
+# at build time as a tgz; the composer container runs its `particle-image` CLI).
+# -------------------------------------------------------------------
+EMIT_FORMAT        ?= factory
+EMIT_SLOT          ?= a
+PARTICLE_IMAGE_LIB ?= ../particle-tachyon-image
+VENDOR_DIR         := $(TMP_ROOT_DIR)/vendor
+
+# -------------------------------------------------------------------
 # Validation helpers
 # -------------------------------------------------------------------
 define check_required_param
@@ -366,8 +377,24 @@ fetch_tachyon_overlays: | docker/build
 # -------------------------------------------------------------------
 # Main build
 # -------------------------------------------------------------------
+# Build + pack the shared @particle/tachyon-image lib into .tmp/vendor/ as a tgz.
+# compose_24_04.sh (section 6c) installs it inside the container and runs its CLI.
+# Best-effort: if the lib repo is absent, the build still produces the legacy zip.
+.PHONY: vendor_particle_image
+vendor_particle_image:
+	@if [ -d "$(PARTICLE_IMAGE_LIB)" ]; then \
+		echo "Vendoring particle-image from $(PARTICLE_IMAGE_LIB) ..."; \
+		mkdir -p "$(VENDOR_DIR)"; \
+		rm -f "$(VENDOR_DIR)"/particle-tachyon-image-*.tgz; \
+		( cd "$(PARTICLE_IMAGE_LIB)" && npm ci --silent && npm run build --silent \
+			&& npm pack --silent --pack-destination "$(abspath $(VENDOR_DIR))" ) \
+		&& echo "Vendored: $$(ls "$(VENDOR_DIR)"/particle-tachyon-image-*.tgz)"; \
+	else \
+		echo "NOTE: $(PARTICLE_IMAGE_LIB) not found; particle_image_v1 emission will be skipped"; \
+	fi
+
 .PHONY: build_24.04
-build_24.04: version print-config check_qemu vendor_sectools fetch_24_04_unxz fetch_bp_fw fetch_kernel_deb fetch_overlay_tool fetch_tachyon_overlays docker/build
+build_24.04: version print-config check_qemu vendor_sectools vendor_particle_image fetch_24_04_unxz fetch_bp_fw fetch_kernel_deb fetch_overlay_tool fetch_tachyon_overlays docker/build
 	@echo "Building Tachyon 24.04 (new-BP) System Image..."
 	$(call check_required_param,INPUT_REGION)
 	$(call check_required_param,INPUT_VARIANT)
@@ -389,7 +416,9 @@ build_24.04: version print-config check_qemu vendor_sectools fetch_24_04_unxz fe
 		"$(COMBINED_ENV)" \
 		"$(DEBUG)" \
 		"$(SIGNING_PROFILE)" \
-		"$(SIGNING_KEY)"
+		"$(SIGNING_KEY)" \
+		"$(EMIT_FORMAT)" \
+		"$(EMIT_SLOT)"
 	@echo ""
 	@echo "Build completed successfully!"
 	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(OUTPUT_24_04_SYSTEM_IMAGE)"
