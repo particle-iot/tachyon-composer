@@ -299,10 +299,13 @@ if ! command -v "$PI" >/dev/null 2>&1; then
   elif command -v npm >/dev/null 2>&1; then
     # Public fallback: install the shared lib straight from its git tag. The repo
     # is public and npm builds it via the `prepare` script, so CI can emit the OTA
-    # format without the sibling repo checked out. Best-effort — never fatal.
-    PI_SPEC="github:particle-iot/particle-tachyon-image#${PARTICLE_IMAGE_REF}"
+    # format without the sibling repo checked out. Use the explicit git+https URL
+    # (not the `github:` shorthand, which tries git+ssh first and fails fast in a
+    # keyless container). Output is shown, not suppressed, so failures are visible.
+    # Best-effort — never fatal to the legacy flow.
+    PI_SPEC="git+https://github.com/particle-iot/particle-tachyon-image.git#${PARTICLE_IMAGE_REF}"
     echo "installing particle-image from $PI_SPEC"
-    sudo npm install -g "$PI_SPEC" >/dev/null 2>&1 || npm install -g "$PI_SPEC" >/dev/null 2>&1 || true
+    sudo npm install -g "$PI_SPEC" 2>&1 | tail -25 || npm install -g "$PI_SPEC" 2>&1 | tail -25 || true
     PI="particle-image"
   fi
 fi
