@@ -528,6 +528,64 @@ jobs:
             release_metadata.json \
             --origin "24.04"
 
+      # ----------------------------------------------------------------------
+      # HACK (temporary): the 24.04 line (1.2.x new-BP/A/B) is not production
+      # stable, so the CLI must not serve it as the default. Pin the published
+      # 24.04 entries to the last good release (1.1.43, desktop only — 1.1.43
+      # never shipped a 24.04 headless image) in BOTH the `latest` channel
+      # (force-replacing whatever this release just published) and a `stable`
+      # channel (seeded here). Touches ONLY the 24.04 builds; every other
+      # distribution (20.04, android, …) in the manifests is left untouched.
+      # sha256_checksum is intentionally empty — 1.1.43 published no checksum
+      # and the CLI skips verification when it is absent. REMOVE this step once
+      # a real 24.04 stable ships and update the generation to publish it.
+      # ----------------------------------------------------------------------
+      - name: 'HACK: pin 24.04 to 1.1.43 (desktop) in latest + stable'
+        if: env.PUSH_JSON == 'true'
+        env:
+          PIN_VERSION: '1.1.43'
+          LATEST_KEY: ${{ vars.RELEASE_METADATA_KEY || 'meta/tachyon-latest.json' }}
+          STABLE_KEY: 'meta/tachyon-stable.json'
+          CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
+          BASE_URL: ${{ vars.PUBLIC_RELEASE_BASE_URL || 'https://linux-dist.particle.io/release' }}
+        run: |
+          set -euo pipefail
+
+          # The two pinned 1.1.43 24.04 desktop builds (NA + RoW). No headless
+          # (1.1.43 has none). sha256_checksum left "" so the CLI does not verify.
+          PINNED="$(jq -n --arg ver "$PIN_VERSION" '
+            ["NA","RoW"] | map({
+              release_name: ("tachyon-ubuntu-24.04-" + . + "-desktop-" + $ver),
+              version: $ver, region: ., variant: "desktop",
+              platform: "qcm6490", board: "formfactor_dvt",
+              os: "linux", distribution: "ubuntu",
+              distribution_version: "24.04", distribution_variant: "ubuntu",
+              artifacts: [{
+                artifact_url: ("https://linux-dist.particle.io/releases/" + $ver + "/" + . + "/tachyon-ubuntu-24.04-" + . + "-desktop-" + $ver + ".zip"),
+                sha256_checksum: "", type: "release_image"
+              }]
+            })')"
+
+          # Replace ONLY the 24.04 builds in a manifest, preserving all others.
+          # $1 = s3 key, $2 = fallback skeleton if the object does not exist yet.
+          pin_24_04 () {
+            local key="$1" skeleton="$2" cur
+            cur="$(aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${key}" - 2>/dev/null || echo "$skeleton")"
+            echo "$cur" | jq --argjson pinned "$PINNED" \
+              '.builds = ([.builds[]? | select(.distribution_version != "24.04")] + $pinned)' \
+              | aws s3 cp - "s3://${LINUX_DIST_S3_BUCKET}/${key}" --content-type application/json --only-show-errors
+            echo "pinned 24.04 -> ${PIN_VERSION} in ${key}"
+          }
+
+          SKEL='{"$schema":"https://linux-dist.particle.io/schema/release_metadata_v1.json","builds":[]}'
+          pin_24_04 "$LATEST_KEY" "$SKEL"   # force-replace 24.04 in latest
+          pin_24_04 "$STABLE_KEY" "$SKEL"   # seed/replace 24.04 in stable
+
+          if [ -n "${CF_DIST_ID:-}" ]; then
+            aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" \
+              --paths "/${LATEST_KEY}" "/${STABLE_KEY}"
+          fi
+
       - name: S3 metadata (dry run)
         if: env.PUSH_JSON != 'true'
         run: echo "PUSH_JSON != 'true' -- dry run, nothing pushed to S3."
