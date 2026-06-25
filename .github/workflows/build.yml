@@ -102,6 +102,17 @@ jobs:
           ls -lh "$OUTPUT_PATH"
           test -s "$OUTPUT_PATH"
 
+      # Upload the particle_image_v1 OTA zip (section 6c) as a downloadable
+      # artifact so it can be tested against. Emission is best-effort, so warn
+      # (don't fail) if the build produced no .pimg.zip.
+      - name: Upload particle_image_v1 OTA zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: particle-image-${{ matrix.region }}-${{ matrix.variant }}
+          path: .tmp/output/*.pimg.zip
+          if-no-files-found: warn
+          retention-days: 7
+
       # ---------- PR uploads ----------
       - name: Configure AWS (PR)
         if: github.event_name == 'pull_request' &&

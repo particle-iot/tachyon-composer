@@ -111,6 +111,9 @@ SIGNING_KEY     ?= $(call _SIGN,key)
 EMIT_FORMAT        ?= factory
 EMIT_SLOT          ?= a
 PARTICLE_IMAGE_LIB ?= ../particle-tachyon-image
+# Public git tag used as a fallback CLI source when PARTICLE_IMAGE_LIB is absent
+# (e.g. CI builds only this repo). Resolved inside the container via npm.
+PARTICLE_IMAGE_REF ?= v0.0.1
 VENDOR_DIR         := $(TMP_ROOT_DIR)/vendor
 
 # -------------------------------------------------------------------
@@ -418,7 +421,8 @@ build_24.04: version print-config check_qemu vendor_sectools vendor_particle_ima
 		"$(SIGNING_PROFILE)" \
 		"$(SIGNING_KEY)" \
 		"$(EMIT_FORMAT)" \
-		"$(EMIT_SLOT)"
+		"$(EMIT_SLOT)" \
+		"$(PARTICLE_IMAGE_REF)"
 	@echo ""
 	@echo "Build completed successfully!"
 	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(OUTPUT_24_04_SYSTEM_IMAGE)"

@@ -52,6 +52,9 @@ SIGNING_KEY="${9:-}"
 # for ota-image/ota-boot, which slot. factory (default) emits the full image.
 EMIT_FORMAT="${10:-factory}"
 EMIT_SLOT="${11:-a}"
+# git tag of the public @particle/tachyon-image used as a fallback source for the
+# particle-image CLI when no PATH binary and no vendored tgz are present (e.g. CI).
+PARTICLE_IMAGE_REF="${12:-v0.0.1}"
 [ "$DEBUG" = "true" ] && set -x
 
 section(){ echo; echo "==================== $* ===================="; }
@@ -292,6 +295,14 @@ if ! command -v "$PI" >/dev/null 2>&1; then
   if [ -n "$VENDOR_TGZ" ] && command -v npm >/dev/null 2>&1; then
     echo "installing particle-image from $VENDOR_TGZ"
     sudo npm install -g "$VENDOR_TGZ" >/dev/null 2>&1 || npm install -g "$VENDOR_TGZ" >/dev/null 2>&1 || true
+    PI="particle-image"
+  elif command -v npm >/dev/null 2>&1; then
+    # Public fallback: install the shared lib straight from its git tag. The repo
+    # is public and npm builds it via the `prepare` script, so CI can emit the OTA
+    # format without the sibling repo checked out. Best-effort — never fatal.
+    PI_SPEC="github:particle-iot/particle-tachyon-image#${PARTICLE_IMAGE_REF}"
+    echo "installing particle-image from $PI_SPEC"
+    sudo npm install -g "$PI_SPEC" >/dev/null 2>&1 || npm install -g "$PI_SPEC" >/dev/null 2>&1 || true
     PI="particle-image"
   fi
 fi
