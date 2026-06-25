@@ -12,11 +12,20 @@
     <!-- NOTE: "physical_partition" are listed in order and apply to UFS devices that have physical partitions -->
 
     <!-- This is LUN 0 - HLOS LUN" -->
+    <!-- A/B layout. efi_a/efi_b and system_a/system_b are dual slots written with the SAME image
+         at factory (composer passes the one rootfs.ext4 / efi.img to both); OTA later rewrites the
+         inactive slot. persist and userdata are NOT slotted: they survive A/B switches. userdata is
+         the LAST partition so GROW_LAST_PARTITION_TO_FILL_DISK expands it to use all remaining flash
+         (dynamic per device: ~30GB spare on a 64GB SKU, ~90GB on 128GB), with a 4GB floor. A/B
+         partitions need distinct type GUIDs (same convention as the firmware slots on LUN4). -->
     <physical_partition>
-        <partition label="efi" 			    size_in_kb="524288" 	type="C12A7328-F81F-11D2-BA4B-00A0C93EC93B" bootable="false" readonly="true" 	system="true" dontautomount="true" filename="efi.bin"/>
-		<partition label="persist" 		    size_in_kb="30720" 		type="0FC63DAF-8483-4772-8E79-3D69D8477DE4" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>	
-		<partition label="system" 		    size_in_kb="10485760" 	type="B921B045-1DF0-41C3-AF44-4C6F280D3FAE" bootable="false" readonly="false" 	system="true" dontautomount="true" filename="system.img"/> 
-	</physical_partition>                   
+        <partition label="efi_a" 		    size_in_kb="524288" 	type="C12A7328-F81F-11D2-BA4B-00A0C93EC93B" bootable="false" readonly="true" 	system="true" dontautomount="true" filename="efi.bin"/>
+        <partition label="efi_b" 		    size_in_kb="524288" 	type="FFFE4A7E-CB5C-4290-87D9-4B7C5B994CA5" bootable="false" readonly="true" 	system="true" dontautomount="true" filename=""/>
+        <partition label="system_a" 	    size_in_kb="12582912" 	type="B921B045-1DF0-41C3-AF44-4C6F280D3FAE" bootable="false" readonly="false" 	system="true" dontautomount="true" filename="system.img"/>
+        <partition label="system_b" 	    size_in_kb="12582912" 	type="7BE0A15B-8445-4339-87BB-CC1689341695" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
+		<partition label="persist" 		    size_in_kb="30720" 		type="0FC63DAF-8483-4772-8E79-3D69D8477DE4" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
+		<partition label="userdata" 	    size_in_kb="4194304" 	type="62570D05-184E-4CD9-8111-9F594640977D" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
+	</physical_partition>
 										    
     <!-- This is LUN 1 - Boot LUN A" -->    
     <physical_partition>                    
