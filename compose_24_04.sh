@@ -267,6 +267,16 @@ if not os.path.exists(os.path.join(factory, firehose)):
 if not program_xml:
     sys.exit("ERROR: no rawprogramN.xml in factory")
 
+# UFS provisioning XML (sets the LUN geometry). The A/B layout changed the LUN
+# count/sizes, so a `factory` flash must re-provision before programming; carry it
+# in the manifest so the OTA image format (particle_image_v1) ships it.
+provision_xml = sorted([f for f in os.listdir(factory) if re.fullmatch(r'provision.*\.xml', f)])
+
+edl = {'base': '.', 'firehose': firehose,
+       'program_xml': program_xml, 'patch_xml': patch_xml}
+if provision_xml:
+    edl['provision_xml'] = provision_xml
+
 manifest = {
     '$schema': 'https://linux-dist.particle.io/schema/image_manifest_v1.json',
     'release_name': output_zip[:-4] if output_zip.endswith('.zip') else output_zip,
@@ -274,13 +284,11 @@ manifest = {
     'platform': 'qcm6490', 'board': board, 'os': 'linux',
     'distribution': 'ubuntu', 'distribution_version': '24.04', 'distribution_variant': 'ubuntu',
     'sources': sources,
-    'targets': [{'qcm6490': {'edl': {
-        'base': '.', 'firehose': firehose,
-        'program_xml': program_xml, 'patch_xml': patch_xml}}}],
+    'targets': [{'qcm6490': {'edl': edl}}],
 }
 with open(os.path.join(factory, 'manifest.json'), 'w') as f:
     json.dump(manifest, f, indent=2)
-print("OK manifest.json: firehose=%s program_xml=%s patch_xml=%s" % (firehose, program_xml, patch_xml))
+print("OK manifest.json: firehose=%s program_xml=%s patch_xml=%s provision_xml=%s" % (firehose, program_xml, patch_xml, provision_xml))
 PY
 # Guard: never package/ship a system image without its manifest.json. `particle flash --tachyon`
 # reads it to locate the firehose + program/patch XMLs, so a manifest-less zip is a broken release.
