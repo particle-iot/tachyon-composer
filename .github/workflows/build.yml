@@ -562,6 +562,7 @@ jobs:
               platform: "qcm6490", board: "formfactor_dvt",
               os: "linux", distribution: "ubuntu",
               distribution_version: "24.04", distribution_variant: "ubuntu",
+              build_date: "2026-02-10T22:40:34.082161",
               artifacts: [{
                 artifact_url: ($base + "/" + $ver + "/" + . + "/tachyon-ubuntu-24.04-" + . + "-desktop-" + $ver + ".zip"),
                 sha256_checksum: "", type: "release_image"
