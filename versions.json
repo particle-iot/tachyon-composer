@@ -5,11 +5,15 @@
     // the pre-built region NON-HLOS images (nonhlos-em.img / nonhlos-na.img). Boot blobs are
     // TEST-signed; the composer RE-SIGNS them with the selectable key (see signing block).
     // Replaces the old 20.04 base (tachyon-release-builder) + U-Boot.
-    // 2.0.3 is the tagged release of the NON-HLOS-packaging PR (#7) — first release to ship
-    // nonhlos-em.img / nonhlos-na.img alongside QCM6490_bootbinaries + QCM6490_fw.
+    // 2.0.3 shipped the NON-HLOS packaging (#7) — nonhlos-em.img / nonhlos-na.img alongside
+    // QCM6490_bootbinaries + QCM6490_fw. Since then:
+    //   2.0.4 (#8) XBL: fix low-battery boot stuck in the UEFI charging loop.
+    //   2.0.5 (#9) qup: hand QUPV3_1_SE0 to HLOS as the 40pin header UART.
+    // 2.0.5 must be paired with kernel particle5 (PR #38): the BP releases the SE to HLOS and the
+    // kernel DT enables it. Downgrading either side alone leaves the 40pin header UART dead.
     "bp-fw": {
-      "version": "2.0.3",
-      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.3.zip"
+      "version": "2.0.5",
+      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.5.zip"
     },
 
     // The 24.04 base rootfs image (built by particle-iot/tachyon-ubuntu-24.04 via livecd-rootfs).
@@ -17,7 +21,7 @@
     // Variants: headless (== server) and desktop, both published.
     "particle-iot/tachyon-ubuntu-24.04": {
       "type": "git_release",
-      "param": "23-dfe823b"
+      "param": "25-a2357e9"
     },
 
     // Kernel input (single source of truth for the kernel line). Unlike main — where this was the
@@ -28,10 +32,10 @@
     // will fail.  <-- deb_version == env.PKG_linux_particle (see below)
     "particle-iot/tachyon-ubuntu-24.04-kernel": {
       "type": "s3_release",
-      "param": "stable-6.8.0-1058.59particle3",
+      "param": "stable-6.8.0-1058.59particle5",
       "abi": "1058",
       // keep this equal to env.PKG_linux_particle below
-      "deb_version": "6.8.0-1058.59+particle3",
+      "deb_version": "6.8.0-1058.59+particle5",
       "base_url": "https://linux-dist.particle.io/kernel/release"
     },
 
@@ -62,8 +66,8 @@
 
   "env": {
     // Kernel version pinned INSIDE the rootfs by the overlay. MUST equal the kernel source
-    // deb_version above (6.8.0-1058.59+particle3) and be installable on the base image's ABI.
-    "PKG_linux_particle": "6.8.0-1058.59+particle3",
+    // deb_version above (6.8.0-1058.59+particle5) and be installable on the base image's ABI.
+    "PKG_linux_particle": "6.8.0-1058.59+particle5",
 
     // Optional: URL to manually install kernel .deb (for unpublished PR builds).
     // Multiple URLs separated by @@@ for related packages (image + modules).
