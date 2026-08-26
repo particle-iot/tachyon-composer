@@ -103,7 +103,7 @@
         <partition label="toolsfv" 			size_in_kb="1024" 		type="97745ABA-135A-44C3-9ADC-05616173C24C" bootable="false" readonly="true" 	system="true" dontautomount="true" filename="tools.fv"/>
         <partition label="logfs" 			size_in_kb="8192" 		type="BC0330EB-3410-4951-A617-03898DBE3372" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
         <partition label="quantumsdk" 		size_in_kb="40960" 		type="AA9A5C4C-4F1F-7D3A-014A-22BD33BF7191" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
-        <partition label="logdump" 			size_in_kb="524288" 	type="5AF80809-AABB-4943-9168-CDFC38742598" readonly="false" bootable="false" 	system="true" dontautomount="true" filename=""/>
+        <partition label="logdump" 			size_in_kb="65536" 	type="5AF80809-AABB-4943-9168-CDFC38742598" readonly="false" bootable="false" 	system="true" dontautomount="true" filename=""/>
         <partition label="secdata" 			size_in_kb="25" 		type="76CFC7EF-039D-4E2C-B81E-4DD8C2CB2A93" bootable="false" readonly="true" 	system="true" dontautomount="true" filename=""/> 
         <partition label="quantumfv" 		size_in_kb="512" 		type="80C23C26-C3F9-4A19-BB38-1E457DACEB09" bootable="false" readonly="true" 	system="true" dontautomount="true" filename=""/>
         <partition label="catecontentfv" 	size_in_kb="1024" 		type="E12D830B-7F62-4F0B-B48A-8178C5BF3AC1" bootable="false" readonly="true"/>
