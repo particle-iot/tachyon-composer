@@ -47,8 +47,31 @@
 		<partition label="ddr_b" 			size_in_kb="1024" 		type="325DEF02-1305-44A3-AA8D-AC82FEBE220E" 									system="true" dontautomount="true" filename=""/>
         <partition label="last_parti" 		size_in_kb="0" 			type="00000000-0000-0000-0000-000000000000" bootable="false" readonly="true" 	system="true" dontautomount="true" filename="" />
     </physical_partition>
-
-   <!-- This is LUN 4 - Firmware LUN" -->
+   <!-- This is LUN 4 - kept 20.04-compatible (128 MiB on already-provisioned
+        devices); the firmware set has been moved to LUN 6 so it fits without
+        re-provisioning. Mirrors the 20.04 LUN 4 so uefivarstore is preserved. -->
+     <physical_partition>
+        <partition label="abl_a" 			size_in_kb="1024" 		type="BD6928A1-4CE0-A038-4F3A-1495E3EDDFFB" bootable="false" readonly="true" 	system="true" dontautomount="true" filename=""/>
+        <partition label="abl_b" 			size_in_kb="1024" 		type="77036CD4-03D5-42BB-8ED1-37E5A88BAA34" bootable="false" readonly="true" 	system="true" dontautomount="true" filename=""/>
+        <partition label="uefivarstore" 	size_in_kb="512" 		type="165BD6BC-9250-4AC8-95A7-A93F4A440066" bootable="false" readonly="true" 	system="true" dontautomount="true" filename=""/>
+        <partition label="last_parti" 		size_in_kb="0" 			type="00000000-0000-0000-0000-000000000000" bootable="false" readonly="true" 	system="true" dontautomount="true" filename="" />
+     </physical_partition>
+    <!-- This is LUN 5 - Protected Read-write LUN" -->
+    <!-- QCOM development requirement: Ensure all partitions in LUN5 is a MULTIPLE OF 128K -->
+    <!-- Ordered and sized to reproduce the offsets already on provisioned
+         devices (fsc@32, fsg@64, modemst1@1088, modemst2@2112, nvdata1@3136,
+         nvdata2@3520) so modem NV survives a flash in either direction. -->
+    <physical_partition>
+        <partition label="ALIGN_TO_128K_2" 	size_in_kb="104" 		type="FDE1604B-D68B-4BD4-973D-962AE7A1ED88" bootable="false" readonly="true" />
+        <partition label="fsc" 				size_in_kb="128" 		type="57B90A16-22C9-E33B-8F5D-0E81686A68CB" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
+        <partition label="fsg" 				size_in_kb="4096" 		type="638FF8E2-22C9-E33B-8F5D-0E81686A68CB" bootable="false" readonly="true" 	system="true" dontautomount="true" filename=""/>
+        <partition label="modemst1" 		size_in_kb="4096" 		type="EBBEADAF-22C9-E33B-8F5D-0E81686A68CB" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
+        <partition label="modemst2" 		size_in_kb="4096" 		type="0A288B1F-22C9-E33B-8F5D-0E81686A68CB" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
+        <partition label="nvdata1" 			size_in_kb="1536" 		type="C733EFB2-31D6-4175-8756-D12BF1F5271D" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
+        <partition label="nvdata2" 			size_in_kb="1536" 		type="D47E62B3-EB9E-48E3-BA8A-57A64ACE2D3F" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
+        <partition label="last_parti" 		size_in_kb="0" 			type="00000000-0000-0000-0000-000000000000" bootable="false" readonly="true" 	system="true" dontautomount="true" filename="" />
+    </physical_partition>
+   <!-- This is LUN 6 - Firmware LUN (moved from LUN 4: 24.04 needs ~818 MiB here and LUN 4 is only 128 MiB on provisioned devices; LUN 6 is 1792 MiB) -->
      <physical_partition>	
 		<!-- These are the 'A' partition's needed for the A/B boot/ota update feature. A and B partitions must have differrent GUID's.  -->
         <partition label="aop_a" 			size_in_kb="512" 		type="D69E90A5-4CAB-0071-F6DF-AB977F141A7F" bootable="false" readonly="true" 	system="true" dontautomount="true" filename="aop.mbn"/>
@@ -110,17 +133,4 @@
 		<partition label="vm-data" 			size_in_kb="33424" 		type="21ADB864-C9E7-4C76-BE68-568E20C58439" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
 		<partition label="last_parti" 		size_in_kb="0" 			type="00000000-0000-0000-0000-000000000000" bootable="false" readonly="true" 	system="true" dontautomount="true" filename="" />
     </physical_partition>	
-		
-    <!-- This is LUN 5 - Protected Read-write LUN" -->	
-    <!-- QCOM development requirement: Ensure all partitions in 	LUN5 iS A MULTIPLE OF 128K -->
-			
-    <physical_partition>	
-        <partition label="modemst1" 		size_in_kb="4096" 		type="EBBEADAF-22C9-E33B-8F5D-0E81686A68CB" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
-        <partition label="modemst2" 		size_in_kb="4096" 		type="0A288B1F-22C9-E33B-8F5D-0E81686A68CB" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
-        <partition label="fsg" 				size_in_kb="4096" 		type="638FF8E2-22C9-E33B-8F5D-0E81686A68CB" bootable="false" readonly="true" 	system="true" dontautomount="true" filename=""/>
-        <partition label="fsc" 				size_in_kb="128" 		type="57B90A16-22C9-E33B-8F5D-0E81686A68CB" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
-        <partition label="nvdata1" 			size_in_kb="4096" 		type="C733EFB2-31D6-4175-8756-D12BF1F5271D" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
-        <partition label="nvdata2" 			size_in_kb="4096" 		type="D47E62B3-EB9E-48E3-BA8A-57A64ACE2D3F" bootable="false" readonly="false" 	system="true" dontautomount="true" filename=""/>
-        <partition label="last_parti" 		size_in_kb="0" 			type="00000000-0000-0000-0000-000000000000" bootable="false" readonly="true" 	system="true" dontautomount="true" filename="" />
-    </physical_partition>
 </configuration>
