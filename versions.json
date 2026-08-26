@@ -77,16 +77,16 @@
     // Multiple URLs separated by @@@ for related packages (image + modules).
 
     //This is the particle debian package
-    "PKG_particle_linux": "0.25.0-1",
+    "PKG_particle_linux": "0.22.0-1",
 
     //Version of the setup app being used
     "PKG_particle_tachyon_desktop_setup": "2.7.0",
 
     //Radio code (RIL)
-    "PKG_particle_tachyon_ril": "0.5.5-1",
+    "PKG_particle_tachyon_ril": "0.4.5-1",
 
     //The syscon package
-    "PKG_particle_tachyon_syscon": "1.0.52-1",
+    "PKG_particle_tachyon_syscon": "1.0.20-2",
 
     //Ubuntu 24.04 distribution version. ENV_ (not PKG_) on purpose: check-pinned-packages treats
     //every PKG_* as an apt package to install, but this is a plain config value. The overlay tool
