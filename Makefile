@@ -57,11 +57,21 @@ VERSIONS_FILE ?= versions.json
 _SRC      = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$(VERSIONS_FILE)').read(),flags=re.MULTILINE);print(json.loads(t)['sources'].get('$(1)',{}).get('$(2)',''))" 2>/dev/null)
 _ENV_JSON = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$(VERSIONS_FILE)').read(),flags=re.MULTILINE);e=json.loads(t).get('env',{});print(','.join(f'{k}={v}' for k,v in e.items()))" 2>/dev/null)
 _SIGN     = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$(VERSIONS_FILE)').read(),flags=re.MULTILINE);print(json.loads(t).get('signing',{}).get('$(1)',''))" 2>/dev/null)
+# Same as _ENV_JSON but for an arbitrary top-level object, so a build can carry
+# variant-only pins (env_desktop / env_headless) instead of forcing every PKG_*
+# onto every variant. Missing key -> empty.
+_ENV_JSON_KEY = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$(VERSIONS_FILE)').read(),flags=re.MULTILINE);e=json.loads(t).get('$(1)',{});print(','.join(f'{k}={v}' for k,v in e.items()))" 2>/dev/null)
 
 JSON_BASE24_PARAM       := $(call _SRC,particle-iot/tachyon-ubuntu-24.04,param)
 JSON_OVERLAYS_PARAM     := $(call _SRC,particle-iot/tachyon-overlay,param)
 JSON_OVERLAY_TOOL_PARAM := $(call _SRC,particle-iot/tachyon-overlay-tool,param)
 ENV_FROM_JSON           := $(_ENV_JSON)
+ENV_FROM_JSON_VARIANT   := $(call _ENV_JSON_KEY,env_$(INPUT_VARIANT))
+# Fold the variant-only pins in after the shared ones so they can add (or override)
+# entries for this build only. Keeps particle-tachyon-desktop-setup off headless.
+ifneq ($(strip $(ENV_FROM_JSON_VARIANT)),)
+  ENV_FROM_JSON := $(if $(strip $(ENV_FROM_JSON)),$(ENV_FROM_JSON)$(comma),)$(ENV_FROM_JSON_VARIANT)
+endif
 
 ifneq ($(strip $(JSON_BASE24_PARAM)),)
   INPUT_BASE_24_04_VERSION ?= $(JSON_BASE24_PARAM)

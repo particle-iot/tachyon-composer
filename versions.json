@@ -80,8 +80,6 @@
     "PKG_particle_linux": "0.25.0-1",
 
     //Version of the setup app being used
-    "PKG_particle_tachyon_desktop_setup": "2.7.0",
-
     //Radio code (RIL)
     "PKG_particle_tachyon_ril": "0.5.5-1",
 
@@ -96,5 +94,13 @@
 
     //version used in the debian file to pin the version down
     "PIN_PRIORITY": "900"
+  },
+
+  // Variant-only pins. Folded into the overlay env by the Makefile as
+  // env_<INPUT_VARIANT>, so these apply to that variant alone.
+  // particle-tachyon-desktop-setup lived in the shared env, which meant the pin
+  // machinery installed it on headless too.
+  "env_desktop": {
+    "PKG_particle_tachyon_desktop_setup": "2.7.0"
   }
 }
