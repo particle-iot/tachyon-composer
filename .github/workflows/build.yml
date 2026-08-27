@@ -79,6 +79,11 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
           REGION: ${{ matrix.region }}
           VARIANT: ${{ matrix.variant }}
+          # fetch_kigen_sdk pulls lpa-linux-arm64 from the private
+          # particle-iot-inc/kigen-sdk repo on the host (the overlay container has no
+          # credentials). The default GITHUB_TOKEN cannot read another org's repo, so
+          # KIGEN_SDK_TOKEN must be a PAT/app token with read access to its releases.
+          GH_TOKEN: ${{ secrets.KIGEN_SDK_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           OUTNAME="tachyon-ubuntu-24.04-${REGION}-${VARIANT}-${VERSION}.zip"

@@ -136,6 +136,11 @@ RES_DIR="$work/overlay-resources"; mkdir -p "$RES_DIR"
 # that zip to the overlay tool via -r; without it the firmware is silently missing from the rootfs.
 [ -f "$IN/QCM6490_fw.zip" ] || { echo "ERROR: missing $IN/QCM6490_fw.zip (needed by add-qcm6490-bp-fw overlay)" >&2; exit 1; }
 cp "$IN/QCM6490_fw.zip" "$RES_DIR/QCM6490_fw.zip"
+# The add-kigen-sdk overlay copies $RESOURCES/lpa-linux-arm64 to /usr/bin/lpa. The binary comes
+# from a private repo, so the host fetches it (fetch_kigen_sdk) and we hand it to the overlay
+# container here; the container itself has no credentials.
+[ -f "$IN/lpa-linux-arm64" ] || { echo "ERROR: missing $IN/lpa-linux-arm64 (needed by add-kigen-sdk overlay; run fetch_kigen_sdk)" >&2; exit 1; }
+cp "$IN/lpa-linux-arm64" "$RES_DIR/lpa-linux-arm64"
 ENV_OPT=(); [ -n "$OVERLAY_ENV" ] && ENV_OPT=(-e "$OVERLAY_ENV")
 ( cd "$OVERLAY_TOOL_DIR" && bash ./run-overlay.sh \
     -f "$ROOTFS" \

@@ -56,6 +56,15 @@
     "particle-iot/tachyon-overlay-tool": {
       "type": "git_release",
       "param": "main"
+    },
+
+    // The Kigen LPA (eSIM local profile assistant) shipped as a prebuilt binary.
+    // Private repo: fetched on the HOST by fetch_kigen_sdk and handed to the
+    // overlay container as a resource, because the container has no credentials.
+    "particle-iot-inc/kigen-sdk": {
+      "type": "git_release",
+      "param": "0.1.8",
+      "asset": "lpa-linux-arm64"
     }
   },
 
