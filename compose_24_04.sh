@@ -73,6 +73,70 @@ fsck_gate(){
   [ "$rc" -eq 0 ] || echo "WARN: e2fsck corrected metadata in $img (stage=$stage, rc=$rc) — investigate the build step that produced it"
 }
 
+# Verify the CONTENT invariants that e2fsck cannot see.
+#
+# e2fsck only proves the metadata is self-consistent. It passes -- cleanly, exit 0 -- on an
+# image whose most recent writes were silently dropped, because ext4 commits its journal every
+# few seconds and the replay makes what survived look perfect. That is exactly what shipped in
+# 1.2.8: the filesystem was pristine by e2fsck, yet it carried 9 files from the last dpkg
+# transaction still under their *.dpkg-new names (while dpkg's own status file, already
+# flushed, recorded the packages as installed), an unreplayed dpkg journal, and an
+# /etc/particle/distro_versions.json containing v4l-utils' deb control blob instead of its
+# JSON -- which then broke board detection and the syscon MCU upgrade on the device.
+#
+# These three checks are the fingerprint of that loss, and each one alone would have caught it.
+content_gate(){
+  local img="$1" stage="$2" mnt rc=0 stray journal dv
+  echo "INFO: content gate ($stage): $img"
+  mnt="$(mktemp -d)"
+  if ! sudo mount -o ro,loop "$img" "$mnt"; then
+    echo "ERROR: content gate cannot mount $img (stage=$stage)" >&2
+    rmdir "$mnt" 2>/dev/null || true
+    exit 1
+  fi
+
+  # 1) Unfinished dpkg file renames. dpkg unpacks to <path>.dpkg-new then renames into place;
+  #    survivors mean the rename never reached the image.
+  stray="$(sudo find "$mnt" -xdev \( -name '*.dpkg-new' -o -name '*.dpkg-tmp' \) -printf '%P\n' 2>/dev/null || true)"
+  if [ -n "$stray" ]; then
+    echo "ERROR: unfinished dpkg renames in $img (stage=$stage):" >&2
+    printf '%s\n' "$stray" | sed 's|^|    /|' >&2
+    rc=1
+  fi
+
+  # 2) dpkg's journal must be empty. Any entry means a transaction did not complete, and the
+  #    device inherits a dpkg that refuses to run until the journal is replayed.
+  journal="$(sudo find "$mnt/var/lib/dpkg/updates" -maxdepth 1 -type f -printf '%P\n' 2>/dev/null || true)"
+  if [ -n "$journal" ]; then
+    echo "ERROR: unreplayed dpkg journal in $img (stage=$stage): $(printf '%s ' $journal)" >&2
+    rc=1
+  fi
+
+  # 3) The version file must be the JSON add-particle-version generated, with the keys the
+  #    device actually reads (syscon reads .distro.board to decide MCU upgrades).
+  dv="$mnt/etc/particle/distro_versions.json"
+  if ! sudo test -f "$dv"; then
+    echo "ERROR: $img is missing /etc/particle/distro_versions.json (stage=$stage)" >&2
+    rc=1
+  elif ! sudo cat "$dv" | python3 -c 'import json,sys; d=json.load(sys.stdin); [d["distro"][k] for k in ("board","variant","version","stack")]' >/dev/null 2>&1; then
+    echo "ERROR: /etc/particle/distro_versions.json is not the expected JSON (stage=$stage). First 300 bytes:" >&2
+    sudo head -c 300 "$dv" 2>/dev/null | sed 's|^|    |' >&2 || true
+    rc=1
+  fi
+
+  sudo umount "$mnt" 2>/dev/null || true
+  rmdir "$mnt" 2>/dev/null || true
+
+  if [ "$rc" -ne 0 ]; then
+    echo "ERROR: content gate failed for $img (stage=$stage) — refusing to ship." >&2
+    echo "       This is the signature of overlay writes lost before the image was persisted;" >&2
+    echo "       check the overlay tool's unmount step (a swallowed umount failure means the" >&2
+    echo "       image was copied back while still mounted)." >&2
+    exit 1
+  fi
+  echo "OK: content gate passed ($stage): $img"
+}
+
 mkdir -p "$OUT"
 work="$(mktemp -d)"
 
@@ -153,6 +217,8 @@ ENV_OPT=(); [ -n "$OVERLAY_ENV" ] && ENV_OPT=(-e "$OVERLAY_ENV")
 # Final gate: the overlay tool dd-roundtrips and re-mounts the fs; verify the SHIPPED image is
 # metadata-consistent (superblock counts == group descriptors) before it gets assembled/flashed.
 fsck_gate "$ROOTFS" post-overlay
+# e2fsck above proves the metadata; this proves the overlay's writes actually landed.
+content_gate "$ROOTFS" post-overlay
 echo "OK: overlay applied to $ROOTFS"
 
 # ---- 4) dtb.img + nonhlos-<variant>.img -------------------------------------
