@@ -300,8 +300,18 @@ $(BOOTBINARIES_ZIP): | docker/build
 # credentials. That is the whole reason the overlay reads it from $RESOURCES --
 # the composer authenticates outside and hands the file in.
 # -------------------------------------------------------------------
-.PHONY: fetch_kigen_sdk
-fetch_kigen_sdk: $(KIGEN_SDK_FILE)
+# The pin check lives in its own phony target rather than in the file recipe: with an
+# absent kigen entry KIGEN_SDK_ASSET is empty, KIGEN_SDK_FILE collapses to the input
+# directory, and make would consider the file target already satisfied -- so a recipe
+# guard would never run.
+.PHONY: fetch_kigen_sdk check_kigen_pin
+check_kigen_pin:
+	$(call check_required_param,KIGEN_SDK_TAG)
+	$(call check_required_param,KIGEN_SDK_ASSET)
+
+fetch_kigen_sdk: check_kigen_pin
+	@$(MAKE) --no-print-directory "$(KIGEN_SDK_FILE)"
+
 $(KIGEN_SDK_FILE):
 	@mkdir -p "$(TMP_INPUT_DIR)"
 	@command -v gh >/dev/null 2>&1 || { \
@@ -309,11 +319,17 @@ $(KIGEN_SDK_FILE):
 		echo "       particle-iot-inc/kigen-sdk repo. Install gh, or place the file at"; \
 		echo "       $(KIGEN_SDK_FILE) by hand."; exit 1; }
 	@echo "==> Downloading kigen-sdk $(KIGEN_SDK_TAG): $(KIGEN_SDK_ASSET)"
-	@GH_TOKEN="$${GH_TOKEN:-$${KIGEN_SDK_TOKEN:-$${GITHUB_TOKEN:-}}}" \
-		gh release download "$(KIGEN_SDK_TAG)" -R particle-iot-inc/kigen-sdk \
-			-p "$(KIGEN_SDK_ASSET)" -D "$(TMP_INPUT_DIR)" --clobber \
-		|| { echo "ERROR: gh release download failed. The token needs read access to"; \
-		     echo "       particle-iot-inc/kigen-sdk releases (GH_TOKEN / KIGEN_SDK_TOKEN)."; exit 1; }
+	@set -eu; \
+	 TOK="$${GH_TOKEN:-$${KIGEN_SDK_TOKEN:-}}"; \
+	 if [ -n "$$TOK" ]; then \
+		export GH_TOKEN="$$TOK"; \
+	 else \
+		echo "    (no GH_TOKEN/KIGEN_SDK_TOKEN set; relying on the existing gh auth login)"; \
+	 fi; \
+	 gh release download "$(KIGEN_SDK_TAG)" -R particle-iot-inc/kigen-sdk \
+		-p "$(KIGEN_SDK_ASSET)" -D "$(TMP_INPUT_DIR)" --clobber \
+	 || { echo "ERROR: gh release download failed. Provide KIGEN_SDK_TOKEN with read access to"; \
+	      echo "       particle-iot-inc/kigen-sdk releases, or run 'gh auth login'."; exit 1; }
 	@test -s "$@" || { echo "ERROR: $@ is empty after download" >&2; exit 1; }
 	@echo "OK: $@ ($$(stat -c %s "$@" 2>/dev/null || stat -f %z "$@") bytes)"
 
