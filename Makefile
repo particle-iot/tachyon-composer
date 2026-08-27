@@ -163,6 +163,10 @@ KERNEL_TAG         := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,param
 KERNEL_ABI         := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,abi)
 KERNEL_DEB_VERSION := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,deb_version)
 KERNEL_BASE_URL    := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,base_url)
+
+KIGEN_SDK_TAG      := $(call _SRC,particle-iot-inc/kigen-sdk,param)
+KIGEN_SDK_ASSET    := $(call _SRC,particle-iot-inc/kigen-sdk,asset)
+KIGEN_SDK_FILE     := $(TMP_INPUT_DIR)/$(KIGEN_SDK_ASSET)
 KERNEL_MODULES_DEB := linux-modules-6.8.0-$(KERNEL_ABI)-particle_$(KERNEL_DEB_VERSION)_arm64.deb
 KERNEL_MODULES_URL := $(KERNEL_BASE_URL)/$(KERNEL_TAG)/$(subst +,%2B,$(KERNEL_MODULES_DEB))
 KERNEL_DEB_FILE    := $(TMP_INPUT_DIR)/kernel/$(KERNEL_MODULES_DEB)
@@ -224,6 +228,7 @@ help:
 	@echo "  fetch_24_04 / _unxz         Download / decompress the 24.04 base .img.xz"
 	@echo "  fetch_bp_fw                 Download bp-fw and split bootbinaries + fw zips"
 	@echo "  fetch_kernel_deb            Download the kernel modules deb (for qcm6490-tachyon.dtb)"
+	@echo "  fetch_kigen_sdk             Download the Kigen LPA binary (host-side; private repo)"
 	@echo "  fetch_overlay_tool          Clone tachyon-overlay-tool inside Docker"
 	@echo "  fetch_tachyon_overlays      Clone tachyon-overlays inside Docker"
 	@echo "  vendor_sectools             Refresh the committed sectoolsv2 signer in scripts/signing/sectools/ (~38MB)"
@@ -296,6 +301,47 @@ $(BOOTBINARIES_ZIP): | docker/build
 			echo "         bp-fw release that ships nonhlos-em.img / nonhlos-na.img."; \
 			echo "OK: bp-fw split (no nonhlos images)"; \
 		fi'
+
+# -------------------------------------------------------------------
+# Fetch: Kigen LPA binary -> $(TMP_INPUT_DIR)/lpa-linux-arm64
+#
+# Runs on the HOST, not under $(DOCKER_RUN), on purpose: the asset lives in the
+# private particle-iot-inc/kigen-sdk repo and the overlay container carries no
+# credentials. That is the whole reason the overlay reads it from $RESOURCES --
+# the composer authenticates outside and hands the file in.
+# -------------------------------------------------------------------
+# The pin check lives in its own phony target rather than in the file recipe: with an
+# absent kigen entry KIGEN_SDK_ASSET is empty, KIGEN_SDK_FILE collapses to the input
+# directory, and make would consider the file target already satisfied -- so a recipe
+# guard would never run.
+.PHONY: fetch_kigen_sdk check_kigen_pin
+check_kigen_pin:
+	$(call check_required_param,KIGEN_SDK_TAG)
+	$(call check_required_param,KIGEN_SDK_ASSET)
+
+fetch_kigen_sdk: check_kigen_pin
+	@$(MAKE) --no-print-directory "$(KIGEN_SDK_FILE)"
+
+$(KIGEN_SDK_FILE):
+	@mkdir -p "$(TMP_INPUT_DIR)"
+	@command -v gh >/dev/null 2>&1 || { \
+		echo "ERROR: the gh CLI is required to fetch $(KIGEN_SDK_ASSET) from the private"; \
+		echo "       particle-iot-inc/kigen-sdk repo. Install gh, or place the file at"; \
+		echo "       $(KIGEN_SDK_FILE) by hand."; exit 1; }
+	@echo "==> Downloading kigen-sdk $(KIGEN_SDK_TAG): $(KIGEN_SDK_ASSET)"
+	@set -eu; \
+	 TOK="$${GH_TOKEN:-$${KIGEN_SDK_TOKEN:-}}"; \
+	 if [ -n "$$TOK" ]; then \
+		export GH_TOKEN="$$TOK"; \
+	 else \
+		echo "    (no GH_TOKEN/KIGEN_SDK_TOKEN set; relying on the existing gh auth login)"; \
+	 fi; \
+	 gh release download "$(KIGEN_SDK_TAG)" -R particle-iot-inc/kigen-sdk \
+		-p "$(KIGEN_SDK_ASSET)" -D "$(TMP_INPUT_DIR)" --clobber \
+	 || { echo "ERROR: gh release download failed. Provide KIGEN_SDK_TOKEN with read access to"; \
+	      echo "       particle-iot-inc/kigen-sdk releases, or run 'gh auth login'."; exit 1; }
+	@test -s "$@" || { echo "ERROR: $@ is empty after download" >&2; exit 1; }
+	@echo "OK: $@ ($$(stat -c %s "$@" 2>/dev/null || stat -f %z "$@") bytes)"
 
 # -------------------------------------------------------------------
 # Fetch: kernel modules deb (for qcm6490-tachyon.dtb)
@@ -377,7 +423,7 @@ fetch_tachyon_overlays: | docker/build
 # Main build
 # -------------------------------------------------------------------
 .PHONY: build_24.04
-build_24.04: version print-config check_qemu vendor_sectools fetch_24_04_unxz fetch_bp_fw fetch_kernel_deb fetch_overlay_tool fetch_tachyon_overlays docker/build
+build_24.04: version print-config check_qemu vendor_sectools fetch_24_04_unxz fetch_bp_fw fetch_kernel_deb fetch_kigen_sdk fetch_overlay_tool fetch_tachyon_overlays docker/build
 	@echo "Building Tachyon 24.04 (new-BP) System Image..."
 	$(call check_required_param,INPUT_REGION)
 	$(call check_required_param,INPUT_VARIANT)
