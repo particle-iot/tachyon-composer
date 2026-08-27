@@ -91,3 +91,96 @@ Docker Desktop automatically handles architecture emulation. This error typicall
 
 #### Linux (x86_64)
 Most likely to encounter this issue. Follow Solution Option 1 above.
+
+## Shipped image is `e2fsck`-clean but missing its most recent overlay writes
+
+### Symptoms
+
+On the device, `/etc/particle/distro_versions.json` is not JSON — it holds the
+control data of whichever `.deb` was being unpacked around the same time:
+
+```
+$ jq -r '.distro.board' /etc/particle/distro_versions.json
+jq: parse error: Invalid numeric literal at line 1, column 8
+$ head -2 /etc/particle/distro_versions.json
+Package: v4l-utils
+Version: 1.26.1-4build3
+```
+
+Everything that reads it then fails. `particle-tachyon-syscon.sh` resolves the
+board from that file, so the MCU upgrade service dies with:
+
+```
+Unknown board:
+$ systemctl show -p Result --value particle-tachyon-syscon.service
+exit-code
+```
+
+dpkg is broken in the same image, because its transaction never completed:
+
+```
+$ dpkg --audit
+dpkg: error: parsing file '/var/lib/dpkg/updates/0001' near line 5:
+ missing 'Package' field
+$ apt-get install -y anything
+E: dpkg was interrupted, you must manually run 'dpkg --configure -a' to correct the problem.
+```
+
+Alongside that: leftover `*.dpkg-new` files whose packages `dpkg/status` claims
+are `install ok installed`, and a non-empty `/var/lib/dpkg/updates/`.
+
+The image passes `e2fsck -fn` with exit 0 and reports "clean", which is what
+makes this so easy to misdiagnose as filesystem corruption. It is not.
+
+### Root Cause
+
+The overlay tool persisted the rootfs **while it was still mounted**. Its teardown
+both silenced and ignored every `umount` failure:
+
+```sh
+sudo umount "$MOUNT_POINT/sys" 2>/dev/null || true    # failure invisible AND ignored
+...
+sudo dd if="${PART_ROOT}" of="$raw_ext4" ...          # copies a live filesystem
+```
+
+When a `umount` failed, the `dd` (or re-sparsify) ran against a mounted,
+dirty filesystem. ext4 commits its journal roughly every 5 seconds, so the copy
+contains a **journal-consistent but stale** filesystem: it replays cleanly under
+`e2fsck` while the newest page-cache writes — the tail end of the overlay, which
+is exactly where `add-particle-version` and the last package unpacks live — are
+simply absent.
+
+That single bug accounts for all three symptoms above. There is no separate dpkg
+bug and no filesystem corruption.
+
+### Solution
+
+Fixed upstream in `tachyon-overlay-tool`:
+
+- Never persist a filesystem that is still mounted — a failed teardown now aborts
+  the build loudly instead of shipping a plausible-looking image.
+- Tear the chroot down before unmounting: kill processes whose root or cwd is
+  inside the mount, enumerate submounts deepest-first, and report what is holding
+  a mount when it will not release.
+
+And in this repo, `compose_24_04.sh` gained a `content_gate()` that runs after the
+image is persisted, so a regression cannot ship silently even if teardown breaks
+again. It rejects the image on any of: leftover `*.dpkg-new`/`*.dpkg-tmp`, a
+non-empty `/var/lib/dpkg/updates/`, or a `distro_versions.json` that is not JSON
+with the expected keys.
+
+### Verification
+
+An `e2fsck` pass is not sufficient — check content:
+
+```bash
+sudo mount -o ro,loop rootfs.ext4 /mnt/img
+find /mnt/img -xdev \( -name '*.dpkg-new' -o -name '*.dpkg-tmp' \)   # expect nothing
+ls -1 /mnt/img/var/lib/dpkg/updates/                                  # expect empty
+jq -e '.distro.board' /mnt/img/etc/particle/distro_versions.json      # expect a board
+sudo umount /mnt/img
+```
+
+Note the failure was variant-dependent in practice: headless builds tripped it
+while desktop builds did not, so a green desktop image is not evidence that a
+headless image from the same run is good. Check the variant you actually ship.
