@@ -86,7 +86,7 @@
     // Multiple URLs separated by @@@ for related packages (image + modules).
 
     //This is the particle debian package
-    "PKG_particle_linux": "0.25.0-1",
+    "PKG_particle_linux": "0.25.1-1",
 
     //Radio code (RIL)
     "PKG_particle_tachyon_ril": "0.5.5-1",
