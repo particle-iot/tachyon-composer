@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# particle-dockerfile-version=1.4
+# particle-dockerfile-version=1.5
 # this is the Dockerfile version.
 # Update this ARG to change the base image and recompile it!
 
@@ -15,6 +15,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 #  - dosfstools (mkfs.vfat), e2fsprogs (mkfs.ext4), util-linux (losetup/sfdisk/partx, in base)
 #  - dpkg (dpkg-deb, in base): extract qcm6490-tachyon.dtb from the kernel deb
 #  - libxml2-utils (xmllint), jq, xz-utils, rsync, zip/unzip
+#  - nodejs/npm: run the particle-image CLI (@particle/tachyon-image) that emits
+#    and validates the particle_image_v1 OTA format from the assembled factory tree
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
@@ -26,6 +28,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     qemu-user-static \
     qemu-utils \
+    nodejs \
+    npm \
     e2fsprogs \
     dosfstools \
     mtools \

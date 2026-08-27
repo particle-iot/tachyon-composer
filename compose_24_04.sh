@@ -48,6 +48,13 @@ OVERLAY_ENV="${6:-}"
 DEBUG="${7:-false}"
 SIGNING_PROFILE="${8:-test}"
 SIGNING_KEY="${9:-}"
+# particle_image_v1 OTA format emission (section 6c): which format to emit and,
+# for ota-image/ota-boot, which slot. factory (default) emits the full image.
+EMIT_FORMAT="${10:-factory}"
+EMIT_SLOT="${11:-a}"
+# npm version of @particle/tachyon-image used as a fallback source for the
+# particle-image CLI when no PATH binary and no vendored tgz are present (e.g. CI).
+PARTICLE_IMAGE_VERSION="${12:-0.1.0}"
 [ "$DEBUG" = "true" ] && set -x
 
 section(){ echo; echo "==================== $* ===================="; }
@@ -193,11 +200,16 @@ echo "OK: signed bootbinaries -> $SIGNED_BOOTBIN_ZIP"
 
 # ---- 6) assemble (ptool + partition_ext) ------------------------------------
 section "6) assemble factory image (ptool)"
+# A/B: the one rootfs.ext4 / efi.img is written to BOTH slots at factory (same source file,
+# stored once in the zip, referenced twice), matching the 20.04 dual-slot flash. OTA rewrites
+# only the inactive slot later.
 "$PROJ/scripts/assemble/make_factory_img.sh" \
   --bootbinaries "$SIGNED_BOOTBIN_ZIP" \
-  --system       "$ROOTFS" \
+  --system_a     "$ROOTFS" \
+  --system_b     "$ROOTFS" \
   --dtb_a        "$OUT/dtb.img" \
-  --efi          "$OUT/efi.img" \
+  --efi_a        "$OUT/efi.img" \
+  --efi_b        "$OUT/efi.img" \
   --core_nhlos_a "$OUT/nonhlos.img" \
   --output       "$OUT/factory"
 
@@ -255,6 +267,16 @@ if not os.path.exists(os.path.join(factory, firehose)):
 if not program_xml:
     sys.exit("ERROR: no rawprogramN.xml in factory")
 
+# UFS provisioning XML (sets the LUN geometry). The A/B layout changed the LUN
+# count/sizes, so a `factory` flash must re-provision before programming; carry it
+# in the manifest so the OTA image format (particle_image_v1) ships it.
+provision_xml = sorted([f for f in os.listdir(factory) if re.fullmatch(r'provision.*\.xml', f)])
+
+edl = {'base': '.', 'firehose': firehose,
+       'program_xml': program_xml, 'patch_xml': patch_xml}
+if provision_xml:
+    edl['provision_xml'] = provision_xml
+
 manifest = {
     '$schema': 'https://linux-dist.particle.io/schema/image_manifest_v1.json',
     'release_name': output_zip[:-4] if output_zip.endswith('.zip') else output_zip,
@@ -262,17 +284,87 @@ manifest = {
     'platform': 'qcm6490', 'board': board, 'os': 'linux',
     'distribution': 'ubuntu', 'distribution_version': '24.04', 'distribution_variant': 'ubuntu',
     'sources': sources,
-    'targets': [{'qcm6490': {'edl': {
-        'base': '.', 'firehose': firehose,
-        'program_xml': program_xml, 'patch_xml': patch_xml}}}],
+    'targets': [{'qcm6490': {'edl': edl}}],
 }
 with open(os.path.join(factory, 'manifest.json'), 'w') as f:
     json.dump(manifest, f, indent=2)
-print("OK manifest.json: firehose=%s program_xml=%s patch_xml=%s" % (firehose, program_xml, patch_xml))
+print("OK manifest.json: firehose=%s program_xml=%s patch_xml=%s provision_xml=%s" % (firehose, program_xml, patch_xml, provision_xml))
 PY
 # Guard: never package/ship a system image without its manifest.json. `particle flash --tachyon`
 # reads it to locate the firehose + program/patch XMLs, so a manifest-less zip is a broken release.
 [ -s "$OUT/factory/manifest.json" ] || { echo "ERROR: manifest.json was not generated in $OUT/factory" >&2; exit 1; }
+
+# ---- 6c) particle_image_v1 (Particle OTA format) ----------------------------
+# Emit the Particle-owned image format from the assembled factory tree using the
+# shared @particle/tachyon-image CLI, then validate it. The CLI is resolved from
+# (1) $PARTICLE_IMAGE, (2) a `particle-image` on PATH, (3) a vendored tgz the
+# Makefile drops at .tmp/vendor/, or (4) the published npm package. If none is
+# available the build still produces the legacy factory zip — this step is
+# additive, never fatal to the legacy flow.
+section "6c) particle_image_v1 ($EMIT_FORMAT)"
+PI="${PARTICLE_IMAGE:-particle-image}"
+if ! command -v "$PI" >/dev/null 2>&1; then
+  VENDOR_TGZ="$(ls "$PROJ"/.tmp/vendor/particle-tachyon-image-*.tgz 2>/dev/null | head -1 || true)"
+  if [ -n "$VENDOR_TGZ" ] && command -v npm >/dev/null 2>&1; then
+    echo "installing particle-image from $VENDOR_TGZ"
+    sudo npm install -g "$VENDOR_TGZ" >/dev/null 2>&1 || npm install -g "$VENDOR_TGZ" >/dev/null 2>&1 || true
+    PI="particle-image"
+  elif command -v npm >/dev/null 2>&1; then
+    # Install the published, prebuilt package from npm. No git clone, no in-container
+    # build step (the npm tarball already ships dist/), which is what the debianised
+    # container npm could not do for a git dependency. Output is shown, not
+    # suppressed, so failures are visible. Best-effort — never fatal to the legacy flow.
+    PI_SPEC="@particle/tachyon-image@${PARTICLE_IMAGE_VERSION}"
+    echo "installing particle-image from npm: $PI_SPEC"
+    sudo npm install -g "$PI_SPEC" 2>&1 | tail -25 || npm install -g "$PI_SPEC" 2>&1 | tail -25 || true
+    PI="particle-image"
+  fi
+fi
+if command -v "$PI" >/dev/null 2>&1; then
+  PIMG="$OUT/${OUTPUT_ZIP%.zip}.pimg.zip"
+  KEY_ARGS=()
+  OTA_READY=1
+  # Select the OTA signing key by profile. The committed ed25519 key is a
+  # throwaway *test* key and must only ever be used for the `test` profile — a
+  # real/prod profile that silently fell back to it would ship a prod image
+  # signed by an untrusted key. Real profiles must supply their own key via env.
+  case "$SIGNING_PROFILE" in
+    none)
+      : # emit unsigned
+      ;;
+    test)
+      if [ -f "$PROJ/keys/particle-ota-test-ed25519.key" ]; then
+        KEY_ARGS=(--key "$PROJ/keys/particle-ota-test-ed25519.key" --key-id particle-ota-test)
+      fi
+      ;;
+    *)
+      if [ -n "${PARTICLE_OTA_KEY:-}" ]; then
+        KEY_ARGS=(--key "$PARTICLE_OTA_KEY" --key-id "${PARTICLE_OTA_KEY_ID:-particle-ota}")
+      else
+        echo "ERROR: SIGNING_PROFILE=$SIGNING_PROFILE requires a real OTA signing key (set PARTICLE_OTA_KEY[/PARTICLE_OTA_KEY_ID]); refusing to sign with the committed test key — skipping particle_image_v1 emission" >&2
+        OTA_READY=0
+      fi
+      ;;
+  esac
+  SLOT_ARGS=()
+  [ "$EMIT_FORMAT" != "factory" ] && SLOT_ARGS=(--slot "$EMIT_SLOT")
+  if [ "$OTA_READY" = 1 ]; then
+    # Best-effort and purely additive to the legacy factory zip. This script runs
+    # under `set -euo pipefail`, so a non-zero exit from generate/validate would
+    # otherwise abort the whole compose and fail the legacy build — guard it and
+    # only warn on failure.
+    if "$PI" generate --factory-dir "$OUT/factory" --out "$PIMG" \
+         --emit "$EMIT_FORMAT" "${SLOT_ARGS[@]}" \
+         --sign-profile "$SIGNING_PROFILE" "${KEY_ARGS[@]}" \
+       && "$PI" validate "$PIMG" --public-key "${PARTICLE_OTA_PUBKEY:-$PROJ/keys/particle-ota-pub.pem}"; then
+      echo "OK particle_image_v1: $PIMG"
+    else
+      echo "WARN: particle_image_v1 emission/validation failed; legacy factory zip is unaffected" >&2
+    fi
+  fi
+else
+  echo "NOTE: particle-image CLI not found (no PATH binary, no .tmp/vendor tgz); skipping particle_image_v1 emission"
+fi
 
 # ---- 7) package -------------------------------------------------------------
 section "7) package -> $OUTPUT_ZIP"
