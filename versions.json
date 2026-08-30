@@ -97,8 +97,14 @@
     //This is the particle debian package
     "PKG_particle_linux": "0.25.1-1",
 
-    //Radio code (RIL)
-    "PKG_particle_tachyon_ril": "0.6.0-1",
+    //Radio code (RIL). 0.6.1 fixes the `status` regression that arrived with 0.6.0's
+    //ModemManager backend: GetStatus returned an empty a{sv} when a registered modem had an
+    //incomplete cell identity, so particle-tachyon-ril-ctl printed nothing and still exited 0.
+    //It also puts +CEREG=2 and +CMEE=2 back on the AT channel -- the vendor stack used to set
+    //them, and rild's "SIM failure" match and the SMS error-cause parse both already depended
+    //on them -- and re-applies them when ModemManager re-exports the modem after a reset.
+    //Published to the `latest` feed, not `stable`, exactly as 0.6.0-1 is.
+    "PKG_particle_tachyon_ril": "0.6.1-1",
 
     //The syscon package
     "PKG_particle_tachyon_syscon": "1.0.52-1",
