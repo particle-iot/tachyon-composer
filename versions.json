@@ -43,9 +43,9 @@
       "base_url": "https://linux-dist.particle.io/kernel/release"
     },
 
-    // Overlay stack applied to the rootfs (packages, configs, Particle services). On main: the
-    // new-BP overlays (add-qcm6490-bp-fw, fstab fix, link-ath11k/qca-bt/gpu/audio/modem, the 24.04
-    // stacks) gated behind `when: { env: ENV_UBUNTU_24_04_VERSION, min: "1.2" }` (PR #26 merged).
+    // Overlay stack applied to the rootfs (packages, configs, Particle services). The former
+    // 1.1 layout and its `when: { env: ENV_UBUNTU_24_04_VERSION, min: "1.2" }` gates were
+    // retired; the firmware/audio/modem overlays now apply unconditionally.
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
       "param": "main"
@@ -93,12 +93,6 @@
 
     //The syscon package
     "PKG_particle_tachyon_syscon": "1.0.52-1",
-
-    //Ubuntu 24.04 distribution version. ENV_ (not PKG_) on purpose: check-pinned-packages treats
-    //every PKG_* as an apt package to install, but this is a plain config value. The overlay tool
-    //forwards ENV_* into the chroot, and the new-BP stack gates its firmware/audio/modem overlays
-    //on this via `when: { env: ENV_UBUNTU_24_04_VERSION, min: "1.2" }`.
-    "ENV_UBUNTU_24_04_VERSION": "1.2",
 
     //version used in the debian file to pin the version down
     "PIN_PRIORITY": "900"
