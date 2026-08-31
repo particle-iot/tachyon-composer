@@ -57,20 +57,29 @@ Sometimes you need to, and it is a reasonable thing to want. Two rules:
 2. **Never pass `provision_ufs22.xml`.** It is not a flashing step and your board does not
    need it. See below.
 
+3. **Keep the manifest's ordering: the firehose, then every rawprogram, then every patch.**
+   `QdlFlasher` passes its file list to qdl verbatim — there is no reordering — so the order
+   you type is the order qdl executes. Grouping them the way `manifest.json` does is the only
+   ordering the working path exercises. Interleaving `rawprogram0 patch0 rawprogram1 patch1 …`
+   is a different order, and is not known to work.
+
 ```bash
 particle flash --tachyon prog_firehose_ddr.elf \
-  rawprogram0.xml patch0.xml \
-  rawprogram1.xml patch1.xml \
-  rawprogram2.xml patch2.xml \
-  rawprogram3.xml patch3.xml \
-  rawprogram4.xml patch4.xml \
-  rawprogram5.xml patch5.xml \
-  rawprogram6.xml patch6.xml
+  rawprogram0.xml rawprogram1.xml rawprogram2.xml rawprogram3.xml \
+  rawprogram4.xml rawprogram5.xml rawprogram6.xml \
+  patch0.xml patch1.xml patch2.xml patch3.xml \
+  patch4.xml patch5.xml patch6.xml
 particle tachyon restore
 ```
 
-Prefer `particle flash --tachyon` with no arguments from that same directory. It does the
-above from the manifest and cannot fall behind a layout change.
+> **This exact command has not been run on hardware.** It is derived from `manifest.json` —
+> the same firehose, the same fourteen files, in the same order — so it should be equivalent
+> to the bare form below, but "should be" is what produced the original problem. Until
+> somebody flashes a board with it, treat the bare form as the tested one.
+
+**Prefer `particle flash --tachyon` with no arguments from that same directory.** It builds
+exactly the list above from the manifest, cannot fall behind a layout change, and is the form
+every in-house flash actually uses.
 
 ## Do not re-provision
 
