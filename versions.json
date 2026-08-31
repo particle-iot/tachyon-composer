@@ -51,10 +51,18 @@
     // and lets overlay behaviour change under a composer release. Abbreviated shas do
     // NOT work here -- the server rejects them ("couldn't find remote ref"). Bump this
     // deliberately when you want new overlays.
-    // dc2f331b = "set-initial-time: compare against the setup time, not a hardcoded 2024" (#39).
+    // 276e9868 = "24.04: ship NetworkManager's connectivity conf so first boot doesn't restart NM"
+    // (#40). Adds add-nm-connectivity-check to the 24.04 stack only. It writes the exact bytes
+    // particled would otherwise write to /etc/NetworkManager/conf.d/20-connectivity.conf, so on a
+    // fresh image particled finds the file already correct and never restarts NetworkManager --
+    // the restart that landed mid-Wi-Fi-association and cost ~7m30s before the first boot reached
+    // connected. The file header is load-bearing and the overlay test compares byte-for-byte: if
+    // particle-linux ever changes DESIRED_CONNECTIVITY_CONF, this overlay has to change with it.
+    // Pairs with PKG_particle_linux 0.25.2-1 below; either alone helps, both together is the fix.
+    // dc2f331b (#39) = "set-initial-time: compare against the setup time, not a hardcoded 2024".
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "dc2f331bdefc61835c8f63d8536ee48befb71c31"
+      "param": "276e98683712130fcda31f3d91b03e5ca4b8ec86"
     },
 
     // The overlay TOOL (engine that applies the stack). Provides the `when` env-gate and ENV_*
@@ -94,8 +102,18 @@
     // Optional: URL to manually install kernel .deb (for unpublished PR builds).
     // Multiple URLs separated by @@@ for related packages (image + modules).
 
-    //This is the particle debian package
-    "PKG_particle_linux": "0.25.1-1",
+    //This is the particle debian package. 0.25.2 fixes the other half of the first-boot stall
+    //that the 1.2.18 run on head1 surfaced. particled compared 20-connectivity.conf against its
+    //desired contents, found it absent, wrote it and RESTARTED NetworkManager -- which tore down
+    //the Wi-Fi association in progress and left the device offline for ~7m30s. 0.25.2 reloads
+    //NetworkManager instead (systemctl reload, falling back to a restart only if reload fails);
+    //a reload re-reads conf.d without touching live connections. It also bounds the
+    //CheckConnectivity D-Bus call at 30s: the call has no timeout of its own, and one that never
+    //returned would stop the forced-connectivity timer rescheduling and silently defeat the
+    //workaround it exists to drive. The overlay above stops the rewrite happening at all on a
+    //fresh image; this covers upgrades and any image built without that overlay.
+    //Published to `latest`, as every particle-linux release since 0.22.1-1 is.
+    "PKG_particle_linux": "0.25.2-1",
 
     //Radio code (RIL). 0.6.2 fixes three things a 1.2.17 setup run on head2 surfaced.
     //Slot reporting: QMI marks both physical slots active on this modem, ModemManager
