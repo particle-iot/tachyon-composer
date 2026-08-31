@@ -108,6 +108,7 @@ require_cmd unzip
 require_cmd python3
 require_file "${BOOTBINARIES_ZIP}"
 require_file "${SCRIPT_DIR}/ptool.py"
+require_file "${SCRIPT_DIR}/validate_provisioning.py"
 require_file "${PARTITION_EXT_XML}"
 require_file "${PROVISION_XML}"
 require_file "${SCRIPT_DIR}/cdt.bin"
