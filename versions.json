@@ -51,10 +51,10 @@
     // and lets overlay behaviour change under a composer release. Abbreviated shas do
     // NOT work here -- the server rejects them ("couldn't find remote ref"). Bump this
     // deliberately when you want new overlays.
-    // 4bbd8a89 = "Retire the 1.1 layout and the ENV_UBUNTU_24_04_VERSION gate" (#38).
+    // dc2f331b = "set-initial-time: compare against the setup time, not a hardcoded 2024" (#39).
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "4bbd8a8947f30862f66c4d4faf4eac9a2c67da31"
+      "param": "dc2f331bdefc61835c8f63d8536ee48befb71c31"
     },
 
     // The overlay TOOL (engine that applies the stack). Provides the `when` env-gate and ENV_*
@@ -97,14 +97,22 @@
     //This is the particle debian package
     "PKG_particle_linux": "0.25.1-1",
 
-    //Radio code (RIL). 0.6.1 fixes the `status` regression that arrived with 0.6.0's
-    //ModemManager backend: GetStatus returned an empty a{sv} when a registered modem had an
-    //incomplete cell identity, so particle-tachyon-ril-ctl printed nothing and still exited 0.
-    //It also puts +CEREG=2 and +CMEE=2 back on the AT channel -- the vendor stack used to set
-    //them, and rild's "SIM failure" match and the SMS error-cause parse both already depended
-    //on them -- and re-applies them when ModemManager re-exports the modem after a reset.
-    //Published to the `latest` feed, not `stable`, exactly as 0.6.0-1 is.
-    "PKG_particle_tachyon_ril": "0.6.1-1",
+    //Radio code (RIL). 0.6.2 fixes three things a 1.2.17 setup run on head2 surfaced.
+    //Slot reporting: QMI marks both physical slots active on this modem, ModemManager
+    //resolves that by naming the last one, so every boot compared slot 2 against a
+    //configured slot 1, asked for a switch the modem refused with a QMI "Internal" error,
+    //and power-cycled the modem on a device already on the right SIM. 0.6.2 reports the
+    //slot the modem is actually using, and waits and retries where a switch is genuinely
+    //needed. Modem-info reads: nothing refreshes them on a timer, so the startup pass --
+    //the one with no earlier value to fall back on -- ran before ModemManager had exported
+    //a modem and left baseband-version and eid reading `unavailable` for the whole boot.
+    //0.6.2 keeps the last known value and re-runs the refresh with widening backoff, so
+    //`unavailable` means "asked, has none" rather than "could not ask". It also stops
+    //reporting a refused ModemManager call as "ModemManager is not answering" -- an error
+    //reply is the service answering -- and defaults TMPDIR in the on-image suites, which
+    //`sudo` strips and `set -u` then aborts on.
+    //Published to the `latest` feed, not `stable`, exactly as 0.6.0-1 and 0.6.1-1 are.
+    "PKG_particle_tachyon_ril": "0.6.2-1",
 
     //The syscon package
     "PKG_particle_tachyon_syscon": "1.0.52-1",
