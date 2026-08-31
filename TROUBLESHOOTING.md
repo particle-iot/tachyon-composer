@@ -184,3 +184,50 @@ sudo umount /mnt/img
 Note the failure was variant-dependent in practice: headless builds tripped it
 while desktop builds did not, so a green desktop image is not evidence that a
 headless image from the same run is good. Check the variant you actually ship.
+
+## Board hangs in XBL at `LP4 DDR detected` after a manual flash
+
+```
+B -   1054995 - sbl1_ddr_init, Start
+B -   1058380 - LP4 DDR detected
+```
+
+XBL came up off LUN 1, finished DDR init, and found nothing to hand off to. It is not a DDR
+fault and not a bad image.
+
+The firmware set — `uefi`, `tz`, `hyp`, `aop`, `devcfg`, `dtb`, `core_nhlos`, the whole boot
+chain after XBL — moved from LUN 4 to **LUN 6** in #68 and first shipped in **1.2.6**. A
+hand-written qdl invocation that programs `rawprogram0` through `rawprogram5` leaves LUN 6
+empty. There are seven.
+
+Fix: reflash with the manifest-driven form, which cannot miss a LUN.
+
+```bash
+particle flash --tachyon <zip-or-directory>
+```
+
+See [`FLASHING.md`](FLASHING.md).
+
+## `failed to setup programming` immediately after the GPTs
+
+```
+flashed "BackupGPT" successfully
+[ERROR] failed to setup programming
+[ERROR] firehose_run failed
+```
+
+Firehose cannot open a LUN the image wants to program, because that LUN no longer exists on
+the device. Almost always this means `provision_ufs22.xml` was applied — the copy shipped in
+1.2.0 through 1.2.19 carried `bLUEnable="0"` on LUN 6, and from 1.2.6 that is where the whole
+firmware set lives.
+
+Two things follow. The layout is repaired by `particle flash --tachyon <zip>`. The modem's
+identity probably is not: that descriptor differs from real hardware on **all six** LUNs, so
+applying it moves every boundary from LUN 1 upward — including **LUN 5**, which holds `fsg`,
+`fsc`, `modemst1/2` and `nvdata1/2`. Check with `particle-tachyon-ril-ctl info` — a genuine
+Tachyon reports `imei-1` beginning `86513606`. Recovery needs a `particle tachyon backup`
+taken beforehand.
+
+The descriptor is fixed on `main` and `scripts/assemble/validate_provisioning.py` now gates it
+at build time. That makes the shipped file describe the device correctly; it does not make
+re-provisioning a working board a thing anyone needs to do. See [`FLASHING.md`](FLASHING.md).

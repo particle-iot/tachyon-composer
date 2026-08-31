@@ -158,4 +158,17 @@ done
   fi
 )
 
+# The provisioning descriptor and the partition layout are two files that have to agree and
+# had nothing checking that they did. They have disagreed twice, and both times shipped: the
+# LUN 4 overrun that made every flash onto a 20.04-geometry board time out, and LUN 6 being
+# left disabled after #68 moved the whole firmware set onto it. Validate the descriptor
+# against the rawprograms ptool just generated, so a disagreement fails here rather than on
+# somebody's board.
+if ! python3 "${SCRIPT_DIR}/validate_provisioning.py" \
+      --provision "${OUTPUT_DIR}/provision_ufs22.xml" \
+      --dir "${OUTPUT_DIR}"; then
+  echo "[ERROR] provisioning descriptor does not match the generated partition layout" >&2
+  exit 1
+fi
+
 echo "[OK] Output prepared at ${OUTPUT_DIR}"
