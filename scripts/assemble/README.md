@@ -74,6 +74,19 @@ self-consistent with the composer's own early LUN 4 layout, so "provision then f
 as a pair up to 1.2.5 — which is exactly why the recipe circulated. Applying it moves every
 boundary from LUN 1 upward, LUN 5 included.
 
+#### Provenance of the current copy
+
+Every functional attribute comes verbatim from
+`tachyon-unpacking-tool/common/config/ufs/provision/provision_ufs22.xml`, which matches a
+measured factory board on all seven LUNs. Only the `desc=` labels differ: upstream inherits
+the Qualcomm reference strings, which name sizes that stopped being true long ago ("LU 4 —
+6GB" on a 128 MiB LUN) and describe LUN 6 as an "Internal Test LUN" when it holds the entire
+boot chain. `desc` is inert — nothing parses it — but a descriptor whose labels contradict
+its own numbers is how this bug survived, so ours say what each LUN actually is.
+
+Diff the two before changing anything here: any difference outside `desc=` is a bug in one of
+them.
+
 ## Notes
 
 - The script copies `partition_ext.xml` into the output directory and updates `filename=` for every partition label passed on the command line.

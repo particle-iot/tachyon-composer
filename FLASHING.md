@@ -26,8 +26,16 @@ particle tachyon restore
 The image carries a `manifest.json` that lists exactly what to program:
 
 ```json
-"program_xml": ["rawprogram0.xml", …, "rawprogram5.xml", "rawprogram6.xml"],
-"patch_xml":   ["patch0.xml",      …, "patch5.xml",      "patch6.xml"]
+{
+  "program_xml": [
+    "rawprogram0.xml", "rawprogram1.xml", "rawprogram2.xml", "rawprogram3.xml",
+    "rawprogram4.xml", "rawprogram5.xml", "rawprogram6.xml"
+  ],
+  "patch_xml": [
+    "patch0.xml", "patch1.xml", "patch2.xml", "patch3.xml",
+    "patch4.xml", "patch5.xml", "patch6.xml"
+  ]
+}
 ```
 
 `particle flash --tachyon` reads that list when you give it a **zip or a directory**, so it
