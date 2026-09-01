@@ -48,7 +48,7 @@
     // overlays at main for releases).
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "a2f788fd54b75e11319939b1a9545cc7308cc2ff"
+      "param": "8fd2fba07e77b54b038481b79b2c53e2f137a5d6"
     },
 
     // The overlay TOOL — same pin as 24.04 (series-independent engine).
