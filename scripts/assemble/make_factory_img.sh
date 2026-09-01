@@ -108,6 +108,7 @@ require_cmd unzip
 require_cmd python3
 require_file "${BOOTBINARIES_ZIP}"
 require_file "${SCRIPT_DIR}/ptool.py"
+require_file "${SCRIPT_DIR}/validate_provisioning.py"
 require_file "${PARTITION_EXT_XML}"
 require_file "${PROVISION_XML}"
 require_file "${SCRIPT_DIR}/cdt.bin"
@@ -157,5 +158,18 @@ done
     exit 1
   fi
 )
+
+# The provisioning descriptor and the partition layout are two files that have to agree and
+# had nothing checking that they did. They have disagreed twice, and both times shipped: the
+# LUN 4 overrun that made every flash onto a 20.04-geometry board time out, and LUN 6 being
+# left disabled after #68 moved the whole firmware set onto it. Validate the descriptor
+# against the rawprograms ptool just generated, so a disagreement fails here rather than on
+# somebody's board.
+if ! python3 "${SCRIPT_DIR}/validate_provisioning.py" \
+      --provision "${OUTPUT_DIR}/provision_ufs22.xml" \
+      --dir "${OUTPUT_DIR}"; then
+  echo "[ERROR] provisioning descriptor does not match the generated partition layout" >&2
+  exit 1
+fi
 
 echo "[OK] Output prepared at ${OUTPUT_DIR}"

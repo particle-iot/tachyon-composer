@@ -206,6 +206,20 @@ GitHub Actions (`.github/workflows/build.yml`) builds the full matrix
 
 ---
 
+## 📲 Flashing the built image
+
+See [`FLASHING.md`](FLASHING.md). Short version, from inside the unzipped image:
+
+```bash
+particle flash --tachyon
+particle tachyon restore
+```
+
+There is no provisioning step, and `provision_ufs22.xml` must never be applied to a device
+that already boots — it re-creates the LUN holding the modem's IMEI and calibration. The
+manifest-driven form above always programs the right set of LUNs, including LUN 6, which the
+firmware set moved to in 1.2.6.
+
 ## 🐛 Troubleshooting
 
 `chroot: ... Exec format error` on x86_64 means QEMU ARM64 emulation isn't configured — run
