@@ -51,6 +51,17 @@
     // and lets overlay behaviour change under a composer release. Abbreviated shas do
     // NOT work here -- the server rejects them ("couldn't find remote ref"). Bump this
     // deliberately when you want new overlays.
+    // 43aeed16 (#43) = "Backport the two fixes left behind on feature/new-bp (/vendor from
+    // initramfs, HDMI UCM verb)". Wi-Fi is the reason to take this. link-ath11k-firmware (already
+    // shipped, via overlays #26) symlinks /lib/firmware/updates/ath11k/.../board.bin ->
+    // /vendor/wlan/bdwlang.elf, but /vendor was mounted only by fstab at local-fs.target, ~300ms
+    // AFTER udev autoloads ath11k_pci -- so the board file is missing and the card never appears.
+    // amss.bin/m3.bin are the quieter half: linux-firmware ships same-named blobs, so those
+    // resolved to the upstream file instead of the vendor one with nothing logged. #43 adds an
+    // initramfs init-bottom hook that mounts core_nhlos_a before switch_root, replacing the race
+    // with a fixed ordering. Latent since 1.2.6 -- NOT a 1.2.20 regression; being a race is why it
+    // took two months to get reported. Also restores the HDMI UCM verb split, unrelated but
+    // stranded on the same branch: an unplugged DisplayPort used to fail the whole HiFi verb.
     // 276e9868 = "24.04: ship NetworkManager's connectivity conf so first boot doesn't restart NM"
     // (#40). Adds add-nm-connectivity-check to the 24.04 stack only. It writes the exact bytes
     // particled would otherwise write to /etc/NetworkManager/conf.d/20-connectivity.conf, so on a
@@ -62,7 +73,7 @@
     // dc2f331b (#39) = "set-initial-time: compare against the setup time, not a hardcoded 2024".
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "276e98683712130fcda31f3d91b03e5ca4b8ec86"
+      "param": "43aeed16ee09ee28a32c0d122577b2bd13d34037"
     },
 
     // The overlay TOOL (engine that applies the stack). Provides the `when` env-gate and ENV_*
