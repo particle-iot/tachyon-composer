@@ -1,0 +1,97 @@
+{
+  "sources": {
+    // New BP firmware (Quectel r108) — same artifact as the 24.04 builds; the boot chain is
+    // series-independent. See versions-24.04.json for the full history notes. Keep the two
+    // series on the same bp-fw unless there is a series-specific reason not to: the fetch
+    // inputs are cached per-series (TMP dirs are series-scoped) so divergence is safe, just
+    // usually pointless.
+    "bp-fw": {
+      "version": "2.0.5",
+      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.5.zip"
+    },
+
+    // The 26.04 base rootfs image (built by particle-iot/tachyon-ubuntu-26.04 via livecd-rootfs,
+    // resolute). Consumed as tachyon-ubuntu-26.04-<VARIANT>-image-<param>.img.xz from the
+    // release channel. Variants: headless (== server) and desktop.
+    // First published 26.04 base build (release channel), from particle-iot/tachyon-ubuntu-26.04
+    // run on main: headless 1.26 GB + desktop 3.1 GB live at
+    // linux-dist.particle.io/release/tachyon-ubuntu-26.04-<variant>-image-29-29469e9.img.xz.
+    // The Makefile prepends "image-" to build the filename, so this is the BARE build id
+    // (<count>-<sha>), matching 24.04's convention (e.g. "26-0519f5b"). Bump when a newer
+    // base image is published. During bring-up override on the CLI:
+    // BASE_CHANNEL=prerelease INPUT_BASE_VERSION=<pre-sha id without the "image-" prefix>.
+    "particle-iot/tachyon-ubuntu-26.04": {
+      "type": "git_release",
+      "param": "29-29469e9"
+    },
+
+    // Kernel input. There is NO linux-qcom kernel line for resolute (26.04) — Canonical's
+    // QCS6490-era Qualcomm kernel exists only for noble — so 26.04 images ship the SAME
+    // Particle 6.8 kernel as 24.04 (built by particle-iot/tachyon-ubuntu-24.04-kernel; the
+    // noble-built deb installs cleanly on a resolute rootfs). The key here is series-templated
+    // for the Makefile lookup; the coordinates intentionally match versions-24.04.json.
+    // MUST stay in lock-step with env.PKG_linux_particle below and the kernel baked into the
+    // 26.04 base image, or check-pinned-packages will fail.
+    "particle-iot/tachyon-ubuntu-26.04-kernel": {
+      "type": "s3_release",
+      "param": "stable-6.8.0-1058.59particle6",
+      "abi": "1058",
+      // keep this equal to env.PKG_linux_particle below
+      "deb_version": "6.8.0-1058.59+particle6",
+      "base_url": "https://linux-dist.particle.io/kernel/release"
+    },
+
+    // Overlay stack repo. Pinned to a full 40-char commit sha (see versions-24.04.json for why).
+    // TODO: bump to the sha that carries the ubuntu-{common,headless,desktop}-26.04 stacks
+    // once feature/ubuntu-26.04-stacks merges — the current pin predates them and a 26.04
+    // build will fail at overlay stack resolution until this is bumped.
+    "particle-iot/tachyon-overlay": {
+      "type": "git_release",
+      "param": "4bbd8a8947f30862f66c4d4faf4eac9a2c67da31"
+    },
+
+    // The overlay TOOL — same pin as 24.04 (series-independent engine).
+    "particle-iot/tachyon-overlay-tool": {
+      "type": "git_release",
+      "param": "0b5f8fb597a8ba17e6e7035a0ca13d16ef29599c"
+    },
+
+    // The Kigen LPA (eSIM local profile assistant) — same asset as 24.04.
+    "particle-iot-inc/kigen-sdk": {
+      "type": "git_release",
+      "param": "0.1.8",
+      "asset": "lpa-linux-arm64"
+    }
+  },
+
+  // Signing — identical to 24.04; the boot chain and signer do not vary by series.
+  "signing": {
+    "profile": "test",
+    "key": "qti_presigned_certs-key2048_exp257_hashSHA384"
+  },
+
+  "env": {
+    // Kernel version pinned INSIDE the rootfs by the overlay. MUST equal the kernel source
+    // deb_version above and be installable on the base image's ABI. Shared with 24.04 — no
+    // resolute kernel line exists (see the kernel source comment above).
+    "PKG_linux_particle": "6.8.0-1058.59+particle6",
+
+    //This is the particle debian package
+    "PKG_particle_linux": "0.25.1-1",
+
+    //Radio code (RIL)
+    "PKG_particle_tachyon_ril": "0.6.1-1",
+
+    //The syscon package
+    "PKG_particle_tachyon_syscon": "1.0.52-1",
+
+    //version used in the debian file to pin the version down
+    "PIN_PRIORITY": "900"
+  },
+
+  // Variant-only pins (see versions-24.04.json).
+  "env_desktop": {
+    //Version of the setup app being used
+    "PKG_particle_tachyon_desktop_setup": "2.7.0"
+  }
+}

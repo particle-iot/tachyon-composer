@@ -1,12 +1,28 @@
-# Tachyon System Image Composer (24.04 / new-BP)
+# Tachyon System Image Composer (26.04 / new-BP)
 
-A build system that composes flashable **Tachyon Ubuntu 24.04** EDL system images for the
-QCM6490 (Quectel r108 baseband) platform. It takes a 24.04 base rootfs, the new BP firmware
+> **This is the `26.04` branch.** It builds **Tachyon Ubuntu 26.04** only. The 24.04
+> composer lives on `main`; the two are kept apart on purpose (26.04 is the less-common
+> track). Pull shared fixes in with `git merge main`.
+>
+> **Versioning:** 26.04 has its own version line (**1.3.x**), independent of 24.04's 1.2.x.
+> Because git tags are repo-global, **release tags on this branch MUST be namespaced
+> `26.04/x.y.z`** (e.g. `26.04/1.3.0`) — a bare `x.y.z` tag would pollute 24.04's version
+> stream on `main`. CI resolves the version via `tachyon-resolve-version --tag-prefix
+> "26.04/"` (see `.github/workflows/build.yml`). 26.04 **never** writes the served OTA
+> channels (latest/stable); it only publishes prerelease artifacts and, when explicitly
+> enabled, an un-served preview manifest.
+
+A build system that composes flashable **Tachyon Ubuntu 26.04** EDL system images for the
+QCM6490 (Quectel r108 baseband) platform. It takes a 26.04 base rootfs, the new BP firmware
 artifact, and a kernel device tree, applies an overlay stack, **signs the boot/firmware blobs
 itself with a selectable key**, and assembles an EDL-flashable image.
 
 Boot chain: **XBL → UEFI (from bp-fw) → GRUB → Linux**. There is no Ubuntu 20.04 base, no
 U-Boot, and no `qtestsign` — that legacy path has been retired.
+
+> **Kernel note:** there is no `linux-qcom` kernel for resolute (26.04), so 26.04 ships the
+> same Particle 6.8 kernel as 24.04 (built by `tachyon-ubuntu-24.04-kernel`; the noble deb
+> installs cleanly on a resolute rootfs). Pins live in `versions-26.04.json`.
 
 For background, see the
 [Particle Tachyon Ubuntu 24.04 Overview](https://developer.particle.io/tachyon/software/ubuntu_24_04/overview).
@@ -30,16 +46,16 @@ For background, see the
 
 ```bash
 # Build RoW / headless at version 1.2.0
-make build_24.04 \
-  VERSIONS_FILE=./versions.json \
+make build_26.04 \
+  VERSIONS_FILE=./versions-26.04.json \
   INPUT_REGION=RoW \
   INPUT_VARIANT=headless \
   OUTPUT_VERSION=1.2.0
 ```
 
 `VERSIONS_FILE` is the authoritative source of component versions; the four required inputs
-(`INPUT_REGION`, `INPUT_VARIANT`, and the 24.04 build id + overlay/signing config from
-`versions.json`) drive the rest. Override any value on the `make` line.
+(`INPUT_REGION`, `INPUT_VARIANT`, and the 26.04 build id + overlay/signing config from
+`versions-26.04.json`) drive the rest. Override any value on the `make` line.
 
 The full release matrix is `{NA, RoW} × {headless, desktop}` — build all four for a release.
 
@@ -47,26 +63,26 @@ The full release matrix is `{NA, RoW} × {headless, desktop}` — build all four
 
 ## ⚙️ Parameters
 
-All parameters are `make` variables (`make build_24.04 VAR=value …`).
+All parameters are `make` variables (`make build_26.04 VAR=value …`).
 
 ### Required
 | Variable | Values | Notes |
 |---|---|---|
 | `INPUT_REGION` | `NA` \| `RoW` | Selects the region NON-HLOS firmware (`na`/`em`). |
 | `INPUT_VARIANT` | `headless` \| `desktop` | `headless` == server. Selects the base image + default overlay stack. |
-| `VERSIONS_FILE` | path | Source of truth for versions/signing/env. Default `versions.json`. |
-| `INPUT_BASE_24_04_VERSION` | e.g. `22-938ac1d` | 24.04 base build id. Defaults from `versions.json` (`tachyon-ubuntu-24.04.param`). |
+| `VERSIONS_FILE` | path | Source of truth for versions/signing/env. Default `versions-26.04.json`. |
+| `INPUT_BASE_VERSION` | e.g. `22-938ac1d` | 26.04 base build id. Defaults from `versions-26.04.json` (`tachyon-ubuntu-26.04.param`). |
 
 ### Optional
 | Variable | Default | Notes |
 |---|---|---|
 | `OUTPUT_VERSION` | `9.9.999` | Version stamped into the image/zip name. Set explicitly per build (e.g. `1.2.0`). |
-| `OUTPUT_24_04_SYSTEM_IMAGE` | derived | `tachyon-ubuntu-24.04-<region>-<variant>-formfactor_dvt-<version>.zip`. |
-| `SIGNING_PROFILE` | `test` (from `versions.json` `signing.profile`) | `test` \| `prod` \| `none`. See [Signing](#-signing). |
-| `SIGNING_KEY` | from `versions.json` `signing.key` | Key name under `./keys/` (for `test`). |
-| `INPUT_OVERLAY_STACK` | `ubuntu-<variant>-24.04` | Overlay stack to apply. |
-| `INPUT_ENV` | from `versions.json` `env` block | Comma-separated `KEY=VAL` passed to the overlay tool (package pins, `PIN_PRIORITY`, …). |
-| `BASE24_CHANNEL` | `release` | `release` \| `prerelease` \| `preproduction` — channel for the 24.04 base image. |
+| `OUTPUT_SYSTEM_IMAGE` | derived | `tachyon-ubuntu-26.04-<region>-<variant>-formfactor_dvt-<version>.zip`. |
+| `SIGNING_PROFILE` | `test` (from `versions-26.04.json` `signing.profile`) | `test` \| `prod` \| `none`. See [Signing](#-signing). |
+| `SIGNING_KEY` | from `versions-26.04.json` `signing.key` | Key name under `./keys/` (for `test`). |
+| `INPUT_OVERLAY_STACK` | `ubuntu-<variant>-26.04` | Overlay stack to apply. |
+| `INPUT_ENV` | from `versions-26.04.json` `env` block | Comma-separated `KEY=VAL` passed to the overlay tool (package pins, `PIN_PRIORITY`, …). |
+| `BASE_CHANNEL` | `release` | `release` \| `prerelease` \| `preproduction` — channel for the 26.04 base image. |
 | `DEBUG` | `false` | `true` enables `set -x` verbose tracing in the compose script. |
 | `TMP_INPUT_DIR` / `TMP_OUTPUT_DIR` / `TMP_ROOT_DIR` | `./.tmp/...` | Working directories. |
 
@@ -76,7 +92,7 @@ All parameters are `make` variables (`make build_24.04 VAR=value …`).
 
 ---
 
-## 📄 `versions.json`
+## 📄 `versions-26.04.json`
 
 The authoritative inputs. Supports `//` line comments.
 
@@ -87,12 +103,12 @@ The authoritative inputs. Supports `//` line comments.
     // repo dependency. Ships bootbinaries, QCM6490 fw, and pre-built region NON-HLOS images.
     "bp-fw": { "version": "2.0.3", "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.3.zip" },
 
-    // 24.04 base rootfs (livecd-rootfs). Variants headless (==server) and desktop both published.
-    "particle-iot/tachyon-ubuntu-24.04": { "type": "git_release", "param": "22-938ac1d" },
+    // 26.04 base rootfs (livecd-rootfs). Variants headless (==server) and desktop both published.
+    "particle-iot/tachyon-ubuntu-26.04": { "type": "git_release", "param": "22-938ac1d" },
 
     // Kernel input (single source of truth) — provides qcm6490-tachyon.dtb AND pins the rootfs
     // kernel. MUST match PKG_linux_particle in env and the base image ABI.
-    "particle-iot/tachyon-ubuntu-24.04-kernel": {
+    "particle-iot/tachyon-ubuntu-26.04-kernel": {
       "type": "s3_release", "param": "stable-6.8.0-1058.59particle2",
       "abi": "1058", "deb_version": "6.8.0-1058.59+particle2",
       "base_url": "https://linux-dist.particle.io/kernel/release"
@@ -117,7 +133,7 @@ The authoritative inputs. Supports `//` line comments.
 }
 ```
 
-The BP firmware repo is **never** a `versions.json` dependency — only its published artifact zip
+The BP firmware repo is **never** a `versions-26.04.json` dependency — only its published artifact zip
 (`url` + `version`) is consumed.
 
 ---
@@ -142,25 +158,25 @@ re-signed hashes (it vouches for 10 boot blobs + ADSP/CDSP/WPSS from `QCM6490_fw
 
 ---
 
-## 🔄 Build Pipeline (`compose_24_04.sh`, in Docker)
+## 🔄 Build Pipeline (`compose.sh`, in Docker)
 
-1. **rootfs.ext4** — built from the 24.04 base `.img`, sized with headroom.
-2. **Overlay stack** — `tachyon-overlay-tool` applies `ubuntu-<variant>-24.04` (packages,
+1. **rootfs.ext4** — built from the 26.04 base `.img`, sized with headroom.
+2. **Overlay stack** — `tachyon-overlay-tool` applies `ubuntu-<variant>-26.04` (packages,
    Particle services, kernel pin) using the `INPUT_ENV` pins.
 3. **efi.img** — GRUB ESP (`scripts/efi/make-efi-img.sh`).
 4. **dtb.img** — `qcm6490-tachyon.dtb` extracted from the kernel modules deb (`scripts/dtb/`).
 5. **nonhlos.img** — region firmware (`em`/`na`), shipped pre-built in the bp-fw artifact.
 6. **Sign** — `scripts/signing/sign.sh` re-signs the boot/fw blobs + regenerates `multi_image.mbn`.
 7. **Assemble** — `scripts/assemble/` (ptool + `partition_ext.xml`) produces `rawprogram*/patch*`.
-8. **Package** — `manifest.json` + zip → `.tmp/output/<OUTPUT_24_04_SYSTEM_IMAGE>`.
+8. **Package** — `manifest.json` + zip → `.tmp/output/<OUTPUT_SYSTEM_IMAGE>`.
 
 ---
 
 ## 🛠 Commands
 
 ```
-build_24.04                Build a Tachyon 24.04 EDL system image (new-BP)
-fetch_24_04 / _unxz        Download / decompress the 24.04 base .img.xz
+build_26.04                Build a Tachyon 26.04 EDL system image (new-BP)
+fetch_base / _unxz        Download / decompress the 26.04 base .img.xz
 fetch_bp_fw                Download bp-fw and split bootbinaries + fw + nonhlos images
 fetch_kernel_deb           Download the kernel modules deb (for qcm6490-tachyon.dtb)
 fetch_overlay_tool         Clone tachyon-overlay-tool inside Docker
@@ -180,10 +196,10 @@ help                       Full command + parameter list
 ## 📂 Repository Layout
 
 ```
-compose_24_04.sh        Core composition (runs in Docker)
+compose.sh        Core composition (runs in Docker)
 prepare_base_24.04.sh   Base staging helper
 Makefile                Orchestrator: fetch, validate, signing/matrix plumbing
-versions.json           Authoritative component versions + signing + env
+versions-26.04.json           Authoritative component versions + signing + env
 Dockerfile              Ubuntu 24.04 builder image
 keys/                   Signing keys (TEST keys only — see keys/README.md)
 scripts/

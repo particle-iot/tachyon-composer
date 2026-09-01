@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# Tachyon System Image Composer – 24.04 (new-BP / Quectel r108 / UEFI backend)
+# Tachyon System Image Composer – 26.04 (new-BP / Quectel r108 / UEFI backend)
 # -----------------------------------------------------------------------------
 # Runs inside the builder container (-w /project, /tmp/work = ./.tmp).
 #
 # Builds an EDL-flashable factory image:
-#   1) rootfs.ext4 from the 24.04 base .img (composer's normal rootfs)
+#   1) rootfs.ext4 from the 26.04 base .img (composer's normal rootfs)
 #   2) efi.img from the vendored GRUB ESP
 #   3) apply the tachyon-overlays stack to rootfs.ext4 (installs kernel, etc.)
 #   4) dtb.img (qcm6490-tachyon.dtb) + nonhlos-<variant>.img
@@ -19,7 +19,7 @@
 # scripts/signing/ with a selectable key (see scripts/signing/README.md, keys/).
 #
 # Inputs placed by the Makefile fetch targets under /tmp/work/input:
-#   <BASE24_IMG_BASENAME>            24.04 base .img (rootfs source)
+#   <BASE_IMG_BASENAME>            26.04 base .img (rootfs source)
 #   QCM6490_bootbinaries.zip         bp-fw boot binaries (sign-ready when built from feature/nosign)
 #   kernel/linux-modules-*.deb       kernel deb (for qcm6490-tachyon.dtb)
 # Tools cloned under /tmp/work/tools: tachyon-overlay-tool (+ overlays at $5).
@@ -27,7 +27,7 @@
 # (nonhlos-<variant>.img is shipped pre-built by the bp-fw artifact, not built here)
 #
 # Args:
-#   $1 BASE24_IMG_BASENAME   $2 OUTPUT_ZIP   $3 NONHLOS_VARIANT(em|na)
+#   $1 BASE_IMG_BASENAME   $2 OUTPUT_ZIP   $3 NONHLOS_VARIANT(em|na)
 #   $4 OVERLAY_STACK         $5 OVERLAY_PATH (container path, has overlays/+stacks/)
 #   $6 OVERLAY_ENV (comma KEY=VAL)   $7 DEBUG(true|false)
 #   $8 SIGNING_PROFILE(test|prod|none)   $9 SIGNING_KEY (key name under keys/)
@@ -39,7 +39,7 @@ IN=/tmp/work/input
 OUT=/tmp/work/output
 OVERLAY_TOOL_DIR=/tmp/work/tools/tachyon-overlay-tool
 
-BASE24="${1:?BASE24_IMG_BASENAME}"
+BASE_IMG_BASENAME="${1:?BASE_IMG_BASENAME}"
 OUTPUT_ZIP="${2:?OUTPUT_ZIP}"
 NONHLOS_VARIANT="${3:?NONHLOS_VARIANT}"
 OVERLAY_STACK="${4:?OVERLAY_STACK}"
@@ -140,9 +140,9 @@ content_gate(){
 mkdir -p "$OUT"
 work="$(mktemp -d)"
 
-# ---- 1) rootfs.ext4 from the 24.04 base img ---------------------------------
-section "1) rootfs.ext4 from 24.04 base ($BASE24)"
-IMG="$IN/$BASE24"
+# ---- 1) rootfs.ext4 from the 26.04 base img ---------------------------------
+section "1) rootfs.ext4 from 26.04 base ($BASE_IMG_BASENAME)"
+IMG="$IN/$BASE_IMG_BASENAME"
 [ -f "$IMG" ] || { echo "ERROR: missing $IMG" >&2; exit 1; }
 
 ROOT_MNT="$work/root"; mkdir -p "$ROOT_MNT"
@@ -287,7 +287,7 @@ for kv in env.split(','):
 
 # Authoritative metadata comes from the PKG_DISTRO_* env the Makefile injects (region/variant/
 # board/version). The zip NAME is not reliable to parse: release names are
-# tachyon-ubuntu-24.04-<region>-<variant>-<version>.zip (no board), and a clean semver version
+# tachyon-ubuntu-26.04-<region>-<variant>-<version>.zip (no board), and a clean semver version
 # like 1.2.0 has no dashes -- the old 4-field regex only matched dev versions whose dashes
 # happened to fill the 4th group, and errored on real releases. Parse the name (board optional)
 # only as a fallback when the env is absent.
@@ -296,7 +296,7 @@ variant = envd.get('PKG_DISTRO_VARIANT')
 board   = envd.get('PKG_DISTRO_BOARD') or 'formfactor_dvt'
 version = envd.get('PKG_DISTRO_VERSION')
 if not (region and variant and version):
-    m = re.match(r'tachyon-ubuntu-24\.04-(NA|RoW)-(headless|desktop)(?:-([^-]+))?-(.+)\.zip$', output_zip)
+    m = re.match(r'tachyon-ubuntu-26\.04-(NA|RoW)-(headless|desktop)(?:-([^-]+))?-(.+)\.zip$', output_zip)
     if not m:
         sys.exit("ERROR: cannot derive region/variant/version from PKG_DISTRO_* env or name %s" % output_zip)
     region  = region  or m.group(1)
@@ -305,7 +305,7 @@ if not (region and variant and version):
     version = version or m.group(4)
 
 src_map = [
-    ('ubuntu-24.04', 'PKG_SRC_UBUNTU_24_04'),
+    ('ubuntu-26.04', 'PKG_SRC_UBUNTU_26_04'),
     ('linux-particle', 'PKG_linux_particle'),
     ('particle-linux', 'PKG_particle_linux'),
     ('particle-tachyon-desktop-setup', 'PKG_particle_tachyon_desktop_setup'),
@@ -331,7 +331,7 @@ manifest = {
     'release_name': output_zip[:-4] if output_zip.endswith('.zip') else output_zip,
     'version': version, 'region': region, 'variant': variant,
     'platform': 'qcm6490', 'board': board, 'os': 'linux',
-    'distribution': 'ubuntu', 'distribution_version': '24.04', 'distribution_variant': 'ubuntu',
+    'distribution': 'ubuntu', 'distribution_version': '26.04', 'distribution_variant': 'ubuntu',
     'sources': sources,
     'targets': [{'qcm6490': {'edl': {
         'base': '.', 'firehose': firehose,

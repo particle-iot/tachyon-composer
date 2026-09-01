@@ -1,8 +1,8 @@
 ####################################################################################################################
-# Tachyon System Image Composer — 24.04 (new-BP / Quectel r108 / UEFI backend)
+# Tachyon System Image Composer — 26.04 (new-BP / Quectel r108 / UEFI backend)
 #
-# `make build_24.04` orchestrates: fetch components (24.04 base rootfs, bp-fw, kernel deb,
-# overlay tool + overlays) -> compose_24_04.sh (inside Docker) builds rootfs (+ overlay stack),
+# `make build_26.04` orchestrates: fetch components (26.04 base rootfs, bp-fw, kernel deb,
+# overlay tool + overlays) -> compose.sh (inside Docker) builds rootfs (+ overlay stack),
 # efi, dtb, nonhlos, SIGNS the boot/firmware blobs (selectable key), and assembles an
 # EDL-flashable image via ptool + partition_ext.
 #
@@ -50,7 +50,7 @@ endif
 # -------------------------------------------------------------------
 # Authoritative source versions (always read from versions.json)
 # -------------------------------------------------------------------
-VERSIONS_FILE ?= versions.json
+VERSIONS_FILE ?= versions-26.04.json
 # Read sources.<repo>.<field>, the env block, and the signing block from versions.json.
 # Strips `//` line-comments (lines starting with optional whitespace then //) before parsing,
 # preserving `//` inside values like https:// URLs.
@@ -62,7 +62,7 @@ _SIGN     = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$
 # onto every variant. Missing key -> empty.
 _ENV_JSON_KEY = $(shell python3 -c "import json,re;t=re.sub(r'^\s*//.*$$','',open('$(VERSIONS_FILE)').read(),flags=re.MULTILINE);e=json.loads(t).get('$(1)',{});print(','.join(f'{k}={v}' for k,v in e.items()))" 2>/dev/null)
 
-JSON_BASE24_PARAM       := $(call _SRC,particle-iot/tachyon-ubuntu-24.04,param)
+JSON_BASE_PARAM       := $(call _SRC,particle-iot/tachyon-ubuntu-26.04,param)
 JSON_OVERLAYS_PARAM     := $(call _SRC,particle-iot/tachyon-overlay,param)
 JSON_OVERLAY_TOOL_PARAM := $(call _SRC,particle-iot/tachyon-overlay-tool,param)
 ENV_FROM_JSON           := $(_ENV_JSON)
@@ -73,8 +73,8 @@ ifneq ($(strip $(ENV_FROM_JSON_VARIANT)),)
   ENV_FROM_JSON := $(if $(strip $(ENV_FROM_JSON)),$(ENV_FROM_JSON)$(comma),)$(ENV_FROM_JSON_VARIANT)
 endif
 
-ifneq ($(strip $(JSON_BASE24_PARAM)),)
-  INPUT_BASE_24_04_VERSION ?= $(JSON_BASE24_PARAM)
+ifneq ($(strip $(JSON_BASE_PARAM)),)
+  INPUT_BASE_VERSION ?= $(JSON_BASE_PARAM)
 endif
 ifneq ($(strip $(JSON_OVERLAYS_PARAM)),)
   override OVERLAYS_REF := $(JSON_OVERLAYS_PARAM)
@@ -89,13 +89,13 @@ endif
 COMMAND ?=
 INPUT_REGION ?=                     # NA | RoW
 INPUT_VARIANT ?=                    # headless | desktop  (headless == server)
-INPUT_BASE_24_04_VERSION ?=         # e.g., 22-938ac1d
+INPUT_BASE_VERSION ?=         # e.g., 22-938ac1d
 INPUT_ENV ?=
 INPUT_OVERLAY_PATH ?= $(DEFAULT_OVERLAY_PATH)
-OUTPUT_24_04_SYSTEM_IMAGE ?= $(DEFAULT_OUTPUT_PREFIX)-24.04-$(INPUT_REGION)-$(INPUT_VARIANT)-formfactor_dvt-$(OUTPUT_VERSION).zip
+OUTPUT_SYSTEM_IMAGE ?= $(DEFAULT_OUTPUT_PREFIX)-26.04-$(INPUT_REGION)-$(INPUT_VARIANT)-formfactor_dvt-$(OUTPUT_VERSION).zip
 
-# Channel for the 24.04 base image (release | prerelease | preproduction)
-BASE24_CHANNEL ?= release
+# Channel for the 26.04 base image (release | prerelease | preproduction)
+BASE_CHANNEL ?= release
 
 # Working variables
 TMP_ROOT_DIR ?= $(DEFAULT_TMP_ROOT_DIR)
@@ -103,8 +103,8 @@ TMP_INPUT_DIR ?= $(DEFAULT_TMP_INPUT_DIR)
 TMP_OUTPUT_DIR ?= $(DEFAULT_TMP_OUTPUT_DIR)
 INPUT_OVERLAY_DOCKER_PATH := $(strip /tmp/work/$(subst $(DEFAULT_TMP_ROOT_DIR)/,,$(INPUT_OVERLAY_PATH)))
 
-# overlay stack defaults to ubuntu-<variant>-24.04 unless INPUT_OVERLAY_STACK is set
-OVERLAY_STACK := $(if $(strip $(INPUT_OVERLAY_STACK)),$(INPUT_OVERLAY_STACK),ubuntu-$(INPUT_VARIANT)-24.04)
+# overlay stack defaults to ubuntu-<variant>-26.04 unless INPUT_OVERLAY_STACK is set
+OVERLAY_STACK := $(if $(strip $(INPUT_OVERLAY_STACK)),$(INPUT_OVERLAY_STACK),ubuntu-$(INPUT_VARIANT)-26.04)
 
 # -------------------------------------------------------------------
 # Signing (composer-owned, selectable key). See scripts/signing/ and keys/.
@@ -118,7 +118,7 @@ SIGNING_KEY     ?= $(call _SIGN,key)
 define check_required_param
 	@if [ -z "$($(1))" ]; then \
 		echo "Error: $(1) parameter is required"; \
-		echo "Usage: make build_24.04 VERSIONS_FILE=./versions.json INPUT_REGION=<NA|RoW> INPUT_VARIANT=<headless|desktop> [OUTPUT_VERSION=<x.y.z>]"; \
+		echo "Usage: make build_26.04 VERSIONS_FILE=./versions.json INPUT_REGION=<NA|RoW> INPUT_VARIANT=<headless|desktop> [OUTPUT_VERSION=<x.y.z>]"; \
 		exit 1; \
 	fi
 endef
@@ -133,21 +133,21 @@ define validate_variant
 		echo "Error: INPUT_VARIANT must be 'headless' or 'desktop', got '$(INPUT_VARIANT)'"; exit 1; fi
 endef
 
-define validate_output_24_04
-	@if [ -z "$(OUTPUT_24_04_SYSTEM_IMAGE)" ]; then \
-		echo "Error: OUTPUT_24_04_SYSTEM_IMAGE not set and no default provided."; exit 1; fi
+define validate_output
+	@if [ -z "$(OUTPUT_SYSTEM_IMAGE)" ]; then \
+		echo "Error: OUTPUT_SYSTEM_IMAGE not set and no default provided."; exit 1; fi
 endef
 
 # -------------------------------------------------------------------
 # Derived filenames/URLs
 # -------------------------------------------------------------------
-# 24.04 base .img.xz / .img (rootfs source). Variant in {headless,desktop}, both published.
-# Example: tachyon-ubuntu-24.04-headless-image-22-938ac1d.img.xz
-BASE24_XZ_FILENAME := tachyon-ubuntu-24.04-$(INPUT_VARIANT)-image-$(INPUT_BASE_24_04_VERSION).img.xz
-BASE24_URL := https://tachyon-ci.particle.io/$(BASE24_CHANNEL)/$(BASE24_XZ_FILENAME)
-BASE24_XZ := $(TMP_INPUT_DIR)/$(BASE24_XZ_FILENAME)
-BASE24_IMG := $(TMP_INPUT_DIR)/$(basename $(BASE24_XZ_FILENAME))
-BASE24_IMG_BASENAME := $(notdir $(BASE24_IMG))
+# 26.04 base .img.xz / .img (rootfs source). Variant in {headless,desktop}, both published.
+# Example: tachyon-ubuntu-26.04-headless-image-22-938ac1d.img.xz
+BASE_XZ_FILENAME := tachyon-ubuntu-26.04-$(INPUT_VARIANT)-image-$(INPUT_BASE_VERSION).img.xz
+BASE_URL := https://tachyon-ci.particle.io/$(BASE_CHANNEL)/$(BASE_XZ_FILENAME)
+BASE_XZ := $(TMP_INPUT_DIR)/$(BASE_XZ_FILENAME)
+BASE_IMG := $(TMP_INPUT_DIR)/$(basename $(BASE_XZ_FILENAME))
+BASE_IMG_BASENAME := $(notdir $(BASE_IMG))
 
 # bp-fw: referenced as an ARTIFACT ONLY (version + S3 url), never as a repo source.
 # The BP firmware repo must not be a versions.json dependency; the composer consumes
@@ -159,10 +159,10 @@ BP_FW_URL          := $(call _SRC,bp-fw,url)
 BOOTBINARIES_ZIP   := $(TMP_INPUT_DIR)/QCM6490_bootbinaries.zip
 
 # kernel modules deb (single-sourced from versions.json) -> qcm6490-tachyon.dtb
-KERNEL_TAG         := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,param)
-KERNEL_ABI         := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,abi)
-KERNEL_DEB_VERSION := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,deb_version)
-KERNEL_BASE_URL    := $(call _SRC,particle-iot/tachyon-ubuntu-24.04-kernel,base_url)
+KERNEL_TAG         := $(call _SRC,particle-iot/tachyon-ubuntu-26.04-kernel,param)
+KERNEL_ABI         := $(call _SRC,particle-iot/tachyon-ubuntu-26.04-kernel,abi)
+KERNEL_DEB_VERSION := $(call _SRC,particle-iot/tachyon-ubuntu-26.04-kernel,deb_version)
+KERNEL_BASE_URL    := $(call _SRC,particle-iot/tachyon-ubuntu-26.04-kernel,base_url)
 
 KIGEN_SDK_TAG      := $(call _SRC,particle-iot-inc/kigen-sdk,param)
 KIGEN_SDK_ASSET    := $(call _SRC,particle-iot-inc/kigen-sdk,asset)
@@ -186,7 +186,7 @@ define PRINT_BANNER
 	@printf '%s\n' \
 	'**************************************************' \
 	'*                                                *' \
-	'*     Tachyon System Image (24.04 / new-BP)      *' \
+	'*     Tachyon System Image (26.04 / new-BP)      *' \
 	'*                                                *' \
 	'**************************************************'
 endef
@@ -196,7 +196,7 @@ define PRINT_CONFIG
 	@echo "Version Tag:       $(VERSION)"
 	@echo
 	@echo "Inputs (resolved)"
-	@echo "  24.04 Build ID:  $(INPUT_BASE_24_04_VERSION)  ($(BASE24_IMG_BASENAME))"
+	@echo "  26.04 Build ID:  $(INPUT_BASE_VERSION)  ($(BASE_IMG_BASENAME))"
 	@echo "  Region:          $(INPUT_REGION)   (nonhlos: $(NONHLOS_VARIANT))"
 	@echo "  Variant:         $(INPUT_VARIANT)"
 	@echo "  bp-fw URL:       $(BP_FW_URL)"
@@ -205,7 +205,7 @@ define PRINT_CONFIG
 	@echo "  Signing:         profile=$(SIGNING_PROFILE)  key=$(SIGNING_KEY)"
 	@echo
 	@echo "Output"
-	@echo "  System Image:    $(OUTPUT_24_04_SYSTEM_IMAGE)"
+	@echo "  System Image:    $(OUTPUT_SYSTEM_IMAGE)"
 	@echo "  Debug:           $(DEBUG)"
 	@echo "  Input Env:       $(if $(strip $(INPUT_ENV)),$(INPUT_ENV),<none>)"
 	@echo "**************************************************"
@@ -221,11 +221,11 @@ print-config:
 # -------------------------------------------------------------------
 .PHONY: help
 help:
-	@echo "Tachyon System Image Composer v$(VERSION) (24.04 / new-BP / UEFI)"
+	@echo "Tachyon System Image Composer v$(VERSION) (26.04 / new-BP / UEFI)"
 	@echo ""
 	@echo "Available commands:"
-	@echo "  build_24.04                 Build a Tachyon 24.04 EDL system image (new-BP)"
-	@echo "  fetch_24_04 / _unxz         Download / decompress the 24.04 base .img.xz"
+	@echo "  build_26.04                 Build a Tachyon 26.04 EDL system image (new-BP)"
+	@echo "  fetch_base / _unxz         Download / decompress the 26.04 base .img.xz"
 	@echo "  fetch_bp_fw                 Download bp-fw and split bootbinaries + fw zips"
 	@echo "  fetch_kernel_deb            Download the kernel modules deb (for qcm6490-tachyon.dtb)"
 	@echo "  fetch_kigen_sdk             Download the Kigen LPA binary (host-side; private repo)"
@@ -239,32 +239,32 @@ help:
 	@echo "  INPUT_VARIANT               headless (==server) or desktop"
 	@echo ""
 	@echo "Optional parameters:"
-	@echo "  VERSIONS_FILE               Path to versions.json (default: versions.json)"
+	@echo "  VERSIONS_FILE               Path to the versions file (default: versions-26.04.json)"
 	@echo "  OUTPUT_VERSION              Version stamped into the image (default: $(DEFAULT_OUTPUT_VERSION))"
 	@echo "  SIGNING_PROFILE             test | prod | none (default from versions.json signing.profile)"
 	@echo "  SIGNING_KEY                 key name under ./keys/ (default from versions.json signing.key)"
 	@echo "  INPUT_OVERLAY_DIR           Local overlays dir (skip cloning tachyon-overlays)"
-	@echo "  INPUT_OVERLAY_STACK         Overlay stack/branch (e.g., ubuntu-headless-24.04)"
+	@echo "  INPUT_OVERLAY_STACK         Overlay stack/branch (e.g., ubuntu-headless-26.04)"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make build_24.04 VERSIONS_FILE=./versions.json INPUT_REGION=RoW INPUT_VARIANT=headless OUTPUT_VERSION=1.2.0"
+	@echo "  make build_26.04 INPUT_REGION=RoW INPUT_VARIANT=headless OUTPUT_VERSION=1.3.0"
 	@echo ""
 
 # -------------------------------------------------------------------
-# Fetch: 24.04 base rootfs image
+# Fetch: 26.04 base rootfs image
 # -------------------------------------------------------------------
-.PHONY: fetch_24_04 fetch_24_04_unxz
-fetch_24_04: $(BASE24_XZ)
-$(BASE24_XZ): | docker/build
-	$(call check_required_param,INPUT_BASE_24_04_VERSION)
+.PHONY: fetch_base fetch_base_unxz
+fetch_base: $(BASE_XZ)
+$(BASE_XZ): | docker/build
+	$(call check_required_param,INPUT_BASE_VERSION)
 	$(call check_required_param,INPUT_VARIANT)
 	$(call validate_variant)
 	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; mkdir -p "$(TMP_INPUT_DIR)"; \
-		echo "==> Downloading 24.04 base: $(BASE24_URL)"; \
-		curl $(CURL_OPTS) -o "$@" "$(BASE24_URL)"; test -s "$@"; echo "Downloaded: $@"'
+		echo "==> Downloading 26.04 base: $(BASE_URL)"; \
+		curl $(CURL_OPTS) -o "$@" "$(BASE_URL)"; test -s "$@"; echo "Downloaded: $@"'
 
-fetch_24_04_unxz: $(BASE24_IMG)
-$(BASE24_IMG): $(BASE24_XZ) | docker/build
+fetch_base_unxz: $(BASE_IMG)
+$(BASE_IMG): $(BASE_XZ) | docker/build
 	@$(DOCKER_RUN) bash -lc 'set -euo pipefail; cd "$(TMP_INPUT_DIR)"; \
 		if [ -f "$(notdir $@)" ]; then echo "$(notdir $@) exists, skipping"; exit 0; fi; \
 		echo "==> Decompressing $(notdir $<)"; \
@@ -422,23 +422,23 @@ fetch_tachyon_overlays: | docker/build
 # -------------------------------------------------------------------
 # Main build
 # -------------------------------------------------------------------
-.PHONY: build_24.04
-build_24.04: version print-config check_qemu vendor_sectools fetch_24_04_unxz fetch_bp_fw fetch_kernel_deb fetch_kigen_sdk fetch_overlay_tool fetch_tachyon_overlays docker/build
-	@echo "Building Tachyon 24.04 (new-BP) System Image..."
+.PHONY: build_26.04
+build_26.04: version print-config check_qemu vendor_sectools fetch_base_unxz fetch_bp_fw fetch_kernel_deb fetch_kigen_sdk fetch_overlay_tool fetch_tachyon_overlays docker/build
+	@echo "Building Tachyon 26.04 (new-BP) System Image..."
 	$(call check_required_param,INPUT_REGION)
 	$(call check_required_param,INPUT_VARIANT)
-	$(call check_required_param,INPUT_BASE_24_04_VERSION)
+	$(call check_required_param,INPUT_BASE_VERSION)
 	$(call validate_region)
 	$(call validate_variant)
-	$(call validate_output_24_04)
-	$(eval GENERATED_DISTRO_ENV := PKG_DISTRO_VERSION=$(OUTPUT_VERSION)$(comma)PKG_DISTRO_STACK=$(OVERLAY_STACK)$(comma)PKG_DISTRO_VARIANT=$(INPUT_VARIANT)$(comma)PKG_DISTRO_REGION=$(INPUT_REGION)$(comma)PKG_DISTRO_BOARD=formfactor_dvt$(comma)PKG_DISTRO_DISTRIBUTION=ubuntu$(comma)PKG_DISTRO_DISTRIBUTION_VERSION=24.04)
-	$(eval GENERATED_SRC_ENV := PKG_SRC_TACHYON_COMPOSER=$(VERSION)$(comma)PKG_SRC_UBUNTU_24_04=$(INPUT_BASE_24_04_VERSION)$(comma)PKG_SRC_OVERLAYS=$(OVERLAYS_REF))
+	$(call validate_output)
+	$(eval GENERATED_DISTRO_ENV := PKG_DISTRO_VERSION=$(OUTPUT_VERSION)$(comma)PKG_DISTRO_STACK=$(OVERLAY_STACK)$(comma)PKG_DISTRO_VARIANT=$(INPUT_VARIANT)$(comma)PKG_DISTRO_REGION=$(INPUT_REGION)$(comma)PKG_DISTRO_BOARD=formfactor_dvt$(comma)PKG_DISTRO_DISTRIBUTION=ubuntu$(comma)PKG_DISTRO_DISTRIBUTION_VERSION=26.04)
+	$(eval GENERATED_SRC_ENV := PKG_SRC_TACHYON_COMPOSER=$(VERSION)$(comma)PKG_SRC_UBUNTU_26_04=$(INPUT_BASE_VERSION)$(comma)PKG_SRC_OVERLAYS=$(OVERLAYS_REF))
 	$(eval GENERATED_ENV := $(GENERATED_DISTRO_ENV)$(comma)$(GENERATED_SRC_ENV))
 	$(eval COMBINED_ENV := $(if $(strip $(INPUT_ENV)),$(INPUT_ENV)$(comma),)$(GENERATED_ENV))
 	@mkdir -p $(TMP_INPUT_DIR) $(TMP_OUTPUT_DIR)
-	@$(DOCKER_RUN) bash ./compose_24_04.sh \
-		"$(BASE24_IMG_BASENAME)" \
-		"$(OUTPUT_24_04_SYSTEM_IMAGE)" \
+	@$(DOCKER_RUN) bash ./compose.sh \
+		"$(BASE_IMG_BASENAME)" \
+		"$(OUTPUT_SYSTEM_IMAGE)" \
 		"$(NONHLOS_VARIANT)" \
 		"$(OVERLAY_STACK)" \
 		"$(INPUT_OVERLAY_DOCKER_PATH)" \
@@ -448,7 +448,7 @@ build_24.04: version print-config check_qemu vendor_sectools fetch_24_04_unxz fe
 		"$(SIGNING_KEY)"
 	@echo ""
 	@echo "Build completed successfully!"
-	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(OUTPUT_24_04_SYSTEM_IMAGE)"
+	@echo "Output: $(abspath $(TMP_OUTPUT_DIR))/$(OUTPUT_SYSTEM_IMAGE)"
 
 ##########################################################
 # Docker-related targets
@@ -465,6 +465,8 @@ DOCKER_VERSION ?= $(if $(PARTICLE_DOCKERFILE_VERSION),$(PARTICLE_DOCKERFILE_VERS
 
 IMAGE_NAME           ?= tachyon-system-image-builder
 IMAGE_TAG            ?= $(IMAGE_NAME):$(DOCKER_VERSION)
+# Builder toolchain OS (ptool/sectools/qemu), NOT the target series: the composer
+# only assembles an already-built 26.04 rootfs, so 24.04 is a fine, proven builder.
 BASE_IMAGE           ?= ubuntu:24.04
 UID                  ?= $(shell id -u 2>/dev/null || echo 1000)
 GID                  ?= $(shell id -g 2>/dev/null || echo 1000)

@@ -1,12 +1,21 @@
-name: Build Tachyon 24.04
+name: Build Tachyon 26.04
+
+# 26.04-only composer branch. `main` builds 24.04; this branch builds 26.04 and
+# NEVER writes the served OTA channels (latest/stable) -- 26.04 is gated to an
+# un-served preview manifest until deliberately promoted. 26.04 versions live on
+# an independent '26.04/'-namespaced tag stream (see the Determine version step),
+# so they never collide with 24.04's bare 1.2.x tags.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
   push:
+    branches:
+      - '26.04'
     tags:
-      - '[0-9]+.[0-9]+.[0-9]+'
-      - '[0-9]+.[0-9]+.[0-9]+-*'
+      # 26.04 releases only. '*' does not cross '/', so bare 24.04 tags never match.
+      - '26.04/[0-9]+.[0-9]+.[0-9]+'
+      - '26.04/[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
 
 jobs:
@@ -49,7 +58,7 @@ jobs:
 
       - name: Install tachyon-dist-tools
         env:
-          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}
+          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.4' }}
         run: |
           set -euo pipefail
           pip install "https://github.com/particle-iot/tachyon-dist-tools/releases/download/${DIST_TOOLS_VERSION}/tachyon_dist_tools-${DIST_TOOLS_VERSION}-py3-none-any.whl"
@@ -61,19 +70,22 @@ jobs:
           GH_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          if [[ "$GH_REF" == refs/tags/* ]]; then
-            VERSION=$(tachyon-resolve-version --build-type release)
+          # 26.04 uses a '26.04/'-namespaced tag stream (independent of 24.04's bare
+          # 1.2.x tags on main), seeded at 1.3.0. Only a '26.04/x.y.z' tag is a
+          # release; PRs, branch pushes and dispatch are prereleases (1.3.0-dev+...).
+          if [[ "$GH_REF" == refs/tags/26.04/* ]]; then
+            VERSION=$(tachyon-resolve-version --build-type release --tag-prefix "26.04/")
             IS_RELEASE="true"
           else
             SHORT_SHA="$(git rev-parse --short=7 HEAD)"
-            VERSION=$(tachyon-resolve-version --build-type prerelease --build-id "build.${SHORT_SHA}")
+            VERSION=$(tachyon-resolve-version --build-type prerelease --build-id "build.${SHORT_SHA}" --tag-prefix "26.04/" --seed-version 1.3.0)
             IS_RELEASE="false"
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "is_release=${IS_RELEASE}" >> "$GITHUB_OUTPUT"
-          echo "Resolved version: ${VERSION} (is_release=${IS_RELEASE})"
+          echo "Resolved 26.04 version: ${VERSION} (is_release=${IS_RELEASE})"
 
-      - name: Build (Ubuntu 24.04)
+      - name: Build (Ubuntu 26.04)
         id: build_step
         env:
           VERSION: ${{ steps.ver.outputs.version }}
@@ -90,14 +102,14 @@ jobs:
           KIGEN_SDK_TOKEN: ${{ secrets.KIGEN_SDK_TOKEN }}
         run: |
           set -euo pipefail
-          OUTNAME="tachyon-ubuntu-24.04-${REGION}-${VARIANT}-${VERSION}.zip"
+          OUTNAME="tachyon-ubuntu-26.04-${REGION}-${VARIANT}-${VERSION}.zip"
 
-          make build_24.04 \
-            VERSIONS_FILE=./versions.json \
+          make build_26.04 \
+            VERSIONS_FILE=./versions-26.04.json \
             INPUT_REGION="${REGION}" \
             INPUT_VARIANT="${VARIANT}" \
             OUTPUT_VERSION="${VERSION}" \
-            OUTPUT_24_04_SYSTEM_IMAGE="${OUTNAME}"
+            OUTPUT_SYSTEM_IMAGE="${OUTNAME}"
 
           URL_ENCODED="$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$OUTNAME")"
           echo "output_name=${OUTNAME}" >> "$GITHUB_OUTPUT"
@@ -143,7 +155,7 @@ jobs:
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            **PR build uploaded** for **${{ matrix.region }} ${{ matrix.variant }}**
+            **PR build uploaded** for **26.04 ${{ matrix.region }} ${{ matrix.variant }}**
             **Version:** `${{ steps.ver.outputs.version }}`
             **Download:** [URL](https://linux-dist.particle.io/prerelease/${{ steps.build_step.outputs.url_encoded_name }})
 
@@ -282,7 +294,7 @@ jobs:
 
       - name: Install tachyon-dist-tools
         env:
-          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}
+          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.4' }}
         run: |
           set -euo pipefail
           pip install "https://github.com/particle-iot/tachyon-dist-tools/releases/download/${DIST_TOOLS_VERSION}/tachyon_dist_tools-${DIST_TOOLS_VERSION}-py3-none-any.whl"
@@ -326,11 +338,11 @@ jobs:
             jq -n --arg ver "$VERSION" --arg now "$NOW" --arg url "$URL" \
               --arg sha "$SHA256" --arg variant "$VARIANT" --arg region "$REGION" \
               '{
-                release_name: ("tachyon-ubuntu-24.04-" + $region + "-" + $variant + "-" + $ver),
+                release_name: ("tachyon-ubuntu-26.04-" + $region + "-" + $variant + "-" + $ver),
                 version: $ver, region: $region, variant: $variant,
                 platform: "qcm6490", board: "formfactor_dvt",
                 os: "linux", distribution: "ubuntu",
-                distribution_version: "24.04", distribution_variant: "ubuntu",
+                distribution_version: "26.04", distribution_variant: "ubuntu",
                 build_date: $now,
                 artifacts: [{ artifact_url: $url, sha256_checksum: $sha, type: "release_image" }]
               }' > "build_meta/${BASENAME}.json"
@@ -355,8 +367,11 @@ jobs:
           set -euo pipefail
           aws s3 cp release_metadata.json \
             "s3://${LINUX_DIST_S3_BUCKET}/${METADATA_KEY}" \
-            --only-show-errors
+            --content-type application/json --only-show-errors
 
+          # 26.04 per-version manifests are ALWAYS tagged prerelease lifecycle: they
+          # are immutable per-version records, never the served channel. (26.04 is
+          # deliberately kept off latest/stable; see publish_release.)
           if [[ "$IS_RELEASE" != "true" ]]; then
             aws s3api put-object-tagging \
               --bucket "$LINUX_DIST_S3_BUCKET" \
@@ -386,7 +401,11 @@ jobs:
           path: release_metadata.json
           retention-days: 30
 
-  # ── GitHub Release + latest.json (tag builds only) ───────────────────
+  # ── GitHub Release + 26.04 preview manifest (tag builds only) ─────────
+  # 26.04 NEVER touches the served channels (latest/stable). On a 26.04/x.y.z tag
+  # it publishes a GitHub Release and, when explicitly enabled, an un-served
+  # preview manifest. Promotion to the fleet OTA channels is a separate, deliberate
+  # step that does not live on this branch.
   publish_release:
     needs: [build, publish_metadata]
     runs-on: ubuntu-latest
@@ -398,12 +417,12 @@ jobs:
     if: >-
       needs.build.result == 'success'
       && needs.publish_metadata.result == 'success'
-      && needs.build.outputs.is_release == 'true'
+      && startsWith(github.ref, 'refs/tags/')
     env:
       LINUX_DIST_S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
       AWS_REGION:           ${{ secrets.AWS_REGION }}
-      RELEASE_METADATA_KEY: ${{ vars.RELEASE_METADATA_KEY || 'meta/tachyon-latest.json' }}
-      PUSH_JSON:            ${{ vars.PUSH_JSON || 'false' }}
+      # Off by default: publishing even the un-served 26.04 preview is opt-in.
+      PUSH_26_04_JSON:      ${{ vars.PUSH_26_04_JSON || 'false' }}
     steps:
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v5
@@ -424,7 +443,7 @@ jobs:
 
       - name: Install tachyon-dist-tools
         env:
-          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}
+          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.4' }}
         run: |
           set -euo pipefail
           pip install "https://github.com/particle-iot/tachyon-dist-tools/releases/download/${DIST_TOOLS_VERSION}/tachyon_dist_tools-${DIST_TOOLS_VERSION}-py3-none-any.whl"
@@ -435,11 +454,24 @@ jobs:
           name: release-metadata-json
           path: .
 
+      - name: Determine released version
+        id: rel
+        env:
+          TAG_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Tag is '26.04/x.y.z'. VERSION is clean semver for display; TAG_REF is the
+          # actual git ref for the changelog range and the GitHub Release tag.
+          VERSION="${TAG_REF#26.04/}"
+          echo "version=${VERSION}"   >> "$GITHUB_OUTPUT"
+          echo "tag_ref=${TAG_REF}"   >> "$GITHUB_OUTPUT"
+          echo "Releasing 26.04 ${VERSION} (tag ${TAG_REF})"
+
       - name: Resolve previous version
         id: versel
         run: |
           set -euo pipefail
-          PREV=$(tachyon-resolve-version --build-type release --get-previous-version)
+          PREV=$(tachyon-resolve-version --build-type release --get-previous-version --tag-prefix "26.04/")
           echo "prev=$PREV" >> "$GITHUB_OUTPUT"
 
       - name: Build changelog from PRs
@@ -447,7 +479,7 @@ jobs:
         uses: mikepenz/release-changelog-builder-action@v4
         with:
           fromTag: ${{ steps.versel.outputs.prev }}
-          toTag:   ${{ needs.build.outputs.version }}
+          toTag:   ${{ steps.rel.outputs.tag_ref }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -455,7 +487,7 @@ jobs:
         id: contribs
         env:
           FROM_TAG: ${{ steps.versel.outputs.prev }}
-          TO_TAG: ${{ needs.build.outputs.version }}
+          TO_TAG: ${{ steps.rel.outputs.tag_ref }}
         run: |
           set -euo pipefail
           FROM="$FROM_TAG"
@@ -485,20 +517,23 @@ jobs:
       - name: Build release body
         id: body
         env:
-          VERSION: ${{ needs.build.outputs.version }}
+          VERSION: ${{ steps.rel.outputs.version }}
+          TAG_REF: ${{ steps.rel.outputs.tag_ref }}
           PREV: ${{ steps.versel.outputs.prev }}
           CHANGELOG: ${{ steps.changelog.outputs.changelog }}
           GH_REPO: ${{ github.repository }}
           CONTRIBUTORS: ${{ steps.contribs.outputs.contributors }}
         run: |
           set -euo pipefail
+          # release_metadata.json here contains only 26.04 builds (this branch builds
+          # one series), so no filtering is needed before the note builder.
           tachyon-gh-note-builder release_metadata.json -o images_section.md
 
           CLEAN_CHANGES="$(printf '%s\n' "$CHANGELOG" \
             | sed -E '/^##[[:space:]].*$/d')"
 
           {
-            echo "${VERSION}"
+            echo "Ubuntu 26.04 — ${VERSION}"
             echo
             cat images_section.md
             echo
@@ -510,7 +545,7 @@ jobs:
               printf '%s\n' "$CLEAN_CHANGES"
             fi
             echo
-            echo "**Full Changelog**: https://github.com/${GH_REPO}/compare/${PREV:-0.0.0}...${VERSION}"
+            echo "**Full Changelog**: https://github.com/${GH_REPO}/compare/${PREV:-0.0.0}...${TAG_REF}"
             echo
             echo "Contributors"
             echo "$CONTRIBUTORS"
@@ -519,101 +554,30 @@ jobs:
       - name: Create/Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.build.outputs.version }}
-          name: ${{ needs.build.outputs.version }}
+          tag_name: ${{ steps.rel.outputs.tag_ref }}
+          name: Ubuntu 26.04 ${{ steps.rel.outputs.version }}
           body_path: RELEASE_BODY.md
           draft: false
-          prerelease: ${{ contains(needs.build.outputs.version, '-') }}
+          prerelease: ${{ contains(steps.rel.outputs.version, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update S3 release metadata (latest.json)
-        if: env.PUSH_JSON == 'true'
-        run: |
-          set -euo pipefail
-          tachyon-update-published-metadata \
-            "$LINUX_DIST_S3_BUCKET" \
-            "${RELEASE_METADATA_KEY}" \
-            release_metadata.json \
-            --origin "24.04"
-
-      # ----------------------------------------------------------------------
-      # HACK (temporary): the 24.04 line (1.2.x new-BP/A/B) is not production
-      # stable, so the CLI must not serve it as the default. Pin the published
-      # 24.04 entries to the last good release (1.1.43, desktop only — 1.1.43
-      # never shipped a 24.04 headless image) in BOTH the `latest` channel
-      # (force-replacing whatever this release just published) and a `stable`
-      # channel (seeded here). Touches ONLY the 24.04 builds; every other
-      # distribution (20.04, android, …) in the manifests is left untouched.
-      # sha256_checksum is intentionally empty — 1.1.43 published no checksum
-      # and the CLI skips verification when it is absent. REMOVE this step once
-      # a real 24.04 stable ships and update the generation to publish it.
-      # ----------------------------------------------------------------------
-      - name: 'HACK: pin 24.04 to 1.1.43 (desktop) in latest + stable'
-        if: env.PUSH_JSON == 'true'
+      - name: Publish 26.04 preview metadata (un-served channel)
+        if: env.PUSH_26_04_JSON == 'true'
         env:
-          PIN_VERSION: '1.1.43'
-          LATEST_KEY: ${{ vars.RELEASE_METADATA_KEY || 'meta/tachyon-latest.json' }}
-          STABLE_KEY: 'meta/tachyon-stable.json'
+          PREVIEW_KEY: 'meta/tachyon-26.04-preview.json'
           CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
-          # Released 24.04 images live at /releases/<ver>/<region>/ (verified HTTP 200);
-          # this matches the existing 24.04 entries, NOT the singular /release/ that 20.04 uses.
-          RELEASES_BASE_URL: 'https://linux-dist.particle.io/releases'
         run: |
           set -euo pipefail
-
-          # The two pinned 1.1.43 24.04 desktop builds (NA + RoW). No headless
-          # (1.1.43 has none). sha256_checksum left "" so the CLI does not verify.
-          PINNED="$(jq -n --arg ver "$PIN_VERSION" --arg base "$RELEASES_BASE_URL" '
-            ["NA","RoW"] | map({
-              release_name: ("tachyon-ubuntu-24.04-" + . + "-desktop-" + $ver),
-              version: $ver, region: ., variant: "desktop",
-              platform: "qcm6490", board: "formfactor_dvt",
-              os: "linux", distribution: "ubuntu",
-              distribution_version: "24.04", distribution_variant: "ubuntu",
-              build_date: "2026-02-10T22:40:34.082161",
-              artifacts: [{
-                artifact_url: ($base + "/" + $ver + "/" + . + "/tachyon-ubuntu-24.04-" + . + "-desktop-" + $ver + ".zip"),
-                sha256_checksum: "", type: "release_image"
-              }]
-            })')"
-
-          # Replace ONLY the 24.04 builds in a manifest, preserving all others.
-          # $1 = s3 key, $2 = "seed" to allow creating the object when it genuinely
-          # does not exist (404). We check existence with head-object FIRST: if the
-          # object exists we MUST read it successfully (set -e aborts on a transient
-          # read failure) so we never silently fall back to an empty skeleton and
-          # clobber the other distributions; the skeleton is used ONLY for a true 404.
-          pin_24_04 () {
-            local key="$1" mode="$2" cur new
-            if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$key" >/dev/null 2>&1; then
-              cur="$(aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${key}" -)"
-            elif [ "$mode" = "seed" ]; then
-              echo "note: ${key} does not exist yet; seeding a new manifest"
-              cur="$SKEL"
-            else
-              echo "ERROR: ${key} not found (or unreadable); refusing to overwrite it from an empty skeleton" >&2
-              exit 1
-            fi
-            # Build + sanity-check the result in memory BEFORE uploading, so a jq
-            # failure can never write a truncated/empty object to S3.
-            new="$(printf '%s' "$cur" | jq --argjson pinned "$PINNED" \
-              '.builds = ([.builds[]? | select(.distribution_version != "24.04")] + $pinned)')"
-            printf '%s' "$new" | jq -e '.builds | length > 0' >/dev/null
-            printf '%s' "$new" | aws s3 cp - "s3://${LINUX_DIST_S3_BUCKET}/${key}" \
-              --content-type application/json --only-show-errors
-            echo "pinned 24.04 -> ${PIN_VERSION} in ${key}"
-          }
-
-          SKEL='{"$schema":"https://linux-dist.particle.io/schema/release_metadata_v1.json","builds":[]}'
-          pin_24_04 "$LATEST_KEY" require   # latest MUST exist; never seed/clobber
-          pin_24_04 "$STABLE_KEY" seed      # stable may not exist yet; seed if 404
-
+          aws s3 cp release_metadata.json \
+            "s3://${LINUX_DIST_S3_BUCKET}/${PREVIEW_KEY}" \
+            --content-type application/json --only-show-errors
+          echo "published 26.04 preview metadata -> ${PREVIEW_KEY}"
           if [ -n "${CF_DIST_ID:-}" ]; then
             aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" \
-              --paths "/${LATEST_KEY}" "/${STABLE_KEY}"
+              --paths "/${PREVIEW_KEY}"
           fi
 
-      - name: S3 metadata (dry run)
-        if: env.PUSH_JSON != 'true'
-        run: echo "PUSH_JSON != 'true' -- dry run, nothing pushed to S3."
+      - name: Preview metadata (dry run)
+        if: env.PUSH_26_04_JSON != 'true'
+        run: echo "PUSH_26_04_JSON != 'true' -- 26.04 preview manifest not published. 26.04 stays off served AND preview channels."
