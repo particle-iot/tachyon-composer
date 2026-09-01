@@ -123,10 +123,14 @@ jobs:
           ls -lh "$OUTPUT_PATH"
           test -s "$OUTPUT_PATH"
 
-      # ---------- PR uploads ----------
-      - name: Configure AWS (PR)
-        if: github.event_name == 'pull_request' &&
-            github.event.pull_request.head.repo.full_name == github.repository &&
+      # ---------- Prerelease uploads (PR, branch push, or dispatch) ----------
+      # Any non-release build (is_release != true) publishes to prerelease/. This
+      # covers PRs, pushes to the 26.04 branch, and manual dispatch -- all of which
+      # must upload so publish_metadata has artifacts to assemble. Fork PRs are
+      # excluded (no credentials).
+      - name: Configure AWS (prerelease)
+        if: steps.ver.outputs.is_release != 'true' &&
+            (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
             env.UPLOAD_PR_ASSETS != 'false'
         uses: aws-actions/configure-aws-credentials@v5
         with:
@@ -134,10 +138,10 @@ jobs:
           role-session-name: tachyon-pr-upload-${{ github.run_id }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Upload PR build to S3
+      - name: Upload prerelease build to S3
         id: s3_upload_pr
-        if: github.event_name == 'pull_request' &&
-            github.event.pull_request.head.repo.full_name == github.repository &&
+        if: steps.ver.outputs.is_release != 'true' &&
+            (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
             env.UPLOAD_PR_ASSETS != 'false'
         env:
           S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
