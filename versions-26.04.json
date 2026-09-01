@@ -42,12 +42,13 @@
     },
 
     // Overlay stack repo. Pinned to a full 40-char commit sha (see versions-24.04.json for why).
-    // TODO: bump to the sha that carries the ubuntu-{common,headless,desktop}-26.04 stacks
-    // once feature/ubuntu-26.04-stacks merges — the current pin predates them and a 26.04
-    // build will fail at overlay stack resolution until this is bumped.
+    // TEMPORARY bring-up pin: HEAD of feature/ubuntu-26.04-stacks (overlays PR #42), which
+    // carries the ubuntu-{common,headless,desktop}-26.04 stacks + the PKG_SRC_UBUNTU_26_04
+    // mapping. TODO: move to the merge commit on main once PR #42 lands (composer pins
+    // overlays at main for releases).
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "4bbd8a8947f30862f66c4d4faf4eac9a2c67da31"
+      "param": "331d45e2729de7ca3df1c39c5a4ae142d916ef36"
     },
 
     // The overlay TOOL — same pin as 24.04 (series-independent engine).
