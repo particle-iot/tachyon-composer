@@ -126,22 +126,30 @@
     //Published to `latest`, as every particle-linux release since 0.22.1-1 is.
     "PKG_particle_linux": "0.25.2-1",
 
-    //Radio code (RIL). 0.6.2 fixes three things a 1.2.17 setup run on head2 surfaced.
-    //Slot reporting: QMI marks both physical slots active on this modem, ModemManager
-    //resolves that by naming the last one, so every boot compared slot 2 against a
-    //configured slot 1, asked for a switch the modem refused with a QMI "Internal" error,
-    //and power-cycled the modem on a device already on the right SIM. 0.6.2 reports the
-    //slot the modem is actually using, and waits and retries where a switch is genuinely
-    //needed. Modem-info reads: nothing refreshes them on a timer, so the startup pass --
-    //the one with no earlier value to fall back on -- ran before ModemManager had exported
-    //a modem and left baseband-version and eid reading `unavailable` for the whole boot.
-    //0.6.2 keeps the last known value and re-runs the refresh with widening backoff, so
-    //`unavailable` means "asked, has none" rather than "could not ask". It also stops
-    //reporting a refused ModemManager call as "ModemManager is not answering" -- an error
-    //reply is the service answering -- and defaults TMPDIR in the on-image suites, which
-    //`sudo` strips and `set -u` then aborts on.
-    //Published to the `latest` feed, not `stable`, exactly as 0.6.0-1 and 0.6.1-1 are.
-    "PKG_particle_tachyon_ril": "0.6.2-1",
+    //Radio code (RIL). 0.7.0 configures the modem's RF for the antenna that is
+    //attached, and makes it a switchable profile rather than a one-shot fix. The
+    //SG560D enables 4x4 MIMO on NR5G and LTE by default, which raises the packet
+    //loss rate on the two-element moulded antenna, and NA boards additionally have
+    //to run at reduced TX power for FCC certification -- but an external antenna
+    //adapter is a different aerial, so those settings belong to the antenna and not
+    //to the board. 0.7.0 adds `antenna --set internal|external`, `--get` and
+    //`--list` to ctl plus SetAntenna/GetAntenna on D-Bus, persists the profile in
+    ///etc/particle/antenna.yaml, and defaults to internal -- so a device that
+    //upgrades into this version and has never been configured lands on the
+    //FCC-correct profile. It reads all three settings before writing any of them,
+    //so a modem that cannot answer is left alone rather than half configured: MIMO
+    //written with TX power still at full is exactly the state an NA board is not
+    //certified for. It also refuses to touch a board whose AT+GMR variant is
+    //neither NA nor EM, and resets the modem rather than rebooting the device,
+    //tracking the reset separately from the write because AT+QTXPWR resets the
+    //modem by itself.
+    //This supersedes the modem-rf-config overlay. tachyon-overlays#41 is closed and
+    //never landed on main, so there is nothing to remove alongside this bump; the
+    //package form also reaches devices already in the field through `apt upgrade`
+    //rather than needing an OS image update, and avoids that overlay's first-boot
+    //reboot landing in the middle of setup, cloud claim and eSIM download.
+    //Published to the `latest` feed, not `stable`, exactly as 0.6.x is.
+    "PKG_particle_tachyon_ril": "0.7.0-1",
 
     //The syscon package
     "PKG_particle_tachyon_syscon": "1.0.52-1",
