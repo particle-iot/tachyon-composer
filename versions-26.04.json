@@ -42,13 +42,27 @@
     },
 
     // Overlay stack repo. Pinned to a full 40-char commit sha (see versions-24.04.json for why).
-    // TEMPORARY bring-up pin: HEAD of feature/ubuntu-26.04-stacks (overlays PR #42), which
-    // carries the ubuntu-{common,headless,desktop}-26.04 stacks + the PKG_SRC_UBUNTU_26_04
-    // mapping. TODO: move to the merge commit on main once PR #42 lands (composer pins
-    // overlays at main for releases).
+    // 26.04 overlays live on their OWN long-lived branch and are DELIBERATELY NOT merged to
+    // overlays `main` (Nick's decision, 2026-09-01). Rationale: the 26.04 stacks reuse the
+    // *shared* overlay scripts, and several were edited to tolerate resolute's package deltas
+    // (neofetch / cheese / gnome-session-wayland / linux-tools-qcom / polkitd-pkla dropped;
+    // dracut replaces initramfs-tools). Those edits are meant to be no-ops on 24.04, but
+    // landing them on shared `main` would ride into 24.04 the moment its overlay pin is next
+    // bumped. Keeping them on a branch isolates 24.04 entirely. So this pin stays on the
+    // BRANCH permanently — bump it deliberately to a newer sha ON THE BRANCH; do NOT repoint
+    // at main. If/when 26.04 becomes mainline, merge the branch to main and let this follow
+    // main like 24.04 does. Overlays PR #42 was landed on the `26.04` branch (2026-09-02),
+    // NOT on main.
+    // OPERATIONAL: because we fetch this sha (git fetch --depth 1 origin <sha>), the branch
+    // must never be deleted or rewound below it, or 26.04 builds break. Branch: `26.04`
+    // (overlays repo). sha below (586b2f57) = current-main + the 26.04 delta — i.e. the
+    // hardware-validated fb98b64 tree (booted Ubuntu 26.04.1 to login on rowan 2026-09-01)
+    // PLUS three shared-overlay fixes main gained since the fork (43aeed1 /vendor-from-
+    // initramfs + HDMI UCM verb; dc2f331 set-initial-time). Boot re-confirm recommended on
+    // the CI image built from this sha, since it is not byte-identical to what was flashed.
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "fb98b642d46b51f6f3badf30a0fd16643b8eeb5d"
+      "param": "586b2f57faf30354272f4924edc7d6c01688e01e"
     },
 
     // The overlay TOOL — same pin as 24.04 (series-independent engine).
