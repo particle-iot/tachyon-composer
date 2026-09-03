@@ -538,80 +538,98 @@ jobs:
             --origin "24.04"
 
       # ----------------------------------------------------------------------
-      # HACK (temporary): the 24.04 line (1.2.x new-BP/A/B) is not production
-      # stable, so the CLI must not serve it as the default. Pin the published
-      # 24.04 entries to the last good release (1.1.43, desktop only — 1.1.43
-      # never shipped a 24.04 headless image) in BOTH the `latest` channel
-      # (force-replacing whatever this release just published) and a `stable`
-      # channel (seeded here). Touches ONLY the 24.04 builds; every other
-      # distribution (20.04, android, …) in the manifests is left untouched.
-      # sha256_checksum is intentionally empty — 1.1.43 published no checksum
-      # and the CLI skips verification when it is absent. REMOVE this step once
-      # a real 24.04 stable ships and update the generation to publish it.
+      # `latest` is now simply whatever this release published. The step above
+      # is its only writer: tachyon-update-published-metadata replaces every
+      # entry with distribution_version == "24.04" with this build's four
+      # images (NA/RoW x headless/desktop, real sha256 checksums) and leaves
+      # every other distribution -- 20.04, android -- untouched.
+      #
+      # This replaces the 1.1.43 pin that used to force-overwrite the entries
+      # this step had just written, so the 1.2.x line was never served as the
+      # default. Two consequences worth knowing: the CLI now offers 1.2.x by
+      # default, and a 24.04 headless image appears in `latest` for the first
+      # time (1.1.43 shipped desktop only).
       # ----------------------------------------------------------------------
-      - name: 'HACK: pin 24.04 to 1.1.43 (desktop) in latest + stable'
+      - name: Invalidate CloudFront (latest.json)
         if: env.PUSH_JSON == 'true'
         env:
-          PIN_VERSION: '1.1.43'
-          LATEST_KEY: ${{ vars.RELEASE_METADATA_KEY || 'meta/tachyon-latest.json' }}
-          STABLE_KEY: 'meta/tachyon-stable.json'
           CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
-          # Released 24.04 images live at /releases/<ver>/<region>/ (verified HTTP 200);
-          # this matches the existing 24.04 entries, NOT the singular /release/ that 20.04 uses.
-          RELEASES_BASE_URL: 'https://linux-dist.particle.io/releases'
+        run: |
+          set -euo pipefail
+          if [ -n "${CF_DIST_ID:-}" ]; then
+            aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" \
+              --paths "/${RELEASE_METADATA_KEY}"
+          else
+            echo "CF_DIST_ID not set; skipping invalidation."
+          fi
+
+      # ----------------------------------------------------------------------
+      # One-time promotion of the 24.04 `stable` channel off the 1.1.43 pin.
+      #
+      # `stable` was seeded with 1.1.43 desktop (empty checksums) while 1.2.x
+      # was pre-production. Move it to STABLE_PROMOTE_TO exactly once, and
+      # only when BOTH of these hold:
+      #
+      #   * every 24.04 entry in meta/tachyon-stable.json is STABLE_PROMOTE_FROM
+      #   * this build IS STABLE_PROMOTE_TO
+      #
+      # Any other release leaves `stable` alone -- including a later 1.2.x,
+      # which has to be promoted deliberately rather than by whichever build
+      # happens to run next. The pair of guards also makes this step
+      # self-retiring: once `stable` reads 1.2.24 the first can never pass
+      # again, so it goes inert and can simply be deleted.
+      #
+      # Unlike the pin it replaces, the write goes through
+      # tachyon-update-published-metadata rather than raw `aws s3 cp -`, so it
+      # gets schema validation on the way in and out plus the optimistic-
+      # concurrency retry, and it publishes real checksums instead of the
+      # empty ones the CLI had to skip verifying.
+      # ----------------------------------------------------------------------
+      - name: 'Promote 24.04 stable: 1.1.43 -> 1.2.24 (once, or not at all)'
+        if: env.PUSH_JSON == 'true'
+        env:
+          STABLE_KEY: 'meta/tachyon-stable.json'
+          STABLE_PROMOTE_FROM: '1.1.43'
+          STABLE_PROMOTE_TO: '1.2.24'
+          VERSION: ${{ needs.build.outputs.version }}
+          CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
           set -euo pipefail
 
-          # The two pinned 1.1.43 24.04 desktop builds (NA + RoW). No headless
-          # (1.1.43 has none). sha256_checksum left "" so the CLI does not verify.
-          PINNED="$(jq -n --arg ver "$PIN_VERSION" --arg base "$RELEASES_BASE_URL" '
-            ["NA","RoW"] | map({
-              release_name: ("tachyon-ubuntu-24.04-" + . + "-desktop-" + $ver),
-              version: $ver, region: ., variant: "desktop",
-              platform: "qcm6490", board: "formfactor_dvt",
-              os: "linux", distribution: "ubuntu",
-              distribution_version: "24.04", distribution_variant: "ubuntu",
-              build_date: "2026-02-10T22:40:34.082161",
-              artifacts: [{
-                artifact_url: ($base + "/" + $ver + "/" + . + "/tachyon-ubuntu-24.04-" + . + "-desktop-" + $ver + ".zip"),
-                sha256_checksum: "", type: "release_image"
-              }]
-            })')"
+          if [[ "$VERSION" != "$STABLE_PROMOTE_TO" ]]; then
+            echo "This build is ${VERSION}, not ${STABLE_PROMOTE_TO}; leaving ${STABLE_KEY} untouched."
+            exit 0
+          fi
 
-          # Replace ONLY the 24.04 builds in a manifest, preserving all others.
-          # $1 = s3 key, $2 = "seed" to allow creating the object when it genuinely
-          # does not exist (404). We check existence with head-object FIRST: if the
-          # object exists we MUST read it successfully (set -e aborts on a transient
-          # read failure) so we never silently fall back to an empty skeleton and
-          # clobber the other distributions; the skeleton is used ONLY for a true 404.
-          pin_24_04 () {
-            local key="$1" mode="$2" cur new
-            if aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$key" >/dev/null 2>&1; then
-              cur="$(aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${key}" -)"
-            elif [ "$mode" = "seed" ]; then
-              echo "note: ${key} does not exist yet; seeding a new manifest"
-              cur="$SKEL"
-            else
-              echo "ERROR: ${key} not found (or unreadable); refusing to overwrite it from an empty skeleton" >&2
-              exit 1
-            fi
-            # Build + sanity-check the result in memory BEFORE uploading, so a jq
-            # failure can never write a truncated/empty object to S3.
-            new="$(printf '%s' "$cur" | jq --argjson pinned "$PINNED" \
-              '.builds = ([.builds[]? | select(.distribution_version != "24.04")] + $pinned)')"
-            printf '%s' "$new" | jq -e '.builds | length > 0' >/dev/null
-            printf '%s' "$new" | aws s3 cp - "s3://${LINUX_DIST_S3_BUCKET}/${key}" \
-              --content-type application/json --only-show-errors
-            echo "pinned 24.04 -> ${PIN_VERSION} in ${key}"
-          }
+          # A missing object is not a reason to create one: this promotion only
+          # ever rewrites an existing pin, so a 404 means the world changed
+          # under us and stopping is correct.
+          if ! aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$STABLE_KEY" >/dev/null 2>&1; then
+            echo "ERROR: ${STABLE_KEY} does not exist (or is unreadable); refusing to create it here." >&2
+            exit 1
+          fi
+          CUR="$(aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${STABLE_KEY}" -)"
 
-          SKEL='{"$schema":"https://linux-dist.particle.io/schema/release_metadata_v1.json","builds":[]}'
-          pin_24_04 "$LATEST_KEY" require   # latest MUST exist; never seed/clobber
-          pin_24_04 "$STABLE_KEY" seed      # stable may not exist yet; seed if 404
+          # `unique` collapses the expected pair of 1.1.43 entries to one value,
+          # so a manifest holding a mix of versions reads as already-moved-on
+          # and is left alone rather than half-rewritten.
+          FOUND="$(printf '%s' "$CUR" | jq -r '
+            [.builds[]? | select(.distribution_version == "24.04") | .version] | unique | join(",")')"
+          if [[ "$FOUND" != "$STABLE_PROMOTE_FROM" ]]; then
+            echo "24.04 in ${STABLE_KEY} is \"${FOUND:-none}\", not the ${STABLE_PROMOTE_FROM} pin; leaving it untouched."
+            exit 0
+          fi
+
+          echo "Promoting 24.04 in ${STABLE_KEY}: ${STABLE_PROMOTE_FROM} -> ${VERSION}"
+          tachyon-update-published-metadata \
+            "$LINUX_DIST_S3_BUCKET" \
+            "$STABLE_KEY" \
+            release_metadata.json \
+            --origin "24.04"
 
           if [ -n "${CF_DIST_ID:-}" ]; then
             aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" \
-              --paths "/${LATEST_KEY}" "/${STABLE_KEY}"
+              --paths "/${STABLE_KEY}"
           fi
 
       - name: S3 metadata (dry run)
