@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://linux-dist.particle.io/schema/build_metadata_v1.json",
+  "type": "object",
+  "properties": {
+    "release_name": {
+      "type": "string",
+      "description": "Name of the release in a specific format"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$",
+      "description": "Version of the release in semantic versioning format"
+    },
+    "platform": {
+      "type": "string",
+      "description": "Platform identifier"
+    },
+    "region": {
+      "type": "string",
+      "description": "Region identifier"
+    },
+    "variant": {
+      "type": "string",
+      "description": "Variant identifier"
+    },
+    "board": {
+      "type": "string",
+      "description": "Board identifier"
+    },
+    "os": {
+      "type": "string",
+      "description": "Operating system name"
+    },
+    "distribution": {
+      "type": "string",
+      "description": "Linux distribution name"
+    },
+    "distribution_version": {
+      "type": "string",
+      "description": "Version of the distribution"
+    },
+    "distribution_variant": {
+      "type": "string",
+      "description": "Variant of the distribution"
+    },
+    "build_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of the build"
+    }
+  },
+  "required": [
+    "release_name",
+    "version",
+    "region",
+    "variant",
+    "platform",
+    "board",
+    "os",
+    "distribution",
+    "distribution_version",
+    "build_date"
+  ]
+}

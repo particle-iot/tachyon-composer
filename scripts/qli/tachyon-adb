@@ -1,0 +1,38 @@
+#!/bin/sh
+# QLI adbd with the Tachyon UDC, independent of reference-board UDC names.
+set -eu
+modprobe libcomposite
+mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
+udc=a600000.usb
+[ -d "/sys/class/udc/$udc" ] || exit 1
+if [ -r /sys/class/typec/port0/data_role ] && grep -q '\[host\]' /sys/class/typec/port0/data_role; then
+    exit 1
+fi
+g=/sys/kernel/config/usb_gadget/tachyon
+mkdir -p "$g"
+echo '' > "$g/UDC"
+echo 0x18d1 > "$g/idVendor"
+echo 0x4ee7 > "$g/idProduct"
+mkdir -p "$g/strings/0x409" "$g/configs/c.1/strings/0x409" "$g/functions/ffs.adb"
+serial=$(cat /sys/devices/soc0/serial_number 2>/dev/null || cat /etc/machine-id)
+printf '%s' "$serial" > "$g/strings/0x409/serialnumber"
+echo Particle > "$g/strings/0x409/manufacturer"
+echo 'Tachyon QLI' > "$g/strings/0x409/product"
+echo ADB > "$g/configs/c.1/strings/0x409/configuration"
+[ -L "$g/configs/c.1/ffs.adb" ] || ln -s "$g/functions/ffs.adb" "$g/configs/c.1/ffs.adb"
+mkdir -p /dev/usb-ffs/adb
+mountpoint -q /dev/usb-ffs/adb || mount -t functionfs adb /dev/usb-ffs/adb
+daemon=$(command -v adbd)
+"$daemon" &
+pid=$!
+cleanup() { echo '' > "$g/UDC"; kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; }
+trap cleanup EXIT
+trap 'exit 0' INT TERM
+count=0
+while [ ! -e /dev/usb-ffs/adb/ep1 ]; do
+  kill -0 "$pid" || exit 1
+  count=$((count+1)); [ "$count" -lt 50 ] || exit 1
+  sleep 0.1
+done
+echo "$udc" > "$g/UDC"
+wait "$pid"

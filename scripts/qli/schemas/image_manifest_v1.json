@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://linux-dist.particle.io/schema/image_manifest_v1.json",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "https://linux-dist.particle.io/schema/build_metadata_v1.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string",
+          "description": "The schema URL for validation"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "description": "Source key identifier"
+              },
+              "value": {
+                "type": "string",
+                "description": "Source value"
+              }
+            },
+            "required": ["key", "value"]
+          },
+          "description": "List of source objects"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "Target configuration object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "edl": {
+                  "type": "object",
+                  "properties": {
+                    "base": {
+                      "type": "string",
+                      "description": "Base path for EDL files"
+                    },
+                    "firehose": {
+                      "type": "string",
+                      "description": "Firehose file name"
+                    },
+                    "program_xml": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "List of program XML files"
+                    },
+                    "patch_xml": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "List of patch XML files"
+                    }
+                  },
+                  "required": ["base", "firehose", "program_xml", "patch_xml"]
+                },
+                "binary": {
+                  "type": "object",
+                  "properties": {
+                    "base": {
+                      "type": "string",
+                      "description": "Base path for binary files"
+                    },
+                    "binary": {
+                      "type": "string",
+                      "description": "Binary file name"
+                    }
+                  },
+                  "required": ["base", "binary"]
+                }
+              }
+            }
+          },
+          "description": "List of target configurations"
+        }
+      },
+      "required": ["$schema", "sources", "targets"]
+    }
+  ]
+}
