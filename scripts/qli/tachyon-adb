@@ -10,7 +10,8 @@ if [ -r /sys/class/typec/port0/data_role ] && grep -q '\[host\]' /sys/class/type
 fi
 g=/sys/kernel/config/usb_gadget/tachyon
 mkdir -p "$g"
-echo '' > "$g/UDC"
+unbind() { if [ -n "$(cat "$g/UDC")" ]; then echo '' > "$g/UDC"; fi; }
+unbind
 echo 0x18d1 > "$g/idVendor"
 echo 0x4ee7 > "$g/idProduct"
 mkdir -p "$g/strings/0x409" "$g/configs/c.1/strings/0x409" "$g/functions/ffs.adb"
@@ -25,7 +26,7 @@ mountpoint -q /dev/usb-ffs/adb || mount -t functionfs adb /dev/usb-ffs/adb
 daemon=$(command -v adbd)
 "$daemon" &
 pid=$!
-cleanup() { echo '' > "$g/UDC"; kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; }
+cleanup() { unbind; kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; }
 trap cleanup EXIT
 trap 'exit 0' INT TERM
 count=0

@@ -36,6 +36,11 @@ upstream PD mapper needed with the older kernel. PD mapper embeds its QRTR and
 LZMA dependencies and uses QLI's libc. No Debian package installation or Ubuntu
 APT overlay runs in QLI. Native NetworkManager, SSH and QLI's package tools remain.
 
+The Particle `msm_display` blacklist is required in both the root filesystem
+and initramfs. Without it, the two display modules register duplicate drivers
+and this kernel can panic during device probing. The build checks QLI's actual
+kmod resolver to ensure `msm_display` is suppressed and `msm` remains available.
+
 The root image is 10 GiB and must fit the existing system partition. The
 packaged manifest has explicit, finite write extents for 22 Tachyon payloads.
 It contains no GPT writes, patch XML, UFS provisioning, NV writes or persist
@@ -58,6 +63,8 @@ layout, region, identity, firmware version, NV/persist and network profiles.
 The helper briefly stops active modem userspace services, freezes persist
 while copying it, and restores those services afterwards. Keep the resulting
 directory private; it includes saved network profiles.
+The collector includes netplan configuration and generated NetworkManager
+keyfiles under `/run`, since Ubuntu Wi-Fi profiles may not be stored in `/etc`.
 
 ```sh
 embroid lease head2-tachyon --for 2h --purpose 'QLI bring-up and recovery'
@@ -105,6 +112,34 @@ restore the verified recovery ZIP through Embroid:
 ```sh
 embroid flash head2-tachyon "$RECOVERY_IMAGE" --target qcm6490 --timeout 1800 --boot
 ```
+
+### Direct Particle CLI on head2-pi
+
+While the large-file Embroid uploader is being deployed, the same validated ZIP
+can be flashed with the Particle CLI installed at `/opt/particle/bin/particle`
+on `head2-pi`. Add `--prepare-only` to the full preflight command above to verify
+the board, backups and recovery image without invoking Embroid. Stage both ZIPs
+and their checksum files in private directories under `/home/pi/qli-2.0` and
+verify the transferred SHA-256 digests there.
+
+Use a disk-backed temporary directory: the Pi's `/tmp` is only about 1 GiB.
+Enter EDL, confirm the `05c6:9008` USB device, then run on the Pi:
+
+```sh
+TMPDIR=/home/pi/qli-2.0/tmp /opt/particle/bin/particle flash --tachyon "$IMAGE" \
+  --yes --skip-reset --output /home/pi/qli-2.0/logs
+```
+
+Check the CLI exit status and flash log before an explicit normal power cycle.
+Keep serial recording active. This direct path uses the same finite program
+XML; it does not require changing the package or its partition layout.
+
+The September 13 hardware trial connected to the lab's mixed WPA2/WPA3 network
+using a 5 GHz profile with `802-11-wireless-security.pmf=1` (disabled). Automatic
+SAE/PMF association failed with this userspace/firmware combination. Apply this
+workaround only to the lab connection; it is not a global image setting. A
+stable cloned MAC avoids the firmware's generic default address. Wi-Fi and
+network credentials remain outside the distributable image.
 
 ## Acceptance
 

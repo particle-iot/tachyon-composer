@@ -3,6 +3,8 @@
 set -euo pipefail
 root=${1:?root}; fw=${2:?firmware}; cfg=${3:?config}; region=${4:?region}; version=${5:?version}
 here=$(cd "$(dirname "$0")" && pwd)
+mkdir -p "$root/etc/modprobe.d"
+install -m 644 "$here/tachyon-modules.conf" "$root/etc/modprobe.d/tachyon.conf"
 mkdir -p "$root/usr/lib/firmware/qcom" "$root/usr/lib/dsp" "$root/vendor" "$root/persist" "$root/boot/dtb_a"
 cp -a --remove-destination "$fw/lib/firmware/qcom/." "$root/usr/lib/firmware/qcom/"
 cp -a --remove-destination "$fw/usr/lib/dsp/." "$root/usr/lib/dsp/"
@@ -14,10 +16,15 @@ ln -sfn /vendor/wlan/amss20.bin "$dst/amss20.bin"
 ln -sfn /vendor/wlan/m3.bin "$dst/m3.bin"
 ln -sfn /vendor/wlan/regdb.bin "$dst/regdb.bin"
 ln -sfn /vendor/wlan/bdwlang.elf "$dst/board.bin"
+# Bluetooth patch/NVM files are supplied by the same regional nonhlos image.
+ln -sfn /vendor/btfw "$root/usr/lib/firmware/updates/qca"
 
 python3 - "$root" "$cfg" "$region" "$version" <<'PY'
 import json,pathlib,secrets,subprocess,sys
 r=pathlib.Path(sys.argv[1]); config=json.load(open(sys.argv[2]))
+(r/'etc/hostname').write_text('tachyon-qli\n')
+hosts=r/'etc/hosts'
+hosts.write_text(hosts.read_text().replace('rb3gen2-core-kit', 'tachyon-qli'))
 fstab=r/'etc/fstab'
 lines=[s for s in fstab.read_text().splitlines() if not (s.strip() and not s.lstrip().startswith('#') and len(s.split())>1 and s.split()[1] in ('/','/vendor','/persist','/boot/dtb_a'))]
 lines += ['PARTLABEL=system / ext4 defaults,noatime,errors=remount-ro 0 1',

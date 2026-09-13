@@ -44,9 +44,17 @@ def main():
     directory = args.backup_dir
     directory.mkdir(mode=0o700, parents=True, exist_ok=False)
     (directory/'baseline.json').write_text(json.dumps(baseline, indent=2)+'\n')
-    profiles = Path('/etc/NetworkManager/system-connections')
-    if profiles.is_dir():
-        shutil.copytree(profiles, directory/'network-profiles')
+    # Ubuntu's netplan renderer stores active Wi-Fi keyfiles under /run rather
+    # than /etc. Save both those profiles and their source configuration.
+    for source, name in (
+            ('/etc/NetworkManager/system-connections', 'network-profiles'),
+            ('/run/NetworkManager/system-connections', 'network-profiles-runtime'),
+            ('/etc/netplan', 'netplan'),
+            ('/etc/systemd/network', 'systemd-network'),
+            ('/etc/wpa_supplicant', 'wpa-supplicant')):
+        profiles = Path(source)
+        if profiles.is_dir():
+            shutil.copytree(profiles, directory/name)
     selected = [p for p in parts if p['label'] in LABELS]
     if {p['label'] for p in selected} != LABELS or len(selected) != len(LABELS):
         raise SystemExit('Missing or ambiguous NV/persist partitions')

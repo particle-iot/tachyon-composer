@@ -63,7 +63,10 @@ def verify_bundle(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('image', type=Path)
-    parser.add_argument('--check-only', action='store_true')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--check-only', action='store_true')
+    mode.add_argument('--prepare-only', action='store_true',
+                      help='Verify the full board/backup/recovery preflight without invoking Embroid')
     parser.add_argument('--baseline', type=Path)
     parser.add_argument('--backup-dir', type=Path)
     parser.add_argument('--recovery-image', type=Path)
@@ -95,6 +98,7 @@ def main():
         if (recovery['distribution'],recovery['distribution_version'],recovery['region']) != ('ubuntu','24.04',baseline['region']):
             raise ValueError('Recovery image must be Ubuntu 24.04 for this region')
     print('Board layout, NV/persist backups and Ubuntu recovery image verified', flush=True)
+    if args.prepare_only: return
     # Embroid acquires programming mode and verifies programming. --boot only
     # requests NORMAL power-on after successful completion, never after failure.
     subprocess.run(['embroid','flash',args.resource,str(args.image.resolve()),

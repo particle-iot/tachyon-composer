@@ -81,6 +81,8 @@ mkdir -p /lib/modules
 cp -a "$work/kernel/lib/modules/$KREL" /lib/modules/
 depmod "$KREL"
 mkdir -p /lib/firmware /etc/initramfs-tools/hooks /etc/initramfs-tools/scripts/init-bottom /etc/initramfs-tools/conf.d
+mkdir -p /etc/modprobe.d
+install -m 644 "$PROJ/scripts/qli/tachyon-modules.conf" /etc/modprobe.d/tachyon.conf
 cp -L "$root/usr/lib/firmware/qupv3fw.elf" /lib/firmware/qupv3fw.elf
 cp "$PROJ/scripts/qli/initramfs-firmware-hook" /etc/initramfs-tools/hooks/tachyon-firmware
 cp "$PROJ/scripts/qli/initramfs-vendor" /etc/initramfs-tools/scripts/init-bottom/tachyon-vendor
@@ -92,6 +94,7 @@ ln -s "initrd.img-$KREL" "$root/boot/initrd.img"
 lsinitramfs "$root/boot/initrd.img" > "$work/initramfs-files.txt"
 grep -q 'lib/firmware/qupv3fw.elf' "$work/initramfs-files.txt"
 grep -q 'scripts/init-bottom/tachyon-vendor' "$work/initramfs-files.txt"
+grep -q 'etc/modprobe.d/tachyon.conf' "$work/initramfs-files.txt"
 
 dtb=$(find "$work/kernel" -name qcm6490-tachyon.dtb -print -quit)
 [[ -s "$dtb" ]]
@@ -103,6 +106,10 @@ mcopy -o -i "$work/efi.img" "$PROJ/scripts/qli/grub.cfg" ::/EFI/BOOT/grub.cfg
 # Native aarch64 or Docker/binfmt checks the actual QLI executables and linker.
 chroot "$root" /usr/bin/true
 chroot "$root" /usr/bin/systemctl --version
+# Exercise QLI's real kmod resolver: suppress the conflicting display module
+# while retaining the Particle kernel's normal msm driver.
+[[ -z "$(chroot "$root" /usr/sbin/modprobe -S "$KREL" -b --show-depends msm_display)" ]]
+chroot "$root" /usr/sbin/modprobe -S "$KREL" --show-depends msm | grep -q '/msm.ko'
 python3 "$PROJ/scripts/qli/validate.py" rootfs "$root" "$CFG"
 sync -f "$root"
 umount "$root"
