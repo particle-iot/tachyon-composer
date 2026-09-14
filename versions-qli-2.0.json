@@ -32,6 +32,22 @@
       "url": "https://codeload.github.com/linux-msm/pd-mapper/tar.gz/5ecd2fe926aca7abfe40724177f63b942cff3947",
       "filename": "pd-mapper-5ecd2fe926aca7abfe40724177f63b942cff3947.tar.gz",
       "sha256": "08972b8813d08da5e20d27e57c5989398a0b750be92cd4398b5b21190c6ccdd0"
+    },
+    "gpu_zap_mdt": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-gpu-firmware/files/a660_zap.mdt",
+      "sha256": "85b91bac9af0a79b9955126280903f881fee6f4ad3e69d4db961b1ef9f8ef9a3"
+    },
+    "gpu_zap_b00": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-gpu-firmware/files/a660_zap.b00",
+      "sha256": "e18210e36c1d1f25becbec8f92ede88dbcc5ca3c952e39337bc1b0adf4a093d6"
+    },
+    "gpu_zap_b01": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-gpu-firmware/files/a660_zap.b01",
+      "sha256": "59b4b80ea6dd92daaa5e2403c7b834d40d763a7c1ee18d2d70603aba54388c27"
+    },
+    "gpu_zap_b02": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-gpu-firmware/files/a660_zap.b02",
+      "sha256": "1a5fdbf458ea547c5459b301ab577a83461797b77bde9501fb48fc62d2d5f185"
     }
   },
   "recovery_images": {

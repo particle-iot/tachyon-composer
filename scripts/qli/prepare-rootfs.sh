@@ -2,6 +2,7 @@
 # Focused board integration, executed by the builder, never through target apt.
 set -euo pipefail
 root=${1:?root}; fw=${2:?firmware}; cfg=${3:?config}; region=${4:?region}; version=${5:?version}
+inputs=${6:?pinned input directory}
 here=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$root/etc/modprobe.d"
 install -m 644 "$here/tachyon-modules.conf" "$root/etc/modprobe.d/tachyon.conf"
@@ -18,6 +19,12 @@ ln -sfn /vendor/wlan/regdb.bin "$dst/regdb.bin"
 ln -sfn /vendor/wlan/bdwlang.elf "$dst/board.bin"
 # Bluetooth patch/NVM files are supplied by the same regional nonhlos image.
 ln -sfn /vendor/btfw "$root/usr/lib/firmware/updates/qca"
+# The Particle DTB requests a660_zap.mdt, with split signed segments. QLI's
+# reference-board a660_zap.mbn does not provide this firmware lookup path.
+# Use the same ZAP files as Particle's Ubuntu add-gpu-firmware overlay.
+for ext in mdt b00 b01 b02; do
+  install -m 644 "$inputs/a660_zap.$ext" "$root/usr/lib/firmware/updates/a660_zap.$ext"
+done
 
 python3 - "$root" "$cfg" "$region" "$version" <<'PY'
 import json,pathlib,secrets,subprocess,sys

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline content gate and actual-board flash-layout gate."""
 import json
+import hashlib
 from pathlib import Path
 import sys
 from package import compare_layout
@@ -40,6 +41,10 @@ def rootfs(root, config):
             raise ValueError(f'Missing/empty image content: {path}')
     if sorted(p.name for p in (root / 'usr/lib/modules').iterdir()) != [krel]:
         raise ValueError('Unexpected module releases')
+    for ext in ('mdt', 'b00', 'b01', 'b02'):
+        path = inside(root, f'/usr/lib/firmware/updates/a660_zap.{ext}')
+        if hashlib.sha256(path.read_bytes()).hexdigest() != config['assets'][f'gpu_zap_{ext}']['sha256']:
+            raise ValueError(f'GPU ZAP firmware checksum mismatch: {path}')
     fstab = (root / 'etc/fstab').read_text()
     if 'PARTLABEL=system / ext4' not in fstab or 'PARTLABEL=core_nhlos_a /vendor' not in fstab:
         raise ValueError('Wrong root/vendor mounts')

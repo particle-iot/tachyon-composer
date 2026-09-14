@@ -141,6 +141,74 @@ workaround only to the lab connection; it is not a global image setting. A
 stable cloned MAC avoids the firmware's generic default address. Wi-Fi and
 network credentials remain outside the distributable image.
 
+## GPU firmware
+
+The Particle DTB requests `a660_zap.mdt` and its split `.b00`, `.b01` and `.b02`
+segments. These signed files come from Particle's Ubuntu `add-gpu-firmware`
+overlay, pinned to commit `4bbd8a8947f30862f66c4d4faf4eac9a2c67da31` and individual
+SHA-256 hashes in `versions-qli-2.0.json`. The composer installs them under
+`/usr/lib/firmware/updates/`. QLI already supplies the SQE and GMU firmware.
+
+Without these files, `msm` creates DRM device nodes but logs
+`Unable to load a660_zap.mdt` and `gpu hw init failed: -2`. Keep the
+`msm_display` blacklist: the working GPU driver is `msm`.
+
+Run `python3 gpu-smoke.py` on the target using `scripts/qli/gpu-smoke.py`.
+It requires a Freedreno hardware renderer, creates a surfaceless GLES context,
+renders a pixel and checks its RGBA readback. The live NA board passed with
+`FD643`, OpenGL ES 3.2 and Mesa 26.0.5. Physical display output and Vulkan have
+not been validated. The existing `g9482e2f` ZIPs predate this firmware fix;
+the running board received the four files separately.
+
+## DNF package feeds
+
+The QLI image includes DNF/RPM and its package database, but no configured
+repositories. A search of Qualcomm's public release artifacts and source
+documentation on September 13, 2026 did not identify a compatible public QLI
+2.0 RPM feed. The CodeLinaro `downloads/2.x` directory is a source mirror;
+the reference-board download directory contains flashable ZIPs, not an RPM feed.
+
+An ARM64 Fedora or CentOS repository is not a compatible replacement for this
+Yocto userspace. For additional host utilities, build RPMs with the matching
+QLI 2.0 locked Yocto configuration, then publish their package index. For
+example, from that initialized build environment:
+
+```sh
+bitbake net-tools iproute2
+bitbake package-index
+```
+
+Serve the resulting `tmp/deploy/rpm` directory with its metadata. On the target,
+create `/etc/yum.repos.d/qli-extras.repo`. This is a template for a feed we would
+operate; the URL and signing key below are placeholders, not an existing service:
+
+```ini
+[qli-extras]
+name=Tachyon QLI 2.0 extra utilities
+baseurl=https://YOUR-FEED-HOST/qli/2.0/rpm/
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-tachyon-qli
+includepkgs=net-tools net-tools-* iproute2-ss
+```
+
+Sign the RPMs, install the feed's verified public key, then run `dnf makecache`
+and `dnf install net-tools`. This narrow feed does not require a full reflash.
+The reference image's RPM database still lists its original kernel packages,
+whereas the composer replaces the actual kernel/modules with Particle's 6.8
+files. Do not use a general QLI kernel update or distro-wide DNF upgrade on
+this hybrid image. Expand the extra-package allowlist with reviewed dependencies.
+
+See the [Yocto runtime package management instructions](https://docs.yoctoproject.org/dev/dev-manual/packages.html#using-rpm)
+and [QLI 2.0 locked build instructions](https://github.com/qualcomm-linux/meta-qcom-releases/tree/qli-2.0).
+
+For generic utilities, [Entware](https://github.com/Entware/Entware/wiki) is
+another candidate: it publishes an `aarch64-k3.10` feed, installs binaries and
+their libraries under `/opt`, and uses `opkg`. This is a separate userspace
+package environment, not a QLI DNF repository. Its architecture/kernel baseline
+fits this board, but it has not been installed or tested here. Direct requests
+to `bin.entware.net` timed out during the feed investigation.
+
 ## Acceptance
 
 - QLI `/etc/os-release`, kernel `6.8.0-1058-particle`, matching module tree.

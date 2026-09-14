@@ -72,7 +72,7 @@ cp -a "$work/kernel/lib/modules/." "$root/usr/lib/modules/"
 ln -s "vmlinuz-$KREL" "$root/boot/vmlinuz"
 depmod -b "$root" "$KREL"
 
-bash "$PROJ/scripts/qli/prepare-rootfs.sh" "$root" "$work/bp/QCM6490_fw" "$CFG" "$REGION" "$VERSION"
+bash "$PROJ/scripts/qli/prepare-rootfs.sh" "$root" "$work/bp/QCM6490_fw" "$CFG" "$REGION" "$VERSION" "$IN"
 bash "$PROJ/scripts/qli/build-pd-mapper.sh" "$root" "$CFG" "$IN" "$work"
 
 # Build the initrd with Ubuntu tools, without installing Debian packages in QLI.
