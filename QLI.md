@@ -158,8 +158,9 @@ Run `python3 gpu-smoke.py` on the target using `scripts/qli/gpu-smoke.py`.
 It requires a Freedreno hardware renderer, creates a surfaceless GLES context,
 renders a pixel and checks its RGBA readback. The live NA board passed with
 `FD643`, OpenGL ES 3.2 and Mesa 26.0.5. Physical display output and Vulkan have
-not been validated. The existing `g9482e2f` ZIPs predate this firmware fix;
-the running board received the four files separately.
+not been validated. The `gc29cb64` NA/RoW images include this firmware fix
+and the cellular integration below. The running NA board received the same
+fixes in place; these newly packaged ZIPs have not been flashed.
 
 ## Cellular modem
 
@@ -208,10 +209,11 @@ nmcli connection down cellular
 The live NA board registered on AT&T while roaming and reported LTE/5G NR.
 NetworkManager automatically established an IPv4 bearer on `qmapmux0.0`, and
 HTTPS explicitly bound to that interface returned HTTP 200. Automatic modem
-startup passed a normal reboot with the boot workaround. With Wi-Fi disconnected,
+startup passed two normal reboots with the boot workaround. With Wi-Fi disconnected,
 cellular supplied the default route and DNS, and HTTPS passed again; Wi-Fi was
-then restored. IPv6, SMS, voice,
-SIM switching and long-duration reconnect behavior have not been validated.
+then restored. This SIM/APN rejected IPv6 with `ip-version-mismatch`; IPv4
+connected successfully. SMS, voice, SIM switching and long-duration reconnect
+behavior have not been validated.
 
 ## DNF package feeds
 
