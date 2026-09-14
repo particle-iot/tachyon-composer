@@ -158,8 +158,8 @@ Run `python3 gpu-smoke.py` on the target using `scripts/qli/gpu-smoke.py`.
 It requires a Freedreno hardware renderer, creates a surfaceless GLES context,
 renders a pixel and checks its RGBA readback. The live NA board passed with
 `FD643`, OpenGL ES 3.2 and Mesa 26.0.5. Physical display output and Vulkan have
-not been validated. The `gc29cb64` NA/RoW images include this firmware fix
-and the cellular integration below. The running NA board received the same
+not been validated. The `g5edb713` NA/RoW images include this firmware fix
+and the cellular/audio integration below. The running NA board received the same
 fixes in place; these newly packaged ZIPs have not been flashed.
 
 ## Cellular modem
@@ -248,7 +248,8 @@ python3 audio-smoke.py --capture
 Copy `scripts/qli/audio-smoke.py` to the target before running it. Passing this
 check establishes hardware stream activity and capture delivery. It does not
 establish audible headphone output, microphone fidelity or HDMI/DP operation.
-The live board passed default playback and capture after a reboot. A single early
+The live board passed default playback and capture after reboot with the final
+configuration, and the disconnected-DP codec errors were absent. A single early
 AudioReach status-query timeout (`1001021`) still appears; it did not prevent
 sound-card registration or the tested playback/capture streams.
 
