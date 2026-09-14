@@ -215,6 +215,43 @@ then restored. This SIM/APN rejected IPv6 with `ip-version-mismatch`; IPv4
 connected successfully. SMS, voice, SIM switching and long-duration reconnect
 behavior have not been validated.
 
+## Audio
+
+The composer installs Particle's Tachyon AudioReach topology and ALSA UCM2
+files from the pinned Ubuntu audio overlay. Without the topology, the kernel
+reports `qcm6490-tachyon-snd-card-tplg.bin` missing (`-2`), sound-card probing
+fails, and ALSA has no cards even though the audio DSP is running.
+
+The headless UCM patch keeps the ES8388 headphone output (`hw:0,0`) and onboard
+microphone (`hw:0,2`) at 48 kHz. The upstream Ubuntu profile includes HDMI/DP
+in the same HiFi verb; QLI rejects the entire profile when an unplugged display
+fails PCM probing, leaving Dummy Output. This image omits that display route
+from HiFi. HDMI/DP audio is not enabled by this headless configuration.
+
+QLI's existing system-wide PipeWire 1.6.3 and WirePlumber 0.5.14 select the HiFi
+profile automatically. The Ubuntu overlay's old Lua policy is not copied;
+WirePlumber 0.5 uses a different configuration format. The native rule keeps UCM
+and disables generic Pro Audio probing on the Tachyon card, avoiding unnecessary
+PCM probes of disconnected DisplayPort hardware. A service drop-in gives
+WirePlumber a private writable state directory instead of trying to write under
+`/.local/state`, so normal route/volume preferences can persist.
+
+```sh
+cat /proc/asound/cards
+PIPEWIRE_RUNTIME_DIR=/run/pipewire wpctl status
+# Silent playback with an advancing physical PCM pointer check:
+python3 audio-smoke.py
+# Also test two seconds of microphone capture (statistics only, no saved audio):
+python3 audio-smoke.py --capture
+```
+
+Copy `scripts/qli/audio-smoke.py` to the target before running it. Passing this
+check establishes hardware stream activity and capture delivery. It does not
+establish audible headphone output, microphone fidelity or HDMI/DP operation.
+The live board passed default playback and capture after a reboot. A single early
+AudioReach status-query timeout (`1001021`) still appears; it did not prevent
+sound-card registration or the tested playback/capture streams.
+
 ## DNF package feeds
 
 The QLI image includes DNF/RPM and its package database, but no configured
@@ -276,7 +313,8 @@ to `bin.entware.net` timed out during the feed investigation.
 Capture `uname -a`, `/proc/cmdline`, `findmnt`, `systemctl --failed`, `dmesg`,
 `journalctl -b`, `nmcli device status` and the build JSON alongside the image
 digest and Embroid operation records. Cellular and GPU follow-up checks are
-described above. Audio and full Particle service integration remain unfinished.
+described above, along with audio validation. Full Particle service integration
+remains unfinished.
 
 `make test_qli` exercises the flash bounds, protected partitions, checksum
 coverage, tampered payloads and image symlink resolution. Each real build also

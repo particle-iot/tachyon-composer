@@ -27,6 +27,18 @@ ln -sfn /vendor/btfw "$root/usr/lib/firmware/updates/qca"
 for ext in mdt b00 b01 b02; do
   install -m 644 "$inputs/a660_zap.$ext" "$root/usr/lib/firmware/updates/a660_zap.$ext"
 done
+# The Particle kernel's sound-card name selects Tachyon's topology and UCM.
+install -m 644 "$inputs/qcm6490-tachyon-snd-card-tplg.bin" "$root/usr/lib/firmware/qcom/qcm6490/"
+mkdir -p "$root/usr/share/alsa/ucm2/conf.d/qcm6490" "$root/usr/share/alsa/ucm2/Qualcomm/qcm6490-tachyon"
+for name in qcm6490.conf qcm6490-tachyon-snd-card.conf; do
+  install -m 644 "$inputs/$name" "$root/usr/share/alsa/ucm2/conf.d/qcm6490/"
+done
+install -m 644 "$inputs/HiFi.conf" "$root/usr/share/alsa/ucm2/Qualcomm/qcm6490-tachyon/"
+# An unplugged DP codec fails PCM probing and invalidates the entire HiFi
+# profile in QLI's PipeWire. Keep analog playback/capture usable headlessly.
+patch --batch --forward "$root/usr/share/alsa/ucm2/Qualcomm/qcm6490-tachyon/HiFi.conf" "$here/audio-headless.patch"
+mkdir -p "$root/etc/wireplumber/wireplumber.conf.d"
+install -m 644 "$here/51-tachyon-audio.conf" "$root/etc/wireplumber/wireplumber.conf.d/"
 
 python3 - "$root" "$cfg" "$region" "$version" <<'PY'
 import json,pathlib,secrets,subprocess,sys
@@ -57,6 +69,8 @@ PY
 
 units="$root/etc/systemd/system"
 mkdir -p "$units/multi-user.target.wants" "$units/getty.target.wants" "$units/sockets.target.wants"
+mkdir -p "$units/wireplumber.service.d"
+install -m 644 "$here/wireplumber.conf" "$units/wireplumber.service.d/tachyon.conf"
 ln -sfn /usr/lib/systemd/system/multi-user.target "$units/default.target"
 # The 6.18 reference-board gadget configuration and display startup are replaced
 # for this headless experiment. ModemManager owns the cellular modem.

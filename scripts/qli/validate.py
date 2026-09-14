@@ -40,6 +40,8 @@ def rootfs(root, config):
                  '/usr/lib/NetworkManager/1.56.0/libnm-wwan.so',
                  '/usr/lib/NetworkManager/1.56.0/libnm-device-plugin-wwan.so',
                  '/usr/lib/NetworkManager/1.56.0/libnm-device-plugin-wifi.so',
+                 '/etc/wireplumber/wireplumber.conf.d/51-tachyon-audio.conf',
+                 '/etc/systemd/system/wireplumber.service.d/tachyon.conf',
                  '/etc/tachyon-qli/build.json'):
         p = inside(root, path)
         if not p.is_file() or p.stat().st_size == 0:
@@ -50,6 +52,19 @@ def rootfs(root, config):
         path = inside(root, f'/usr/lib/firmware/updates/a660_zap.{ext}')
         if hashlib.sha256(path.read_bytes()).hexdigest() != config['assets'][f'gpu_zap_{ext}']['sha256']:
             raise ValueError(f'GPU ZAP firmware checksum mismatch: {path}')
+    for key, name in (
+        ('audio_topology', '/usr/lib/firmware/qcom/qcm6490/qcm6490-tachyon-snd-card-tplg.bin'),
+        ('audio_ucm_card', '/usr/share/alsa/ucm2/conf.d/qcm6490/qcm6490-tachyon-snd-card.conf'),
+        ('audio_ucm_alias', '/usr/share/alsa/ucm2/conf.d/qcm6490/qcm6490.conf'),
+    ):
+        path = inside(root, name)
+        if hashlib.sha256(path.read_bytes()).hexdigest() != config['assets'][key]['sha256']:
+            raise ValueError(f'Audio asset checksum mismatch: {path}')
+    hifi = inside(root, '/usr/share/alsa/ucm2/Qualcomm/qcm6490-tachyon/HiFi.conf').read_text()
+    if 'SectionDevice."HDMI"' in hifi or 'DISPLAY_PORT_RX_0' in hifi:
+        raise ValueError('Headless HiFi profile must not depend on a connected display')
+    if 'SectionDevice."Headphones"' not in hifi or 'SectionDevice."Mic"' not in hifi:
+        raise ValueError('Missing analog audio routes')
     fstab = (root / 'etc/fstab').read_text()
     if 'PARTLABEL=system / ext4' not in fstab or 'PARTLABEL=core_nhlos_a /vendor' not in fstab:
         raise ValueError('Wrong root/vendor mounts')
