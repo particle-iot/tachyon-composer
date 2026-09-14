@@ -10,6 +10,8 @@ mkdir -p "$root/usr/lib/firmware/qcom" "$root/usr/lib/dsp" "$root/vendor" "$root
 cp -a --remove-destination "$fw/lib/firmware/qcom/." "$root/usr/lib/firmware/qcom/"
 cp -a --remove-destination "$fw/usr/lib/dsp/." "$root/usr/lib/dsp/"
 ln -sfn qcom/qcm6490/qupv3fw.elf "$root/usr/lib/firmware/qupv3fw.elf"
+mkdir -p "$root/usr/lib/firmware/tachyon"
+ln -sfn /vendor/modem "$root/usr/lib/firmware/tachyon/modem"
 dst="$root/usr/lib/firmware/updates/ath11k/QCA6698AQ/hw2.1"
 mkdir -p "$dst"
 ln -sfn /vendor/wlan/amss20.bin "$dst/amss.bin"
@@ -57,8 +59,8 @@ units="$root/etc/systemd/system"
 mkdir -p "$units/multi-user.target.wants" "$units/getty.target.wants" "$units/sockets.target.wants"
 ln -sfn /usr/lib/systemd/system/multi-user.target "$units/default.target"
 # The 6.18 reference-board gadget configuration and display startup are replaced
-# for this headless experiment. Modem/DSP consumers will be brought up separately.
-for unit in weston.service weston.socket ofono.service ModemManager.service android-tools-adbd.service systemd-repart.service systemd-repart.socket; do
+# for this headless experiment. ModemManager owns the cellular modem.
+for unit in weston.service weston.socket ofono.service android-tools-adbd.service systemd-repart.service systemd-repart.socket; do
   ln -sfn /dev/null "$units/$unit"
 done
 mkdir -p "$units/serial-getty@ttyMSM0.service.d"
@@ -69,6 +71,14 @@ ExecStart=-/sbin/agetty --autologin root --noclear 115200 %I vt100
 EOF
 ln -sfn /usr/lib/systemd/system/serial-getty@.service "$units/getty.target.wants/serial-getty@ttyMSM0.service"
 ln -sfn /usr/lib/systemd/system/NetworkManager.service "$units/multi-user.target.wants/NetworkManager.service"
+for unit in ModemManager rmtfs tqftpserv; do
+  mkdir -p "$units/$unit.service.d"
+  install -m 644 "$here/$unit.conf" "$units/$unit.service.d/tachyon.conf"
+  ln -sfn /usr/lib/systemd/system/$unit.service "$units/multi-user.target.wants/$unit.service"
+done
+ln -sfn /usr/lib/systemd/system/ModemManager.service "$units/dbus-org.freedesktop.ModemManager1.service"
+mkdir -p "$root/etc/NetworkManager/system-connections"
+install -m 600 "$here/cellular.nmconnection" "$root/etc/NetworkManager/system-connections/cellular.nmconnection"
 ln -sfn /usr/lib/systemd/system/sshd.socket "$units/sockets.target.wants/sshd.socket"
 cat > "$root/etc/ssh/sshd_config" <<'EOF'
 HostKey /etc/ssh/ssh_host_ed25519_key

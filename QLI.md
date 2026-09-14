@@ -9,7 +9,7 @@ Qualcomm's reference image's 6.18 kernel.
 
 Use Docker with the existing ARM64 composer builder. On an x86 host, first
 build the base Dockerfile with `--platform linux/arm64` and pass its tag as
-`IMAGE_TAG`. QLI's PD mapper is compiled for ARM64 inside that builder.
+`IMAGE_TAG`. PD mapper and NetworkManager are compiled for ARM64 inside that builder.
 
 ```sh
 mkdir -p .tmp/qli/access
@@ -34,7 +34,8 @@ The composer adds the matching Particle kernel/modules, an Ubuntu-built
 initramfs, Tachyon firmware links and mounts, a native QLI ADB gadget, and the
 upstream PD mapper needed with the older kernel. PD mapper embeds its QRTR and
 LZMA dependencies and uses QLI's libc. No Debian package installation or Ubuntu
-APT overlay runs in QLI. Native NetworkManager, SSH and QLI's package tools remain.
+APT overlay runs in QLI. NetworkManager is rebuilt at QLI's version with WWAN
+support; SSH, ModemManager and QLI's package tools remain from the reference image.
 
 The Particle `msm_display` blacklist is required in both the root filesystem
 and initramfs. Without it, the two display modules register duplicate drivers
@@ -160,6 +161,58 @@ renders a pixel and checks its RGBA readback. The live NA board passed with
 not been validated. The existing `g9482e2f` ZIPs predate this firmware fix;
 the running board received the four files separately.
 
+## Cellular modem
+
+The Tachyon DTB requests `tachyon/modem/modem.mdt`. The composer maps this
+firmware directory to `/vendor/modem`, supplied by the matching regional
+Particle nonhlos image. QLI's native PD mapper, rmtfs and tqftpserv support the
+modem; ModemManager owns its QRTR/QMI interface. oFono stays disabled.
+
+The rmtfs override removes its reference-image read-only flag and uses the
+existing partition labels (`-P -s`). Normal modem runtime can update its NV
+partitions. No NV formatting, initialization or backup restore is performed.
+The firmware mount is available before rmtfs starts. tqftpserv uses its native
+firmware path translation and a private writable state directory.
+
+GRUB passes `nokaslr` as a workaround for the current EFI memory map. A reboot
+placed kernel code at `0xf86f0000`, overlapping the DT's modem RMTFS reservation
+at `0xf8500000–0xf8afffff`; its reservation and driver mapping then failed.
+With random placement disabled, the kernel loaded outside that range and the
+modem started automatically. This disables kernel address randomization in this
+lab image. A firmware reservation fix is needed before restoring KASLR.
+
+QLI's NetworkManager 1.56.0 was compiled without modem support. The composer
+rebuilds that same pinned upstream version with ModemManager enabled, including
+the daemon and matching WWAN, Wi-Fi and ifupdown plugins. Installing the WWAN
+plugin alone fails because the original daemon lacks required symbols. The
+build checks dependencies against QLI's actual loader and libraries; nmcli and
+libnm remain from QLI. The replacement files are local composer overrides,
+not newly installed RPMs, so the reference RPM database does not describe them.
+
+The default `cellular` NetworkManager profile automatically connects using
+Particle's `ksx.global.data` APN and permits roaming, matching the Ubuntu
+profile. For another SIM, change `gsm.apn` with `nmcli connection modify cellular`.
+A route metric of 700 keeps an ordinary Wi-Fi connection (600) preferred.
+The modem's selected SIM slot and stored credentials are left intact.
+
+```sh
+mmcli -L
+nmcli device status
+nmcli connection show cellular
+nmcli connection up cellular
+# Disable automatic cellular data if desired:
+nmcli connection modify cellular connection.autoconnect no
+nmcli connection down cellular
+```
+
+The live NA board registered on AT&T while roaming and reported LTE/5G NR.
+NetworkManager automatically established an IPv4 bearer on `qmapmux0.0`, and
+HTTPS explicitly bound to that interface returned HTTP 200. Automatic modem
+startup passed a normal reboot with the boot workaround. With Wi-Fi disconnected,
+cellular supplied the default route and DNS, and HTTPS passed again; Wi-Fi was
+then restored. IPv6, SMS, voice,
+SIM switching and long-duration reconnect behavior have not been validated.
+
 ## DNF package feeds
 
 The QLI image includes DNF/RPM and its package database, but no configured
@@ -220,8 +273,8 @@ to `bin.entware.net` timed out during the feed investigation.
 
 Capture `uname -a`, `/proc/cmdline`, `findmnt`, `systemctl --failed`, `dmesg`,
 `journalctl -b`, `nmcli device status` and the build JSON alongside the image
-digest and Embroid operation records. Modem, graphics, audio and full Particle
-service integration are subsequent work; report their status separately.
+digest and Embroid operation records. Cellular and GPU follow-up checks are
+described above. Audio and full Particle service integration remain unfinished.
 
 `make test_qli` exercises the flash bounds, protected partitions, checksum
 coverage, tampered payloads and image symlink resolution. Each real build also

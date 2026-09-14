@@ -1,7 +1,7 @@
 # Standalone experimental userspace; no Ubuntu overlay or release publication.
 QLI_VERSIONS_FILE ?= versions-qli-2.0.json
 QLI_OUTPUT_VERSION ?= 0.1.0-qli.2.0.g$(shell git rev-parse --short HEAD)
-QLI_BUILDER_IMAGE ?= tachyon-system-image-builder:qli-2.0-1
+QLI_BUILDER_IMAGE ?= tachyon-system-image-builder:qli-2.0-2
 
 .PHONY: fetch_qli fetch_qli_recovery build_qli test_qli docker/qli
 fetch_qli:

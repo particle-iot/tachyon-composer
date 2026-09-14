@@ -34,7 +34,12 @@ def rootfs(root, config):
     for path in ('/sbin/init', '/etc/os-release', '/boot/vmlinuz', '/boot/initrd.img',
                  f'/usr/lib/modules/{krel}/modules.dep', '/usr/sbin/sshd',
                  '/usr/bin/nmcli', '/usr/lib/firmware/qupv3fw.elf',
-                 '/usr/bin/adbd', '/usr/bin/pd-mapper',
+                 '/usr/bin/adbd', '/usr/bin/pd-mapper', '/usr/bin/rmtfs',
+                 '/usr/bin/tqftpserv', '/usr/sbin/ModemManager',
+                 '/usr/sbin/NetworkManager',
+                 '/usr/lib/NetworkManager/1.56.0/libnm-wwan.so',
+                 '/usr/lib/NetworkManager/1.56.0/libnm-device-plugin-wwan.so',
+                 '/usr/lib/NetworkManager/1.56.0/libnm-device-plugin-wifi.so',
                  '/etc/tachyon-qli/build.json'):
         p = inside(root, path)
         if not p.is_file() or p.stat().st_size == 0:
@@ -50,6 +55,20 @@ def rootfs(root, config):
         raise ValueError('Wrong root/vendor mounts')
     if (root / 'etc/systemd/system/systemd-repart.service').readlink() != Path('/dev/null'):
         raise ValueError('QLI repartitioning service must be disabled')
+    # /vendor is a separate partition mounted at boot, so validate the mapping
+    # without following it into the builder's filesystem.
+    if (root / 'usr/lib/firmware/tachyon/modem').readlink() != Path('/vendor/modem'):
+        raise ValueError('Missing Tachyon modem firmware mapping')
+    for unit in ('ModemManager', 'rmtfs', 'tqftpserv'):
+        enabled = f'/etc/systemd/system/multi-user.target.wants/{unit}.service'
+        if not inside(root, enabled).is_file():
+            raise ValueError(f'Missing/disabled modem service: {unit}')
+        override = root / f'etc/systemd/system/{unit}.service'
+        if override.is_symlink() and override.readlink() == Path('/dev/null'):
+            raise ValueError(f'Masked modem service: {unit}')
+    profile = root / 'etc/NetworkManager/system-connections/cellular.nmconnection'
+    if not profile.is_file() or profile.stat().st_mode & 0o777 != 0o600:
+        raise ValueError('Missing cellular profile or wrong keyfile permissions')
     print('QLI rootfs content gate passed')
 
 
