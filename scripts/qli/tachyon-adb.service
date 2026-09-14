@@ -1,5 +1,5 @@
 [Unit]
-Description=Tachyon lab USB ADB gadget
+Description=Tachyon USB ADB gadget
 After=systemd-udev-trigger.service local-fs.target
 StartLimitIntervalSec=0
 
