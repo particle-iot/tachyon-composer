@@ -196,7 +196,7 @@ network credentials remain outside the distributable image.
 The Particle DTB requests `a660_zap.mdt` and its split `.b00`, `.b01` and `.b02`
 segments. These signed files come from Particle's Ubuntu `add-gpu-firmware`
 overlay, pinned to commit `4bbd8a8947f30862f66c4d4faf4eac9a2c67da31` and individual
-SHA-256 hashes in `versions-qli-2.0.json`. The composer installs them under
+SHA-256 hashes in `versions.json`. The composer installs them under
 `/usr/lib/firmware/updates/`. QLI already supplies the SQE and GMU firmware.
 
 Without these files, `msm` creates DRM device nodes but logs
@@ -394,7 +394,7 @@ schemas from `https://linux-dist.particle.io/schema/`.
 ## Particle integration follow-up
 
 This PR builds the QLI platform image. The full Particle RPM stack is being
-completed in a separate composer PR. Its package artifacts are not yet built
+completed in [composer PR #91](https://github.com/particle-iot/tachyon-composer/pull/91). Its package artifacts are not yet built
 and pinned, so this platform build does not install those packages. See
 [PARTICLE-STACK-VALIDATION.md](PARTICLE-STACK-VALIDATION.md) for dependencies.
 

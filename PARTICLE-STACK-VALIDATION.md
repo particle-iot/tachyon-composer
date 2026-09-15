@@ -2,7 +2,7 @@
 
 PR #88 supplies the QLI platform image and the separate 1.4+ release stream,
 with kernel `6.8.0-1058.59+particle9` and BP firmware `2.0.8`. The incomplete
-Particle RPM integration is split into a follow-up composer PR.
+Particle RPM integration is split into [composer PR #91](https://github.com/particle-iot/tachyon-composer/pull/91).
 
 The following component PRs are prerequisites for accepting the full Particle
 stack; they do not need to land before the platform image PR #88:
