@@ -137,25 +137,44 @@ in `versions.json`. It is a local candidate artifact, not an S3 upload or feed.
 This step wraps an already built vendor binary; it does not require the QLI SDK
 needed to compile the other components. No functional eSIM pass is implied.
 
-## Candidate build infrastructure attempt
+## Component package CI (2026-09-15)
 
-[RIL #63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) now
-contains a branch-scoped CircleCI `qli-candidate` job that builds the component
-SDK and all candidate RPMs using composer commit
-`0c84d141b09351ff67e951d5b1771503028c418a`. It uses a hosted x86_64 worker
-and `meta-toolchain` from the pinned QLI configuration, with disk-space guards,
-instead of rebuilding the complete multimedia image for the SDK. The new job
-configuration passes CircleCI's validator. Existing Debian jobs are retained.
+All three component PRs now add automatic CircleCI RPM builds on PR/source-branch
+pushes and `main`, preserving the existing Debian builds and artifact retention:
 
-[First attempt, job 394](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/394)
-failed before producing accepted SDK/package outputs. Its failed-step log is
-needed for diagnosis; private CircleCI log access is unavailable in this session.
-No full candidate image exists yet. Candidate RPM jobs retain CI artifacts and
-do not upload RPMs to S3; the existing Debian publication paths remain separate.
+| Component | PR | Debian build | RPM build |
+| --- | --- | --- | --- |
+| RIL | [#63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) | [passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/404) | [diagnostic retry](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/403) after job 398 failed |
+| Syscon | [#36](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36) | [passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/191) | [failed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/190) |
+| Particle Linux | [#154](https://github.com/particle-iot-inc/particle-linux/pull/154) | [arm64 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3594), [amd64 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3589) | [failed](https://circleci.com/gh/particle-iot-inc/particle-linux/3593) |
+
+The build uses each job's current checkout and a pinned composer SDK configuration.
+The SDK target package names were corrected to `systemd-dev` and `libsqlite3-dev`
+using the actual pinned Yocto recipes. SDK installers/configuration, RPMs,
+manifests, dependencies, file lists and logs are retained as CircleCI artifacts.
+Successful RPM outputs have **not** yet been verified. Private CircleCI log access
+is unavailable; a RIL diagnostic job exposes its first build error in GitHub checks.
+
+After merge, `upload-rpm` is gated on `main` and successful builds/tests. It reuses
+the Debian AWS role, `packages-particle-production` context and
+`PACKAGES_S3_BUCKET`, writing under
+`rpm/qli-2.0/dev/<repository>/<source-commit>/<manifest-sha256>/`. It retains
+versioned RPMs, `packages.json` and `SHA256SUMS`; no hosted DNF feed is added.
+Each repository's 13 publication guard/integrity tests passed locally and in CI.
+Those tests use mocked AWS calls and do not demonstrate a real upload, RPM
+installation or functional acceptance. No merge or RPM S3 upload has occurred.
+
+The earlier RIL `qli-candidate` branch-only all-component job (394) is superseded
+by these per-component builds. No full candidate image exists yet. Do not promote
+prospective RPM pins or count the platform image's passing builds as full-stack
+acceptance.
+
+Embroid CLI now reports head2's `qcm6490-adb` binding as `peripheral_offline`;
+the fixture is in use by the Mac app. No reset or flash was attempted.
 
 An attempted LPA RPM transfer through `embroid adb ... push` returned
 `invalid gateway authority envelope` with both automatic and broker routing.
-ADB command execution still works. The package installation dry run has not
+ADB command execution worked at that earlier point. The package installation dry run has not
 been performed, and no eSIM operation is counted as passed.
 
 The live head2 RPM database satisfies all five LPA ELF dependency capabilities
