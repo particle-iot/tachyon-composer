@@ -1,6 +1,9 @@
 # Tachyon System Image Composer (24.04 / new-BP)
 
-Experimental QLI 2.0 open support: see [QLI.md](QLI.md) for builds and Embroid flashing on head2-pi.
+This is the **QLI 2.0 open / 1.4+** branch. See [QLI.md](QLI.md) for its Linux
+image builds, PR artifacts, release process, and flashing on head2-pi.
+The Ubuntu composer interface below is retained; Ubuntu 24.04 releases live
+on `main` (1.2.x), and Ubuntu 26.04 on `26.04` (1.3.x).
 
 A build system that composes flashable **Tachyon Ubuntu 24.04** EDL system images for the
 QCM6490 (Quectel r108 baseband) platform. It takes a 24.04 base rootfs, the new BP firmware

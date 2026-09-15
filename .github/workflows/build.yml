@@ -1,13 +1,25 @@
-name: Build Tachyon 24.04
+name: Build Tachyon QLI 2.0
+
+# QLI owns the qli-2.0/ tag stream, starting at 1.4.0. Ubuntu 24.04
+# remains on main (1.2.x), and Ubuntu 26.04 on 26.04 (1.3.x).
+# PRs build complete NA/RoW headless Linux images; tags publish releases.
 
 on:
   pull_request:
+    branches: [qli-2.0]
     types: [opened, synchronize, reopened]
   push:
+    branches:
+      - 'qli-2.0'
     tags:
-      - '[0-9]+.[0-9]+.[0-9]+'
-      - '[0-9]+.[0-9]+.[0-9]+-*'
+      # qli-2.0 releases only. '*' does not cross '/', so bare 24.04 tags never match.
+      - 'qli-2.0/[0-9]+.[0-9]+.[0-9]+'
+      - 'qli-2.0/[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
+
+concurrency:
+  group: qli-build-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   build:
@@ -28,15 +40,9 @@ jobs:
       fail-fast: false
       matrix:
         region: [RoW, NA]
-        variant: [headless, desktop]
+        variant: [headless]
 
     steps:
-      - name: Free up disk space
-        run: |
-          echo "Before:"; df -h
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache
-          echo "After:"; df -h
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -49,7 +55,7 @@ jobs:
 
       - name: Install tachyon-dist-tools
         env:
-          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}
+          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.4' }}
         run: |
           set -euo pipefail
           pip install "https://github.com/particle-iot/tachyon-dist-tools/releases/download/${DIST_TOOLS_VERSION}/tachyon_dist_tools-${DIST_TOOLS_VERSION}-py3-none-any.whl"
@@ -62,47 +68,48 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$GH_REF" == refs/tags/* ]]; then
-            VERSION=$(tachyon-resolve-version --build-type release)
+            VERSION=$(python3 scripts/qli/release-version.py current --ref "$GH_REF")
             IS_RELEASE="true"
           else
-            SHORT_SHA="$(git rev-parse --short=7 HEAD)"
-            VERSION=$(tachyon-resolve-version --build-type prerelease --build-id "build.${SHORT_SHA}")
+            VERSION=$(python3 scripts/qli/release-version.py prerelease)
             IS_RELEASE="false"
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "is_release=${IS_RELEASE}" >> "$GITHUB_OUTPUT"
-          echo "Resolved version: ${VERSION} (is_release=${IS_RELEASE})"
+          echo "Resolved qli-2.0 version: ${VERSION} (is_release=${IS_RELEASE})"
 
-      - name: Build (Ubuntu 24.04)
+      - name: Validate QLI source
+        run: make test_qli
+
+      - name: Build Qualcomm Linux image
         id: build_step
         env:
           VERSION: ${{ steps.ver.outputs.version }}
           REGION: ${{ matrix.region }}
-          VARIANT: ${{ matrix.variant }}
-          # fetch_kigen_sdk pulls lpa-linux-arm64 from the private
-          # particle-iot-inc/kigen-sdk repo on the host (the overlay container has no
-          # credentials). KIGEN_SDK_TOKEN must be a PAT/app token with read access to its
-          # releases -- the automatic GITHUB_TOKEN cannot read another org's repo.
-          # Passed as KIGEN_SDK_TOKEN rather than GH_TOKEN on purpose: forcing GH_TOKEN
-          # would clobber any working `gh auth login` on the self-hosted runner, and an
-          # empty value would break auth outright. The Makefile only exports GH_TOKEN
-          # when a non-empty token is actually present.
-          KIGEN_SDK_TOKEN: ${{ secrets.KIGEN_SDK_TOKEN }}
         run: |
           set -euo pipefail
-          OUTNAME="tachyon-ubuntu-24.04-${REGION}-${VARIANT}-${VERSION}.zip"
-
-          make build_24.04 \
-            VERSIONS_FILE=./versions.json \
-            INPUT_REGION="${REGION}" \
-            INPUT_VARIANT="${VARIANT}" \
-            OUTPUT_VERSION="${VERSION}" \
-            OUTPUT_24_04_SYSTEM_IMAGE="${OUTNAME}"
-
-          URL_ENCODED="$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$OUTNAME")"
+          make build_qli INPUT_REGION="$REGION" QLI_OUTPUT_VERSION="$VERSION"
+          OUTNAME="tachyon-qli-2.0-${REGION}-headless-formfactor_dvt-${VERSION}.zip"
+          OUTPUT_PATH=".tmp/qli/output/${OUTNAME}"
+          python3 scripts/qli/flash.py "$OUTPUT_PATH" --check-only
+          URL_ENCODED="$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$OUTNAME")"
           echo "output_name=${OUTNAME}" >> "$GITHUB_OUTPUT"
-          echo "output_path=.tmp/output/${OUTNAME}" >> "$GITHUB_OUTPUT"
+          echo "output_path=${OUTPUT_PATH}" >> "$GITHUB_OUTPUT"
+          echo "output_stem=${OUTPUT_PATH%.zip}" >> "$GITHUB_OUTPUT"
           echo "url_encoded_name=${URL_ENCODED}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload flashable Linux image
+        uses: actions/upload-artifact@v4
+        with:
+          name: qli-2.0-${{ matrix.region }}-headless
+          path: |
+            ${{ steps.build_step.outputs.output_path }}
+            ${{ steps.build_step.outputs.output_path }}.sha256
+            ${{ steps.build_step.outputs.output_stem }}.manifest.json
+            ${{ steps.build_step.outputs.output_stem }}.flash-layout.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
 
       - name: Verify artifact exists
         env:
@@ -111,10 +118,14 @@ jobs:
           ls -lh "$OUTPUT_PATH"
           test -s "$OUTPUT_PATH"
 
-      # ---------- PR uploads ----------
-      - name: Configure AWS (PR)
-        if: github.event_name == 'pull_request' &&
-            github.event.pull_request.head.repo.full_name == github.repository &&
+      # ---------- Prerelease uploads (PR, branch push, or dispatch) ----------
+      # Any non-release build (is_release != true) publishes to prerelease/. This
+      # covers PRs, pushes to the qli-2.0 branch, and manual dispatch -- all of which
+      # must upload so publish_metadata has artifacts to assemble. Fork PRs are
+      # excluded (no credentials).
+      - name: Configure AWS (prerelease)
+        if: steps.ver.outputs.is_release != 'true' &&
+            (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
             env.UPLOAD_PR_ASSETS != 'false'
         uses: aws-actions/configure-aws-credentials@v5
         with:
@@ -122,10 +133,10 @@ jobs:
           role-session-name: tachyon-pr-upload-${{ github.run_id }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Upload PR build to S3
+      - name: Upload prerelease build to S3
         id: s3_upload_pr
-        if: github.event_name == 'pull_request' &&
-            github.event.pull_request.head.repo.full_name == github.repository &&
+        if: steps.ver.outputs.is_release != 'true' &&
+            (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
             env.UPLOAD_PR_ASSETS != 'false'
         env:
           S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
@@ -136,14 +147,14 @@ jobs:
           echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
 
       - name: Comment with download link
-        if: steps.build_step.outputs.output_name &&
+        if: steps.s3_upload_pr.outputs.s3_uri &&
           github.event_name == 'pull_request' &&
           env.UPLOAD_PR_ASSETS != 'false'
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            **PR build uploaded** for **${{ matrix.region }} ${{ matrix.variant }}**
+            **PR build uploaded** for **qli-2.0 ${{ matrix.region }} ${{ matrix.variant }}**
             **Version:** `${{ steps.ver.outputs.version }}`
             **Download:** [URL](https://linux-dist.particle.io/prerelease/${{ steps.build_step.outputs.url_encoded_name }})
 
@@ -255,12 +266,14 @@ jobs:
       id-token: write
     if: >-
       needs.build.result == 'success'
+      && ((needs.build.outputs.is_release == 'true' && vars.UPLOAD_TAG_ASSETS != 'false')
+          || (needs.build.outputs.is_release != 'true' && vars.UPLOAD_PR_ASSETS != 'false'))
       && !(github.event_name == 'pull_request'
            && github.event.pull_request.head.repo.full_name != github.repository)
     env:
       LINUX_DIST_S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
       AWS_REGION:           ${{ secrets.AWS_REGION }}
-      PUBLIC_RELEASE_BASE_URL:    ${{ vars.PUBLIC_RELEASE_BASE_URL    || 'https://linux-dist.particle.io/release' }}
+      PUBLIC_RELEASE_BASE_URL:    https://linux-dist.particle.io/releases
       PUBLIC_PRERELEASE_BASE_URL: ${{ vars.PUBLIC_PRERELEASE_BASE_URL || 'https://linux-dist.particle.io/prerelease' }}
     steps:
       - name: Configure AWS
@@ -282,7 +295,7 @@ jobs:
 
       - name: Install tachyon-dist-tools
         env:
-          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}
+          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.4' }}
         run: |
           set -euo pipefail
           pip install "https://github.com/particle-iot/tachyon-dist-tools/releases/download/${DIST_TOOLS_VERSION}/tachyon_dist_tools-${DIST_TOOLS_VERSION}-py3-none-any.whl"
@@ -299,9 +312,7 @@ jobs:
           set -euo pipefail
           ls -l build_meta/
           test -f build_meta/NA-headless.txt
-          test -f build_meta/NA-desktop.txt
           test -f build_meta/RoW-headless.txt
-          test -f build_meta/RoW-desktop.txt
 
       - name: Assemble and validate metadata
         id: assemble
@@ -326,11 +337,11 @@ jobs:
             jq -n --arg ver "$VERSION" --arg now "$NOW" --arg url "$URL" \
               --arg sha "$SHA256" --arg variant "$VARIANT" --arg region "$REGION" \
               '{
-                release_name: ("tachyon-ubuntu-24.04-" + $region + "-" + $variant + "-" + $ver),
+                release_name: ("tachyon-qli-2.0-" + $region + "-" + $variant + "-formfactor_dvt-" + $ver),
                 version: $ver, region: $region, variant: $variant,
                 platform: "qcm6490", board: "formfactor_dvt",
-                os: "linux", distribution: "ubuntu",
-                distribution_version: "24.04", distribution_variant: "ubuntu",
+                os: "linux", distribution: "qualcomm-linux",
+                distribution_version: "2.0", distribution_variant: "open",
                 build_date: $now,
                 artifacts: [{ artifact_url: $url, sha256_checksum: $sha, type: "release_image" }]
               }' > "build_meta/${BASENAME}.json"
@@ -355,8 +366,10 @@ jobs:
           set -euo pipefail
           aws s3 cp release_metadata.json \
             "s3://${LINUX_DIST_S3_BUCKET}/${METADATA_KEY}" \
-            --only-show-errors
+            --content-type application/json --only-show-errors
 
+          # Expire PR metadata through the existing prerelease lifecycle policy.
+          # Tagged release metadata remains permanent.
           if [[ "$IS_RELEASE" != "true" ]]; then
             aws s3api put-object-tagging \
               --bucket "$LINUX_DIST_S3_BUCKET" \
@@ -386,7 +399,7 @@ jobs:
           path: release_metadata.json
           retention-days: 30
 
-  # ── GitHub Release + latest.json (tag builds only) ───────────────────
+  # Publish versioned QLI releases and the dedicated QLI channel.
   publish_release:
     needs: [build, publish_metadata]
     runs-on: ubuntu-latest
@@ -398,12 +411,12 @@ jobs:
     if: >-
       needs.build.result == 'success'
       && needs.publish_metadata.result == 'success'
-      && needs.build.outputs.is_release == 'true'
+      && startsWith(github.ref, 'refs/tags/')
     env:
       LINUX_DIST_S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
       AWS_REGION:           ${{ secrets.AWS_REGION }}
-      RELEASE_METADATA_KEY: ${{ vars.RELEASE_METADATA_KEY || 'meta/tachyon-latest.json' }}
-      PUSH_JSON:            ${{ vars.PUSH_JSON || 'false' }}
+      # QLI has a dedicated channel; Ubuntu latest/stable are separate.
+      PUSH_QLI_JSON:      ${{ vars.PUSH_QLI_JSON || 'true' }}
     steps:
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v5
@@ -424,7 +437,7 @@ jobs:
 
       - name: Install tachyon-dist-tools
         env:
-          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.3' }}
+          DIST_TOOLS_VERSION: ${{ vars.DIST_TOOLS_VERSION || '1.0.4' }}
         run: |
           set -euo pipefail
           pip install "https://github.com/particle-iot/tachyon-dist-tools/releases/download/${DIST_TOOLS_VERSION}/tachyon_dist_tools-${DIST_TOOLS_VERSION}-py3-none-any.whl"
@@ -435,11 +448,24 @@ jobs:
           name: release-metadata-json
           path: .
 
+      - name: Determine released version
+        id: rel
+        env:
+          TAG_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Tag is 'qli-2.0/x.y.z'. VERSION is clean semver for display; TAG_REF is the
+          # actual git ref for the changelog range and the GitHub Release tag.
+          VERSION="${TAG_REF#qli-2.0/}"
+          echo "version=${VERSION}"   >> "$GITHUB_OUTPUT"
+          echo "tag_ref=${TAG_REF}"   >> "$GITHUB_OUTPUT"
+          echo "Releasing qli-2.0 ${VERSION} (tag ${TAG_REF})"
+
       - name: Resolve previous version
         id: versel
         run: |
           set -euo pipefail
-          PREV=$(tachyon-resolve-version --build-type release --get-previous-version)
+          PREV=$(python3 scripts/qli/release-version.py previous)
           echo "prev=$PREV" >> "$GITHUB_OUTPUT"
 
       - name: Build changelog from PRs
@@ -447,7 +473,7 @@ jobs:
         uses: mikepenz/release-changelog-builder-action@v4
         with:
           fromTag: ${{ steps.versel.outputs.prev }}
-          toTag:   ${{ needs.build.outputs.version }}
+          toTag:   ${{ steps.rel.outputs.tag_ref }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -455,7 +481,7 @@ jobs:
         id: contribs
         env:
           FROM_TAG: ${{ steps.versel.outputs.prev }}
-          TO_TAG: ${{ needs.build.outputs.version }}
+          TO_TAG: ${{ steps.rel.outputs.tag_ref }}
         run: |
           set -euo pipefail
           FROM="$FROM_TAG"
@@ -485,20 +511,23 @@ jobs:
       - name: Build release body
         id: body
         env:
-          VERSION: ${{ needs.build.outputs.version }}
+          VERSION: ${{ steps.rel.outputs.version }}
+          TAG_REF: ${{ steps.rel.outputs.tag_ref }}
           PREV: ${{ steps.versel.outputs.prev }}
           CHANGELOG: ${{ steps.changelog.outputs.changelog }}
           GH_REPO: ${{ github.repository }}
           CONTRIBUTORS: ${{ steps.contribs.outputs.contributors }}
         run: |
           set -euo pipefail
+          # release_metadata.json here contains only qli-2.0 builds (this branch builds
+          # one series), so no filtering is needed before the note builder.
           tachyon-gh-note-builder release_metadata.json -o images_section.md
 
           CLEAN_CHANGES="$(printf '%s\n' "$CHANGELOG" \
             | sed -E '/^##[[:space:]].*$/d')"
 
           {
-            echo "${VERSION}"
+            echo "Qualcomm Linux 2.0 — ${VERSION}"
             echo
             cat images_section.md
             echo
@@ -510,7 +539,7 @@ jobs:
               printf '%s\n' "$CLEAN_CHANGES"
             fi
             echo
-            echo "**Full Changelog**: https://github.com/${GH_REPO}/compare/${PREV:-0.0.0}...${VERSION}"
+            echo "**Full Changelog**: https://github.com/${GH_REPO}/compare/${PREV:-0.0.0}...${TAG_REF}"
             echo
             echo "Contributors"
             echo "$CONTRIBUTORS"
@@ -519,119 +548,31 @@ jobs:
       - name: Create/Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.build.outputs.version }}
-          name: ${{ needs.build.outputs.version }}
+          tag_name: ${{ steps.rel.outputs.tag_ref }}
+          name: Qualcomm Linux 2.0 ${{ steps.rel.outputs.version }}
           body_path: RELEASE_BODY.md
           draft: false
-          prerelease: ${{ contains(needs.build.outputs.version, '-') }}
+          prerelease: ${{ contains(steps.rel.outputs.version, '-') }}
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update S3 release metadata (latest.json)
-        if: env.PUSH_JSON == 'true'
-        run: |
-          set -euo pipefail
-          tachyon-update-published-metadata \
-            "$LINUX_DIST_S3_BUCKET" \
-            "${RELEASE_METADATA_KEY}" \
-            release_metadata.json \
-            --origin "24.04"
-
-      # ----------------------------------------------------------------------
-      # `latest` is now simply whatever this release published. The step above
-      # is its only writer: tachyon-update-published-metadata replaces every
-      # entry with distribution_version == "24.04" with this build's four
-      # images (NA/RoW x headless/desktop, real sha256 checksums) and leaves
-      # every other distribution -- 20.04, android -- untouched.
-      #
-      # This replaces the 1.1.43 pin that used to force-overwrite the entries
-      # this step had just written, so the 1.2.x line was never served as the
-      # default. Two consequences worth knowing: the CLI now offers 1.2.x by
-      # default, and a 24.04 headless image appears in `latest` for the first
-      # time (1.1.43 shipped desktop only).
-      # ----------------------------------------------------------------------
-      - name: Invalidate CloudFront (latest.json)
-        if: env.PUSH_JSON == 'true'
+      - name: Publish QLI channel metadata
+        if: env.PUSH_QLI_JSON == 'true'
         env:
+          PREVIEW_KEY: 'meta/tachyon-qli-latest.json'
           CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
           set -euo pipefail
+          aws s3 cp release_metadata.json \
+            "s3://${LINUX_DIST_S3_BUCKET}/${PREVIEW_KEY}" \
+            --content-type application/json --only-show-errors
+          echo "published QLI channel metadata -> ${PREVIEW_KEY}"
           if [ -n "${CF_DIST_ID:-}" ]; then
             aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" \
-              --paths "/${RELEASE_METADATA_KEY}"
-          else
-            echo "CF_DIST_ID not set; skipping invalidation."
+              --paths "/${PREVIEW_KEY}"
           fi
 
-      # ----------------------------------------------------------------------
-      # One-time promotion of the 24.04 `stable` channel off the 1.1.43 pin.
-      #
-      # `stable` was seeded with 1.1.43 desktop (empty checksums) while 1.2.x
-      # was pre-production. Move it to STABLE_PROMOTE_TO exactly once, and
-      # only when BOTH of these hold:
-      #
-      #   * every 24.04 entry in meta/tachyon-stable.json is STABLE_PROMOTE_FROM
-      #   * this build IS STABLE_PROMOTE_TO
-      #
-      # Any other release leaves `stable` alone -- including a later 1.2.x,
-      # which has to be promoted deliberately rather than by whichever build
-      # happens to run next. The pair of guards also makes this step
-      # self-retiring: once `stable` reads 1.2.24 the first can never pass
-      # again, so it goes inert and can simply be deleted.
-      #
-      # Unlike the pin it replaces, the write goes through
-      # tachyon-update-published-metadata rather than raw `aws s3 cp -`, so it
-      # gets schema validation on the way in and out plus the optimistic-
-      # concurrency retry, and it publishes real checksums instead of the
-      # empty ones the CLI had to skip verifying.
-      # ----------------------------------------------------------------------
-      - name: 'Promote 24.04 stable: 1.1.43 -> 1.2.24 (once, or not at all)'
-        if: env.PUSH_JSON == 'true'
-        env:
-          STABLE_KEY: 'meta/tachyon-stable.json'
-          STABLE_PROMOTE_FROM: '1.1.43'
-          STABLE_PROMOTE_TO: '1.2.24'
-          VERSION: ${{ needs.build.outputs.version }}
-          CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
-        run: |
-          set -euo pipefail
-
-          if [[ "$VERSION" != "$STABLE_PROMOTE_TO" ]]; then
-            echo "This build is ${VERSION}, not ${STABLE_PROMOTE_TO}; leaving ${STABLE_KEY} untouched."
-            exit 0
-          fi
-
-          # A missing object is not a reason to create one: this promotion only
-          # ever rewrites an existing pin, so a 404 means the world changed
-          # under us and stopping is correct.
-          if ! aws s3api head-object --bucket "$LINUX_DIST_S3_BUCKET" --key "$STABLE_KEY" >/dev/null 2>&1; then
-            echo "ERROR: ${STABLE_KEY} does not exist (or is unreadable); refusing to create it here." >&2
-            exit 1
-          fi
-          CUR="$(aws s3 cp "s3://${LINUX_DIST_S3_BUCKET}/${STABLE_KEY}" -)"
-
-          # `unique` collapses the expected pair of 1.1.43 entries to one value,
-          # so a manifest holding a mix of versions reads as already-moved-on
-          # and is left alone rather than half-rewritten.
-          FOUND="$(printf '%s' "$CUR" | jq -r '
-            [.builds[]? | select(.distribution_version == "24.04") | .version] | unique | join(",")')"
-          if [[ "$FOUND" != "$STABLE_PROMOTE_FROM" ]]; then
-            echo "24.04 in ${STABLE_KEY} is \"${FOUND:-none}\", not the ${STABLE_PROMOTE_FROM} pin; leaving it untouched."
-            exit 0
-          fi
-
-          echo "Promoting 24.04 in ${STABLE_KEY}: ${STABLE_PROMOTE_FROM} -> ${VERSION}"
-          tachyon-update-published-metadata \
-            "$LINUX_DIST_S3_BUCKET" \
-            "$STABLE_KEY" \
-            release_metadata.json \
-            --origin "24.04"
-
-          if [ -n "${CF_DIST_ID:-}" ]; then
-            aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" \
-              --paths "/${STABLE_KEY}"
-          fi
-
-      - name: S3 metadata (dry run)
-        if: env.PUSH_JSON != 'true'
-        run: echo "PUSH_JSON != 'true' -- dry run, nothing pushed to S3."
+      - name: QLI channel disabled
+        if: env.PUSH_QLI_JSON != 'true'
+        run: echo "PUSH_QLI_JSON != 'true' -- QLI channel metadata not updated."

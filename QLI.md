@@ -7,9 +7,9 @@ Qualcomm's reference image's 6.18 kernel.
 
 ## Build
 
-Use Docker with the existing ARM64 composer builder. On an x86 host, first
-build the base Dockerfile with `--platform linux/arm64` and pass its tag as
-`IMAGE_TAG`. PD mapper and NetworkManager are compiled for ARM64 inside that builder.
+Use Docker. `make build_qli` builds an ARM64 builder and registers ARM64
+emulation on x86 Linux when needed. PD mapper and NetworkManager compile
+inside that builder; both are checked against QLI's loader and libraries.
 
 ```sh
 mkdir -p .tmp/qli/access
@@ -20,7 +20,8 @@ make build_qli INPUT_REGION=NA
 ```
 
 `QLI_VERSIONS_FILE` defaults to `versions-qli-2.0.json`.
-`QLI_OUTPUT_VERSION` defaults to `0.1.0-qli.2.0.g<composer-commit>`.
+`QLI_OUTPUT_VERSION` defaults to the next QLI version with
+`-dev+build.<composer-commit>` appended, starting at `1.4.0`.
 Outputs and logs belong under `.tmp/qli/`, independently of the Ubuntu build.
 The Ubuntu `build_24.04` interface and its versions file are unchanged.
 
@@ -45,7 +46,18 @@ kmod resolver to ensure `msm_display` is suppressed and `msm` remains available.
 The root image is 10 GiB and must fit the existing system partition. The
 packaged manifest has explicit, finite write extents for 22 Tachyon payloads.
 It contains no GPT writes, patch XML, UFS provisioning, NV writes or persist
-writes. Reference-image `systemd-repart` is disabled as well.
+writes. Reference-image `systemd-repart` and `format-tee-partition` are masked.
+The persist-formatting helper is removed. TEE bind-mounts the existing
+`/persist` filesystem; a missing or damaged filesystem is never formatted.
+Root filesystem growth stays inside the existing `system` partition.
+
+The Ubuntu 24.04 1.2.24 NA recovery image and BP 2.0.7 NA image contain
+293 identical NON-HLOS files, including every modem and carrier MCFG file.
+The FAT image hashes differ, so this is a file-content comparison. Boot blobs
+are the BP artifact's test-signed versions; Ubuntu's composer re-signs them.
+Native QLI ModemManager/rmtfs/tqftpserv differ from Ubuntu's userspace and
+legacy RFS service. They use the same modem firmware and named EFS partitions;
+this is not a claim that all modem userspace or Particle RIL features are identical.
 
 Lab access is serial root autologin on `ttyMSM0`, USB ADB, and key-only SSH as
 root. Host keys and machine ID are generated on the board. Optional public
@@ -56,8 +68,39 @@ configured after flashing and never included in the distributable ZIP.
 
 The Embroid resource is **head2-tachyon**, target **qcm6490**, hosted by
 **head2-pi**. Use the updated Embroid inline uploader for the full ZIP. The
-older CLI/runtime's 20 MiB path cannot transfer this image. There is no S3
-publication or release-channel update in this workflow.
+older CLI/runtime's 20 MiB path cannot transfer this image. Direct Particle
+CLI flashing on the Pi is also supported after the same preflight.
+
+## PR images and releases
+
+The release branches and tag streams are separate:
+
+| OS | Release branch | Tags | Initial version |
+| --- | --- | --- | --- |
+| Ubuntu 24.04 | `main` | bare `1.2.x` | `1.2.0` |
+| Ubuntu 26.04 | `26.04` | `26.04/1.3.x` | `1.3.0` |
+| Qualcomm Linux 2.0 open | `qli-2.0` | `qli-2.0/1.4.x` | `1.4.0` |
+
+Open QLI PRs against `qli-2.0`, not `main`. The PR workflow builds full
+NA and RoW headless flashable Linux ZIPs, validates every archive member and
+write extent, and uploads ZIP/checksum/manifest/layout artifacts to GitHub.
+Same-repository PRs also publish download links under `prerelease/` when
+`UPLOAD_PR_ASSETS` is enabled (the default).
+
+Merging a PR into `qli-2.0` tags the exact merge commit and explicitly
+dispatches the image build. The first release is `qli-2.0/1.4.0`; subsequent
+merges increment only this stream's patch. `release:minor` and `release:major`
+labels advance the QLI stream deliberately. Rerunning a merged-PR workflow
+reuses its existing tag. Ubuntu tags never influence QLI version selection.
+
+Tag builds publish both regional ZIPs under `releases/<version>/<region>/`,
+per-version metadata under `meta/tachyon-<version>.json`, and a GitHub Release.
+After both images and metadata succeed, `meta/tachyon-qli-latest.json` is
+updated with QLI builds. `PUSH_QLI_JSON=false` disables that channel update;
+`UPLOAD_TAG_ASSETS=false` leaves only downloadable GitHub build artifacts.
+Ubuntu latest/stable metadata and GitHub's default latest-release marker are
+not changed by this branch. Existing AWS role/bucket/CloudFront configuration
+and the `ubuntu-tachyon` runner are reused.
 
 Before replacing Ubuntu, establish root access and collect the actual board
 layout, region, identity, firmware version, NV/persist and network profiles.

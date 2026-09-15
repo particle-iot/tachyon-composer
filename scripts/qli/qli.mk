@@ -1,7 +1,8 @@
-# Standalone experimental userspace; no Ubuntu overlay or release publication.
+# QLI userspace and its independent 1.4+ release stream.
 QLI_VERSIONS_FILE ?= versions-qli-2.0.json
-QLI_OUTPUT_VERSION ?= 0.1.0-qli.2.0.g$(shell git rev-parse --short HEAD)
+QLI_OUTPUT_VERSION ?= $(shell python3 scripts/qli/release-version.py prerelease)
 QLI_BUILDER_IMAGE ?= tachyon-system-image-builder:qli-2.0-2
+QLI_BASE_BUILDER_IMAGE ?= tachyon-system-image-builder:qli-base-1.4
 
 .PHONY: fetch_qli fetch_qli_recovery build_qli test_qli docker/qli
 fetch_qli:
@@ -10,9 +11,9 @@ fetch_qli:
 fetch_qli_recovery:
 	python3 scripts/qli/fetch-recovery.py "$(QLI_VERSIONS_FILE)" "$(INPUT_REGION)" .tmp/qli/recovery
 
-docker/qli: docker/build
-	@test "$$(docker image inspect --format '{{.Architecture}}' "$(IMAGE_TAG)")" = arm64 || { echo 'QLI needs an ARM64 builder image (build Dockerfile with --platform linux/arm64)'; exit 1; }
-	docker build -f scripts/qli/Dockerfile --build-arg "BUILDER_IMAGE=$(IMAGE_TAG)" -t "$(QLI_BUILDER_IMAGE)" scripts/qli
+docker/qli: check_qemu
+	docker build --platform linux/arm64 --build-arg UID=1001 --build-arg GID=1001 -t "$(QLI_BASE_BUILDER_IMAGE)" .
+	docker build --platform linux/arm64 -f scripts/qli/Dockerfile --build-arg "BUILDER_IMAGE=$(QLI_BASE_BUILDER_IMAGE)" -t "$(QLI_BUILDER_IMAGE)" scripts/qli
 
 build_qli: docker/qli check_qemu fetch_qli
 	@test "$(INPUT_REGION)" = NA -o "$(INPUT_REGION)" = RoW || { echo 'INPUT_REGION must be NA or RoW'; exit 1; }
