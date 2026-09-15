@@ -218,3 +218,25 @@ Live S3 permissions, the first uploaded SDK, component RPM compilation and
 main-image/device testing are still unverified. The current legacy SDK jobs
 remain RIL 414, syscon 200 and Particle Linux 3616; their results are not tests
 of this new CI configuration.
+
+### Minimal component SDK (2026-09-15)
+
+The original syscon log completed 5,568 runtime tasks and then started a
+separate 7,949-task SDK graph. Component CI now builds only the compiler and
+link-time SDK; image utilities move to `scripts/qli/build-runtime-rpms.sh` in
+a separate workspace. Image repository collection rejects SDK-only workspaces.
+
+A real pinned-QLI metadata run (`build-sdk.sh ... --graph-only`) passed with
+**153 recipes and 2,511 tasks**, without kernel, image, QEMU, graphics, DNF
+or networking daemons. The SDK internally uses IPK to assemble the
+sysroot; component output remains a native aarch64 RPM. The locked QLI source
+revisions and target ABI are retained. See [SDK details](scripts/qli/SDK.md)
+and the [measured recipe inventory](scripts/qli/validation/sdk-graph.json).
+
+Validation: 28 composer tests and 34 packaging tests per component pass, plus
+shell syntax and CircleCI YAML/producer sequencing checks. The SDK graph guard
+rejected two oversized trial configurations before accepting the final one;
+no compilation ran during these local graph checks. CI additionally links C,
+C++, libsystemd and SQLite probes and checks AArch64 before publishing the SDK.
+Those compiler checks still require the real SDK build. No completed new SDK,
+component RPM, live S3 upload or main-image/head2 acceptance pass is claimed.

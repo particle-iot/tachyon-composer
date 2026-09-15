@@ -15,6 +15,9 @@ project = Path(__file__).resolve().parents[2]
 workspace.mkdir(parents=True, exist_ok=True)
 output = workspace / 'artifacts'
 output.mkdir()
+if not (yocto / '.particle-runtime-workspace').exists():
+    raise SystemExit('Build image dependencies with build-runtime-rpms.sh in a separate workspace; '
+                     'SDK-only library packages must not enter the image repository')
 release = yocto / 'meta-qcom-releases'
 if subprocess.check_output(['git', '-C', str(release), 'rev-parse', 'HEAD'], text=True).strip() != config['yocto']['revision']:
     raise SystemExit('Active Yocto build does not match the image lock')
