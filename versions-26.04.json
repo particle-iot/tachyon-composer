@@ -1,13 +1,15 @@
 {
   "sources": {
     // New BP firmware (Quectel r108) — same artifact as the 24.04 builds; the boot chain is
-    // series-independent. See versions-24.04.json for the full history notes. Keep the two
-    // series on the same bp-fw unless there is a series-specific reason not to: the fetch
-    // inputs are cached per-series (TMP dirs are series-scoped) so divergence is safe, just
-    // usually pointless.
+    // series-independent, so 26.04 tracks 24.04's bp-fw. See versions-24.04.json for full notes.
+    // Synced 2026-09-14 to 24.04's 2.0.7 (was 2.0.5). Changes since 2.0.5:
+    //   2.0.6 (#10) grub: resolve rootfs by PARTLABEL, not /dev/sda3 — inert on this path (the
+    //         composer builds efi.img from its OWN vendored grub, already root=PARTLABEL=system).
+    //   2.0.7 (#11) battman: request DR_Swap when DP alt mode needs this port to be the DFP —
+    //         the live change (external-display bring-up over USB-C DP alt mode).
     "bp-fw": {
-      "version": "2.0.5",
-      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.5.zip"
+      "version": "2.0.7",
+      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.7.zip"
     },
 
     // The 26.04 base rootfs image (built by particle-iot/tachyon-ubuntu-26.04 via livecd-rootfs,
@@ -20,9 +22,12 @@
     // (<count>-<sha>), matching 24.04's convention (e.g. "26-0519f5b"). Bump when a newer
     // base image is published. During bring-up override on the CLI:
     // BASE_CHANNEL=prerelease INPUT_BASE_VERSION=<pre-sha id without the "image-" prefix>.
+    // Bumped 2026-09-14: 29-29469e9 (baked +particle6) -> 31-f5ca035, the base re-cut
+    // by tachyon-ubuntu-26.04 PR #2 to bake +particle8 (matches the kernel pinned below;
+    // check-pinned-packages verifies the match).
     "particle-iot/tachyon-ubuntu-26.04": {
       "type": "git_release",
-      "param": "29-29469e9"
+      "param": "31-f5ca035"
     },
 
     // Kernel input. There is NO linux-qcom kernel line for resolute (26.04) — Canonical's
@@ -34,10 +39,10 @@
     // 26.04 base image, or check-pinned-packages will fail.
     "particle-iot/tachyon-ubuntu-26.04-kernel": {
       "type": "s3_release",
-      "param": "stable-6.8.0-1058.59particle6",
+      "param": "stable-6.8.0-1058.59particle8",
       "abi": "1058",
       // keep this equal to env.PKG_linux_particle below
-      "deb_version": "6.8.0-1058.59+particle6",
+      "deb_version": "6.8.0-1058.59+particle8",
       "base_url": "https://linux-dist.particle.io/kernel/release"
     },
 
@@ -89,13 +94,13 @@
     // Kernel version pinned INSIDE the rootfs by the overlay. MUST equal the kernel source
     // deb_version above and be installable on the base image's ABI. Shared with 24.04 — no
     // resolute kernel line exists (see the kernel source comment above).
-    "PKG_linux_particle": "6.8.0-1058.59+particle6",
+    "PKG_linux_particle": "6.8.0-1058.59+particle8",
 
-    //This is the particle debian package
-    "PKG_particle_linux": "0.25.1-1",
+    //This is the particle debian package. Synced 2026-09-14 to 24.04's 0.25.2-1.
+    "PKG_particle_linux": "0.25.2-1",
 
-    //Radio code (RIL)
-    "PKG_particle_tachyon_ril": "0.6.1-1",
+    //Radio code (RIL). Synced 2026-09-14 to 24.04's 0.7.0-1.
+    "PKG_particle_tachyon_ril": "0.7.0-1",
 
     //The syscon package
     "PKG_particle_tachyon_syscon": "1.0.52-1",
