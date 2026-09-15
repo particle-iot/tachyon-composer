@@ -40,7 +40,7 @@ class FlashSafetyTests(unittest.TestCase):
         (self.root/'patch0.xml').write_text('<patches/>')
         (self.root/'rawprogram0_WIPE_PARTITIONS.xml').write_text('<data><erase/></data>')
         self.write()
-        config = json.loads((Path(__file__).parents[2]/'versions-qli-2.0.json').read_text())
+        config = json.loads((Path(__file__).parents[2]/'versions.json').read_text())
         package(self.root, config, 'NA', '0.1.0-test', 'test-image')
         manifest = json.loads((self.root/'manifest.json').read_text())
         self.assertEqual(manifest['targets'][0]['qcm6490']['edl']['patch_xml'], [])
@@ -51,7 +51,7 @@ class FlashSafetyTests(unittest.TestCase):
 
     def test_final_zip_verifies_and_detects_changed_payload(self):
         self.write()
-        config = json.loads((Path(__file__).parents[2]/'versions-qli-2.0.json').read_text())
+        config = json.loads((Path(__file__).parents[2]/'versions.json').read_text())
         package(self.root, config, 'NA', '0.1.0-test', 'test-image')
         with tempfile.TemporaryDirectory() as tmp:
             image = Path(tmp)/'image.zip'

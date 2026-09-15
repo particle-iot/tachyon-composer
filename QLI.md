@@ -19,7 +19,7 @@ make build_qli INPUT_REGION=NA
 # Or INPUT_REGION=RoW, matching the board's recorded region.
 ```
 
-`QLI_VERSIONS_FILE` defaults to `versions-qli-2.0.json`.
+`QLI_VERSIONS_FILE` defaults to `versions.json`.
 `QLI_OUTPUT_VERSION` defaults to the next QLI version with
 `-dev+build.<composer-commit>` appended, starting at `1.4.0`.
 Outputs and logs belong under `.tmp/qli/`, independently of the Ubuntu build.
@@ -195,7 +195,7 @@ network credentials remain outside the distributable image.
 The Particle DTB requests `a660_zap.mdt` and its split `.b00`, `.b01` and `.b02`
 segments. These signed files come from Particle's Ubuntu `add-gpu-firmware`
 overlay, pinned to commit `4bbd8a8947f30862f66c4d4faf4eac9a2c67da31` and individual
-SHA-256 hashes in `versions-qli-2.0.json`. The composer installs them under
+SHA-256 hashes in `versions.json`. The composer installs them under
 `/usr/lib/firmware/updates/`. QLI already supplies the SQE and GMU firmware.
 
 Without these files, `msm` creates DRM device nodes but logs
@@ -389,3 +389,38 @@ coverage, tampered payloads and image symlink resolution. Each real build also
 runs native QLI executable/linker checks, inspects the initramfs and DTB,
 checks ext4 twice, and validates the manifest against the vendored Particle
 schemas from `https://linux-dist.particle.io/schema/`.
+
+## Particle stack integration (draft)
+
+`versions.json` now owns the QLI pins. `QLI_VERSIONS_FILE` remains an override
+and defaults to `VERSIONS_FILE`. Ubuntu builds retain their implementation and
+can use a versions file from the Ubuntu branch explicitly; the QLI branch no
+longer carries a second set of Ubuntu kernel/firmware/package pins.
+
+`build_qli` requires the exact component RPM artifacts and their complete
+additional dependency closure in `rpm_packages`. The checked-in list is empty
+because the QLI SDK build has not run yet. This deliberately blocks composition:
+there is no fallback to a partial image, Debian packages or an external feed.
+
+1. On a Linux x86_64 host meeting Qualcomm's build requirements, run
+   `scripts/qli/build-sdk.sh versions.json /path/to/yocto-workspace`.
+2. Source the generated aarch64 SDK. Build each component with its
+   `packaging/build-rpm.sh`; stage the pinned syscon inputs using its checksum
+   verifier. Build the missing utilities with the locked Yocto configuration.
+   Kigen's existing serial binary is wrapped by `scripts/qli/package-lpa.py`.
+3. Verify native module loading and installed dependencies against the QLI
+   rootfs. Pin successful outputs from `packages.json`, including source commit,
+   version/release, aarch64/noarch architecture, QLI revision, URL and SHA-256.
+4. Run `make build_qli INPUT_REGION=NA` and `INPUT_REGION=RoW`. The composer
+   stages only locked RPMs, generates a private file repository, installs exact
+   package identities with external repositories disabled, applies the pinned
+   QLI overlays, verifies installed identities/loading and removes the repository.
+
+The component repositories include manually dispatched SDK runner jobs. A
+`qli-sdk` runner and its SDK environment are not available in this session;
+automatic component-build/image-build CI dependency wiring remains pending.
+No package feed, release tag or release publication is part of this work.
+
+See [PARTICLE-STACK-VALIDATION.md](PARTICLE-STACK-VALIDATION.md) for acceptance
+status. Existing hardware results elsewhere in this document describe the older
+bring-up image, not the new Particle stack.
