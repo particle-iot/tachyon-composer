@@ -26,13 +26,13 @@ local_conf_header:
     PACKAGE_CLASSES = "package_rpm"
     PACKAGECONFIG:append:pn-networkmanager = " modemmanager wwan"
     PR:append:pn-networkmanager = ".particle1"
-    TOOLCHAIN_TARGET_TASK:append = " libsystemd-dev sqlite3-dev"
+    TOOLCHAIN_TARGET_TASK:append = " systemd-dev libsqlite3-dev"
     BB_NUMBER_THREADS = "4"
     PARALLEL_MAKE = "-j4"
     BB_DISKMON_DIRS = "STOPTASKS,${TMPDIR},10G,100K HALT,${TMPDIR},5G,50K"
 YAML
-# base.lock.yml, included by the pinned meta-qcom configuration, also fixes
-# meta-openembedded, meta-qcom-distro and the other supporting repositories.
+# kas automatically loads base.lock.yml next to the included base.yml.
+# It fixes meta-openembedded, meta-qcom-distro and the other layer revisions.
 configs=meta-qcom/ci/rb3gen2-core-kit.yml:meta-qcom/ci/qcom-distro.yml:meta-qcom/ci/lock.yml:meta-qcom/ci/particle-rpms.yml
 # meta-toolchain uses this exact distro/machine configuration and the selected
 # development libraries without rebuilding the multimedia image or its kernel.
