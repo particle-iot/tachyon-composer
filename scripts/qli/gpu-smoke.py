@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 """Render and read back a pixel using QLI's hardware GLES driver, without a display."""
 import ctypes as C
+import argparse
 import os
+import time
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--seconds', type=int, default=0, help='repeat full-frame render/readback for this many seconds')
+args = parser.parse_args()
+if not 0 <= args.seconds <= 7200:
+    parser.error('--seconds must be between 0 and 7200')
+dimension = 1024 if args.seconds else 1
 
 os.environ['EGL_PLATFORM'] = 'surfaceless'
 egl = C.CDLL('libEGL.so.1')
@@ -52,7 +61,7 @@ try:
     config, count = ptr(), integer()
     require(choose_config(display, attributes, C.byref(config), 1, C.byref(count))
             and count.value == 1, 'No RGBA8 GLES pbuffer configuration')
-    surface = create_surface(display, config, (integer * 5)(0x3057, 1, 0x3056, 1, 0x3038))
+    surface = create_surface(display, config, (integer * 5)(0x3057, dimension, 0x3056, dimension, 0x3038))
     context = create_context(display, config, None, (integer * 3)(0x3098, 2, 0x3038))
     require(surface and context, 'Cannot create GLES surface/context')
     require(make_current(display, surface, surface, context), 'Cannot activate GLES context')
@@ -61,13 +70,22 @@ try:
     version = get_string(0x1F02).decode()
     print(f'EGL {major.value}.{minor.value}; {vendor}; {renderer}; {version}', flush=True)
     require(vendor == 'freedreno' and renderer.startswith('FD'), 'Hardware renderer required')
-    clear_color(1.0, 0.0, 1.0, 1.0)
-    clear(0x4000)
-    pixel = (C.c_ubyte * 4)()
-    read_pixels(0, 0, 1, 1, 0x1908, 0x1401, pixel)
-    require(get_error() == 0, 'GLES error during rendering/readback')
-    require(list(pixel) == [255, 0, 255, 255], f'Unexpected pixel: {list(pixel)}')
-    print(f'PASS: GPU render/readback RGBA={list(pixel)}')
+    pixel = (C.c_ubyte * (4 * dimension * dimension))()
+    frame = 0
+    deadline = time.monotonic() + args.seconds
+    while True:
+        green = frame % 2
+        expected = [255, green * 255, 255, 255]
+        clear_color(1.0, float(green), 1.0, 1.0)
+        clear(0x4000)
+        read_pixels(0, 0, dimension, dimension, 0x1908, 0x1401, pixel)
+        require(get_error() == 0, 'GLES error during rendering/readback')
+        for offset in (0, (len(pixel)//8)*4, len(pixel)-4):
+            require(list(pixel[offset:offset+4]) == expected, 'GPU readback mismatch')
+        frame += 1
+        if time.monotonic() >= deadline:
+            break
+    print(f'PASS: GPU render/readback {frame} frames, {dimension}x{dimension}, {args.seconds}s')
 finally:
     if display:
         make_current(display, None, None, None)

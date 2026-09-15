@@ -202,9 +202,17 @@ Run `python3 gpu-smoke.py` on the target using `scripts/qli/gpu-smoke.py`.
 It requires a Freedreno hardware renderer, creates a surfaceless GLES context,
 renders a pixel and checks its RGBA readback. The live NA board passed with
 `FD643`, OpenGL ES 3.2 and Mesa 26.0.5. Physical display output and Vulkan have
-not been validated. The `g5edb713` NA/RoW images include this firmware fix
-and the cellular/audio integration below. The running NA board received the same
-fixes in place; these newly packaged ZIPs have not been flashed.
+not been validated. The September 15 fresh flash of
+`1.4.0-dev+build.350ff22` includes this firmware fix and the cellular/audio
+integration below; its hardware checks are recorded in
+[QLI-VALIDATION.md](QLI-VALIDATION.md).
+
+For a bounded CPU, GPU readback and filesystem I/O soak, copy both
+`scripts/qli/stress-smoke.py` and `scripts/qli/gpu-smoke.py` to the same target
+directory and run `python3 stress-smoke.py --seconds 3600`. The soak checks
+1024×1024 GLES readbacks and checksums a temporary 64 MiB file after each write.
+It prints thermal/frequency samples and stops if a reported sensor reaches
+90°C. This exercises GPU fill/readback, not shader or Vulkan coverage.
 
 ## Cellular modem
 
@@ -256,8 +264,15 @@ HTTPS explicitly bound to that interface returned HTTP 200. Automatic modem
 startup passed two normal reboots with the boot workaround. With Wi-Fi disconnected,
 cellular supplied the default route and DNS, and HTTPS passed again; Wi-Fi was
 then restored. This SIM/APN rejected IPv6 with `ip-version-mismatch`; IPv4
-connected successfully. SMS, voice, SIM switching and long-duration reconnect
-behavior have not been validated.
+connected successfully. On the fresh September 15 image, restarting
+ModemManager/rmtfs restored cellular connectivity within 25 seconds. Wi-Fi
+link loss switched the default route to cellular and HTTPS passed.
+
+An upstream-only Wi-Fi outage does not automatically switch the default route:
+with association still up, default HTTPS timed out while an explicitly bound
+cellular request succeeded. This NetworkManager build disables connectivity
+checking, so link-loss recovery must not be mistaken for WAN health failover.
+SMS, voice and SIM switching have not been validated.
 
 ## Audio
 
@@ -347,6 +362,10 @@ fits this board, but it has not been installed or tested here. Direct requests
 to `bin.entware.net` timed out during the feed investigation.
 
 ## Acceptance
+
+See [QLI-VALIDATION.md](QLI-VALIDATION.md) for dated results and checks that
+remain pending. The list below describes acceptance criteria, not a claim
+that every check has passed on the latest image.
 
 - QLI `/etc/os-release`, kernel `6.8.0-1058-particle`, matching module tree.
 - Writable root filesystem; `/vendor` and `/persist` mounted correctly.
