@@ -5,17 +5,11 @@ This experiment runs Qualcomm Linux 2.0 open userspace with Particle's
 Tachyon's XBL → Quectel UEFI → GRUB boot chain. It does not port Tachyon to
 Qualcomm's reference image's 6.18 kernel.
 
-The kernel and BP inputs match Ubuntu 24.04 composer [PR #90](https://github.com/particle-iot/tachyon-composer/pull/90)
-(commit `fc9097245e2d3c0c8c59ec2f809f74c525fec416`). The kernel ABI remains
-`6.8.0-1058-particle`. Downloaded kernel image/modules and BP ZIP checksums are
-pinned in `versions.json`; this combination has not yet been boot-tested on QLI.
-
 ## Build
 
 Use Docker. `make build_qli` builds an ARM64 builder and registers ARM64
-emulation on x86 Linux when needed. PD mapper compiles inside that builder.
-NetworkManager and Particle RPMs require the pinned Yocto SDK build described
-below; the final image checks executable loading against QLI libraries.
+emulation on x86 Linux when needed. PD mapper and NetworkManager compile
+inside that builder; both are checked against QLI's loader and libraries.
 
 ```sh
 mkdir -p .tmp/qli/access
@@ -25,7 +19,7 @@ make build_qli INPUT_REGION=NA
 # Or INPUT_REGION=RoW, matching the board's recorded region.
 ```
 
-`QLI_VERSIONS_FILE` defaults to `versions.json`.
+`QLI_VERSIONS_FILE` defaults to `VERSIONS_FILE` (`versions.json`).
 `QLI_OUTPUT_VERSION` defaults to the next QLI version with
 `-dev+build.<composer-commit>` appended, starting at `1.4.0`.
 Outputs and logs belong under `.tmp/qli/`, independently of the Ubuntu build.
@@ -42,9 +36,8 @@ The composer adds the matching Particle kernel/modules, an Ubuntu-built
 initramfs, Tachyon firmware links and mounts, a native QLI ADB gadget, and the
 upstream PD mapper needed with the older kernel. PD mapper embeds its QRTR and
 LZMA dependencies and uses QLI's libc. No Debian package installation or Ubuntu
-APT overlay runs in QLI. The locked Yocto recipe supplies NetworkManager RPMs
-with WWAN support; SSH, ModemManager and QLI's package tools remain from the
-reference image.
+APT overlay runs in QLI. NetworkManager is rebuilt at QLI's version with WWAN
+support; SSH, ModemManager and QLI's package tools remain from the reference image.
 
 The Particle `msm_display` blacklist is required in both the root filesystem
 and initramfs. Without it, the two display modules register duplicate drivers
@@ -203,7 +196,7 @@ network credentials remain outside the distributable image.
 The Particle DTB requests `a660_zap.mdt` and its split `.b00`, `.b01` and `.b02`
 segments. These signed files come from Particle's Ubuntu `add-gpu-firmware`
 overlay, pinned to commit `4bbd8a8947f30862f66c4d4faf4eac9a2c67da31` and individual
-SHA-256 hashes in `versions.json`. The composer installs them under
+SHA-256 hashes in `versions-qli-2.0.json`. The composer installs them under
 `/usr/lib/firmware/updates/`. QLI already supplies the SQE and GMU firmware.
 
 Without these files, `msm` creates DRM device nodes but logs
@@ -246,14 +239,13 @@ With random placement disabled, the kernel loaded outside that range and the
 modem started automatically. This disables kernel address randomization in this
 lab image. A firmware reservation fix is needed before restoring KASLR.
 
-QLI's reference NetworkManager was compiled without modem support. The pinned
-Yocto recipe now builds the daemon and matching WWAN/Wi-Fi plugins with
-`modemmanager wwan` enabled. Its RPM release receives a `.particle1` suffix so
-DNF replaces the reference daemon instead of treating it as already installed.
-The daemon, WWAN and Wi-Fi RPMs are mandatory lock entries; review and pin any
-additional dependency outputs from the same build. The final image checks
-loading against QLI libraries. These new RPMs have not yet been built or tested
-on the board; the observations below belong to the earlier bring-up image.
+QLI's NetworkManager 1.56.0 was compiled without modem support. The composer
+rebuilds that same pinned upstream version with ModemManager enabled, including
+the daemon and matching WWAN, Wi-Fi and ifupdown plugins. Installing the WWAN
+plugin alone fails because the original daemon lacks required symbols. The
+build checks dependencies against QLI's actual loader and libraries; nmcli and
+libnm remain from QLI. The replacement files are local composer overrides,
+not newly installed RPMs, so the reference RPM database does not describe them.
 
 The default `cellular` NetworkManager profile automatically connects using
 Particle's `ksx.global.data` APN and permits roaming, matching the Ubuntu
@@ -283,7 +275,7 @@ link loss switched the default route to cellular and HTTPS passed.
 
 An upstream-only Wi-Fi outage does not automatically switch the default route:
 with association still up, default HTTPS timed out while an explicitly bound
-cellular request succeeded. That earlier NetworkManager build disabled connectivity
+cellular request succeeded. This NetworkManager build disables connectivity
 checking, so link-loss recovery must not be mistaken for WAN health failover.
 SMS, voice and SIM switching have not been validated.
 
@@ -399,43 +391,15 @@ runs native QLI executable/linker checks, inspects the initramfs and DTB,
 checks ext4 twice, and validates the manifest against the vendored Particle
 schemas from `https://linux-dist.particle.io/schema/`.
 
-## Particle stack integration (draft)
+## Particle integration follow-up
 
-`versions.json` now owns the QLI pins. `QLI_VERSIONS_FILE` remains an override
-and defaults to `VERSIONS_FILE`. Ubuntu builds retain their implementation and
-can use a versions file from the Ubuntu branch explicitly; the QLI branch no
-longer carries a second set of Ubuntu kernel/firmware/package pins.
+This PR builds the QLI platform image. The full Particle RPM stack is being
+completed in a separate composer PR. Its package artifacts are not yet built
+and pinned, so this platform build does not install those packages. See
+[PARTICLE-STACK-VALIDATION.md](PARTICLE-STACK-VALIDATION.md) for dependencies.
 
-`build_qli` requires the exact component RPM artifacts and their complete
-additional dependency closure in `rpm_packages`. The checked-in list is empty
-because the QLI SDK build has not run yet. This deliberately blocks composition:
-there is no fallback to a partial image, Debian packages or an external feed.
-
-1. On a Linux x86_64 host meeting Qualcomm's build requirements, run
-   `scripts/qli/build-sdk.sh versions.json /path/to/yocto-workspace`.
-2. Source the generated aarch64 SDK. Build each component with its
-   `packaging/build-rpm.sh`; stage the pinned syscon inputs using its checksum
-   verifier. Build the missing utilities with the locked Yocto configuration.
-   Kigen's existing serial binary is wrapped by `scripts/qli/package-lpa.py`.
-3. Verify native module loading and installed dependencies against the QLI
-   rootfs. Pin successful outputs from `packages.json`, including source commit,
-   version/release, aarch64/noarch architecture, QLI revision, URL and SHA-256.
-4. Run `make build_qli INPUT_REGION=NA` and `INPUT_REGION=RoW`. The composer
-   stages only locked RPMs, generates a private file repository, installs exact
-   package identities with external repositories disabled, applies the pinned
-   QLI overlays, verifies installed identities/loading and removes the repository.
-
-The locally committed composer CI workflow builds the pinned Yocto utilities/SDK
-and component RPMs first,
-retains their source metadata, then passes only checksum-matching locked outputs
-to both regional image jobs. Configure `QLI_SDK_RUNNER`, `QLI_YOCTO_WORKSPACE`
-and the private-input read token `QLI_INPUTS_TOKEN`. The default hosted runner
-fails the prerequisites rather than attempting a build without the required
-space/toolchain. Component repositories also provide standalone SDK dispatch
-jobs. GitHub rejected the workflow push because the credential lacks `workflow` scope.
-That commit remains local; the pipeline needs its first configured-host run.
-No package feed, release tag or release publication is part of this work.
-
-See [PARTICLE-STACK-VALIDATION.md](PARTICLE-STACK-VALIDATION.md) for acceptance
-status. Existing hardware results elsewhere in this document describe the older
-bring-up image, not the new Particle stack.
+The kernel and BP inputs match Ubuntu 24.04 composer
+[PR #90](https://github.com/particle-iot/tachyon-composer/pull/90): kernel
+`6.8.0-1058.59+particle9` (ABI unchanged) and BP `2.0.8`. All three downloaded
+artifacts have SHA-256 pins; package metadata and all 519 BP ZIP entries were
+verified. Historical hardware results above predate this combination.

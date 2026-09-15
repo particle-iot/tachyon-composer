@@ -28,8 +28,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-python3 "$PROJ/scripts/qli/rpm_repository.py" "$CFG"
-
 # Verify every input again in the builder; do not trust fetch stamps.
 python3 "$PROJ/scripts/qli/assets.py" "$CFG" "$IN"
 mapfile -t inputs < <(python3 - "$CFG" "$PROJ" <<'PY'
@@ -76,32 +74,7 @@ depmod -b "$root" "$KREL"
 
 bash "$PROJ/scripts/qli/prepare-rootfs.sh" "$root" "$work/bp/QCM6490_fw" "$CFG" "$REGION" "$VERSION" "$IN"
 bash "$PROJ/scripts/qli/build-pd-mapper.sh" "$root" "$CFG" "$IN" "$work"
-
-# Isolated chroot support mounts; /run is intentionally private to the image.
-for special in dev proc sys; do
-  mount --bind "/$special" "$root/$special"
-done
-
-# Stage only the pinned RPMs. Keep this transient repository out of the image.
-python3 "$PROJ/scripts/qli/rpm_repository.py" "$CFG" --cache "$IN/rpms" --destination "$root/tmp/particle-rpms"
-PYTHONPATH=/work/overlay-tool python3 - "$root" "$CFG" <<'PYRPM'
-import json,sys
-import overlay
-config=json.load(open(sys.argv[2]))
-overlay.package_manager='rpm-offline'
-overlay.rpm_repo='/tmp/particle-rpms'
-packages=' '.join(f"{p['name']}-{p['version']}-{p['release']}.{p['architecture']}" for p in config['rpm_packages'])
-overlay.install_package(sys.argv[1], '', packages)
-PYRPM
-stack=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["overlay_stack"])' "$CFG")
-python3 /work/overlay-tool/overlay.py --mount-point "$root" --overlay-dirs /work/overlays   --package-manager rpm-offline --rpm-repo /tmp/particle-rpms --stack "$stack" apply
-# The RPM database must describe the packages actually installed.
-python3 "$PROJ/scripts/qli/verify-rpms.py" "$root" "$CFG"
-rm -rf "$root/tmp/particle-rpms" "$root/var/cache/dnf"
-for special in dev proc sys; do
-  umount "$root/$special"
-done
-
+bash "$PROJ/scripts/qli/build-wwan.sh" "$root" "$CFG" "$IN" "$work"
 
 # Build the initrd with Ubuntu tools, without installing Debian packages in QLI.
 cp -a "$work/kernel/boot/." /boot/
