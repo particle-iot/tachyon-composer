@@ -1,5 +1,40 @@
 # Particle stack validation — 2026-09-15
 
+## Candidate workflow
+
+[PR #91](https://github.com/particle-iot/tachyon-composer/pull/91) is the draft
+full-stack candidate, based on platform [PR #88](https://github.com/particle-iot/tachyon-composer/pull/88).
+Neither the platform nor the component PRs must be merged to test it: check out
+and build their exact candidate commits. Merge dependencies are distinct from
+build inputs.
+
+1. Finish the candidate changes and build all RPMs against the pinned QLI SDK.
+   Record the exact source revisions, package metadata and artifact hashes.
+2. Pin those built artifacts in the candidate and build both NA and RoW images
+   with offline dependency checks. Retain images, manifests and logs as CI
+   artifacts. Disable prerelease/release uploads during candidate testing.
+3. Run the existing Debian checks, component tests and CLI tests against these
+   revisions. Record image hashes and candidate commit IDs in the test report.
+4. On head2, capture device identity, both GPT copies, protected provisioning
+   hashes and persist UUID before flashing. Validate all write extents against
+   the live layout, flash only allowed existing partitions and compare afterward.
+5. Run every hardware acceptance item below against the actual candidate image,
+   including host and on-device setup, cloud/container use, radio/eSIM/SMS/GNSS,
+   syscon, peripheral, reboot and combined-load tests. Record the board region;
+   testing one board does not establish hardware coverage for both regions.
+6. Fix failures in the draft PRs, rebuild and repeat affected tests. An image
+   change invalidates acceptance evidence for the replaced image. Mark unavailable
+   cases blocked/not run, never passed.
+7. Present the final candidate commits, artifact hashes and per-test results for
+   user review. Do not merge PRs, tag releases or publish image/package releases
+   before that review and explicit approval.
+
+This workflow requires a QLI-capable Linux x86_64 build host (300 GB free),
+private component input access, GitHub workflow-write access and an authenticated
+Embroid connection to head2. Full functional radio testing additionally requires
+working SIM/eSIM test resources and a peer for SMS; peripheral and power tests
+need the corresponding lab equipment.
+
 ## Status
 
 Implementation is a **draft**, not an accepted Particle QLI image. Exact QLI

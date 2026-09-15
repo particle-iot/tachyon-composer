@@ -439,3 +439,7 @@ No package feed, release tag or release publication is part of this work.
 See [PARTICLE-STACK-VALIDATION.md](PARTICLE-STACK-VALIDATION.md) for acceptance
 status. Existing hardware results elsewhere in this document describe the older
 bring-up image, not the new Particle stack.
+
+Candidate testing is tracked in [PR #91](https://github.com/particle-iot/tachyon-composer/pull/91).
+See the [candidate workflow](PARTICLE-STACK-VALIDATION.md#candidate-workflow):
+all component revisions can be tested before merging their PRs.
