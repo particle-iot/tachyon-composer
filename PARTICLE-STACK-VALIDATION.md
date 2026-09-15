@@ -41,8 +41,19 @@ Implementation is a **draft**, not an accepted Particle QLI image. Exact QLI
 RPM outputs have not been built/pinned, so composition intentionally fails its
 package preflight. The local Mac has 86 GB free; Qualcomm's locked Yocto build
 requires an x86 Linux host and 300 GB free. No QLI SDK runner was supplied.
-Embroid returns `UNAUTHORIZED` / `oauth_token_invalid_grant` and requires
-reauthentication. No device was flashed, reset or provisioned during this work.
+The Embroid app connector returns an authentication error, but the **Embroid
+CLI works**. `embroid adb head2-tachyon status` reports `device`, and bounded
+ADB commands successfully read the board inventory. Use the CLI for subsequent
+head2 testing; connector reauthentication is not a hardware-access blocker.
+No device was flashed, reset or provisioned during this work.
+
+Read-only baseline (2026-09-15): head2 runs QLI 2.0 with the older particle8
+kernel; the candidate Particle Linux, RIL and syscon packages are absent. The
+live partition inventory was recorded, including a 1 MiB existing `misc` and
+approximately 60.8 GB `system` partition. This confirms access only, not a
+candidate acceptance pass. Platform PR #88 now has successful NA and RoW
+image builds at commit `4bc549161db7bc123c6f1ceb0adccd8a11d5f277`;
+these platform images do not contain the full-stack candidate.
 
 ## Kernel and BP input refresh
 
