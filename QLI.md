@@ -8,8 +8,9 @@ Qualcomm's reference image's 6.18 kernel.
 ## Build
 
 Use Docker. `make build_qli` builds an ARM64 builder and registers ARM64
-emulation on x86 Linux when needed. PD mapper and NetworkManager compile
-inside that builder; both are checked against QLI's loader and libraries.
+emulation on x86 Linux when needed. PD mapper compiles inside that builder.
+NetworkManager and Particle RPMs require the pinned Yocto SDK build described
+below; the final image checks executable loading against QLI libraries.
 
 ```sh
 mkdir -p .tmp/qli/access
@@ -23,7 +24,8 @@ make build_qli INPUT_REGION=NA
 `QLI_OUTPUT_VERSION` defaults to the next QLI version with
 `-dev+build.<composer-commit>` appended, starting at `1.4.0`.
 Outputs and logs belong under `.tmp/qli/`, independently of the Ubuntu build.
-The Ubuntu `build_24.04` interface and its versions file are unchanged.
+The Ubuntu `build_24.04` interface is retained; supply its versions file from
+the Ubuntu branch when building from this QLI branch.
 
 Every downloaded input is pinned by SHA-256 and checked on every build. The
 QLI ZIP contributes only its raw ext4 root filesystem. Its reference boot
@@ -35,8 +37,9 @@ The composer adds the matching Particle kernel/modules, an Ubuntu-built
 initramfs, Tachyon firmware links and mounts, a native QLI ADB gadget, and the
 upstream PD mapper needed with the older kernel. PD mapper embeds its QRTR and
 LZMA dependencies and uses QLI's libc. No Debian package installation or Ubuntu
-APT overlay runs in QLI. NetworkManager is rebuilt at QLI's version with WWAN
-support; SSH, ModemManager and QLI's package tools remain from the reference image.
+APT overlay runs in QLI. The locked Yocto recipe supplies NetworkManager RPMs
+with WWAN support; SSH, ModemManager and QLI's package tools remain from the
+reference image.
 
 The Particle `msm_display` blacklist is required in both the root filesystem
 and initramfs. Without it, the two display modules register duplicate drivers
@@ -238,13 +241,14 @@ With random placement disabled, the kernel loaded outside that range and the
 modem started automatically. This disables kernel address randomization in this
 lab image. A firmware reservation fix is needed before restoring KASLR.
 
-QLI's NetworkManager 1.56.0 was compiled without modem support. The composer
-rebuilds that same pinned upstream version with ModemManager enabled, including
-the daemon and matching WWAN, Wi-Fi and ifupdown plugins. Installing the WWAN
-plugin alone fails because the original daemon lacks required symbols. The
-build checks dependencies against QLI's actual loader and libraries; nmcli and
-libnm remain from QLI. The replacement files are local composer overrides,
-not newly installed RPMs, so the reference RPM database does not describe them.
+QLI's reference NetworkManager was compiled without modem support. The pinned
+Yocto recipe now builds the daemon and matching WWAN/Wi-Fi plugins with
+`modemmanager wwan` enabled. Its RPM release receives a `.particle1` suffix so
+DNF replaces the reference daemon instead of treating it as already installed.
+The daemon, WWAN and Wi-Fi RPMs are mandatory lock entries; review and pin any
+additional dependency outputs from the same build. The final image checks
+loading against QLI libraries. These new RPMs have not yet been built or tested
+on the board; the observations below belong to the earlier bring-up image.
 
 The default `cellular` NetworkManager profile automatically connects using
 Particle's `ksx.global.data` APN and permits roaming, matching the Ubuntu
@@ -274,7 +278,7 @@ link loss switched the default route to cellular and HTTPS passed.
 
 An upstream-only Wi-Fi outage does not automatically switch the default route:
 with association still up, default HTTPS timed out while an explicitly bound
-cellular request succeeded. This NetworkManager build disables connectivity
+cellular request succeeded. That earlier NetworkManager build disabled connectivity
 checking, so link-loss recovery must not be mistaken for WAN health failover.
 SMS, voice and SIM switching have not been validated.
 
@@ -416,9 +420,15 @@ there is no fallback to a partial image, Debian packages or an external feed.
    package identities with external repositories disabled, applies the pinned
    QLI overlays, verifies installed identities/loading and removes the repository.
 
-The component repositories include manually dispatched SDK runner jobs. A
-`qli-sdk` runner and its SDK environment are not available in this session;
-automatic component-build/image-build CI dependency wiring remains pending.
+The locally committed composer CI workflow builds the pinned Yocto utilities/SDK
+and component RPMs first,
+retains their source metadata, then passes only checksum-matching locked outputs
+to both regional image jobs. Configure `QLI_SDK_RUNNER`, `QLI_YOCTO_WORKSPACE`
+and the private-input read token `QLI_INPUTS_TOKEN`. The default hosted runner
+fails the prerequisites rather than attempting a build without the required
+space/toolchain. Component repositories also provide standalone SDK dispatch
+jobs. GitHub rejected the workflow push because the credential lacks `workflow` scope.
+That commit remains local; the pipeline needs its first configured-host run.
 No package feed, release tag or release publication is part of this work.
 
 See [PARTICLE-STACK-VALIDATION.md](PARTICLE-STACK-VALIDATION.md) for acceptance

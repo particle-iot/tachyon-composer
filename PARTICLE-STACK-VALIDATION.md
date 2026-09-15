@@ -22,7 +22,7 @@ reauthentication. No device was flashed, reset or provisioned during this work.
 - Existing Kigen 0.1.8 serial LPA and mspm0flash 0.4.3 load with the QLI reference
   rootfs's actual dynamic loader and libc. This is an ABI loading check only;
   no eSIM operation or MCU flash was performed.
-- Composer: 18 flash-layout, version-stream and RPM-lock/metadata tests.
+- Composer: 19 flash-layout, version-stream and RPM-lock/metadata tests.
 - Overlay tool: five offline installation tests, including missing dependencies
   and external-source refusal. QLI stack check excludes APT/optional installers.
 - CLI: lint and 66 setup tests covering QLI selection, extent, protected-write, live misc and GPT
@@ -33,11 +33,14 @@ reauthentication. No device was flashed, reset or provisioned during this work.
 
 - Build the QLI SDK and all component/utility RPMs; check package dependency names,
   native Node modules, RPM source records and repeat-build checksums.
-- Add exact outputs to `versions.json`, wire component-build CI into both regional
-  image jobs, and successfully build/validate the NA and RoW images.
-- Native NetworkManager daemon/WWAN replacements and kernel files still use the
-  prior composer's file overrides; converting them to QLI RPM ownership remains
-  outstanding if required for a completely accurate RPM database.
+- Add exact outputs to `versions.json` and successfully run the CI pipeline:
+  local CI wiring gates both NA and RoW image jobs on the SDK/component build
+  and selects artifacts by checksum. GitHub rejected the workflow push because
+  the credential lacks `workflow` scope; that commit remains local. Its first
+  configured-host run is pending.
+- Build and test the mandatory Yocto NetworkManager daemon/WWAN/Wi-Fi RPMs.
+  Kernel files still use the prior composer's file overrides; the reference RPM
+  database retains the original kernel records.
 - Fresh host CLI setup and on-device `particlectl setup`; password, SSH, timezone,
   Wi-Fi, eSIM bootstrap, cloud registration and container credentials survive reboot.
 - Cloud connectivity, installed package/version reporting and container deployment.

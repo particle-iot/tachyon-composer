@@ -17,3 +17,8 @@ subprocess.run(['chroot', str(root), '/usr/bin/particlectl', '--version'], check
 # QLI's dynamic loader verifies the C services against the actual target libraries.
 for executable in ('particle-tachyon-rild', 'particle-tachyon-gnss', 'particle-tachyon-ril-ctl', 'particle-tachyon-syscon-ctl', 'mspm0flash', 'lpa'):
     subprocess.run(['chroot', str(root), '/lib/ld-linux-aarch64.so.1', '--list', '/usr/bin/' + executable], check=True, timeout=30)
+
+subprocess.run(['chroot', str(root), '/lib/ld-linux-aarch64.so.1', '--list',
+                '/usr/sbin/NetworkManager'], check=True, timeout=30)
+subprocess.run(['chroot', str(root), '/usr/sbin/NetworkManager', '--version'],
+               check=True, timeout=30)

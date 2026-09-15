@@ -24,9 +24,11 @@ header:
 local_conf_header:
   particle-rpms: |
     PACKAGE_CLASSES = "package_rpm"
+    PACKAGECONFIG:append:pn-networkmanager = " modemmanager wwan"
+    PR:append:pn-networkmanager = ".particle1"
     TOOLCHAIN_TARGET_TASK:append = " libsystemd-dev sqlite3-dev"
 YAML
 # base.lock.yml, included by the pinned meta-qcom configuration, also fixes
 # meta-openembedded, meta-qcom-distro and the other supporting repositories.
 configs=meta-qcom/ci/rb3gen2-core-kit.yml:meta-qcom/ci/qcom-distro.yml:meta-qcom/ci/lock.yml:meta-qcom/ci/particle-rpms.yml
-kas shell "$configs" -c 'set -e; bitbake jq socat sudo libgpiod; bitbake qcom-multimedia-image -c populate_sdk; bitbake package-index'
+kas shell "$configs" -c 'set -e; bitbake jq socat sudo libgpiod networkmanager; bitbake qcom-multimedia-image -c populate_sdk; bitbake package-index'

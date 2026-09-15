@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Wrap the pinned Kigen serial LPA in an RPM, without rebuilding vendor code."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -35,7 +36,10 @@ install -D -m 755 %{{SOURCE0}} %{{buildroot}}/usr/bin/lpa
 /usr/bin/lpa
 ''')
     subprocess.run(['rpmbuild', '-bb', '--target', 'aarch64', '--define', f'_topdir {work}',
-                    '--define', '_buildhost qli-build', str(spec)], check=True)
+                    '--define', '_buildhost qli-build',
+                    '--define', 'use_source_date_epoch_as_buildtime 1',
+                    '--define', 'clamp_mtime_to_source_date_epoch 1', str(spec)],
+                   env=dict(os.environ, SOURCE_DATE_EPOCH=str(lpa['source_date_epoch'])), check=True)
     records = []
     for package in (work / 'RPMS/aarch64').glob('*.rpm'):
         destination = out / package.name

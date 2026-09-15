@@ -76,7 +76,6 @@ depmod -b "$root" "$KREL"
 
 bash "$PROJ/scripts/qli/prepare-rootfs.sh" "$root" "$work/bp/QCM6490_fw" "$CFG" "$REGION" "$VERSION" "$IN"
 bash "$PROJ/scripts/qli/build-pd-mapper.sh" "$root" "$CFG" "$IN" "$work"
-bash "$PROJ/scripts/qli/build-wwan.sh" "$root" "$CFG" "$IN" "$work"
 
 # Isolated chroot support mounts; /run is intentionally private to the image.
 for special in dev proc sys; do

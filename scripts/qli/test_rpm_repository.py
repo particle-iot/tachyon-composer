@@ -36,3 +36,28 @@ class RPMLockTests(unittest.TestCase):
             self.assertEqual(result['distro']['distribution'], 'qualcomm-linux')
             self.assertEqual(result['src']['linux-particle'], self.config['kernel_package_version'])
             self.assertEqual(result['src']['particle-linux'], '1.0-1')
+
+    def test_ci_selection_rejects_tampered_outputs(self):
+        import hashlib
+        import subprocess
+        import sys
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifacts = root / 'artifacts'
+            artifacts.mkdir()
+            for package in self.config['rpm_packages']:
+                content = package['name'].encode()
+                package['sha256'] = hashlib.sha256(content).hexdigest()
+                (artifacts / package['filename']).write_bytes(content)
+            config = root / 'versions.json'
+            config.write_text(json.dumps(self.config))
+            command = [sys.executable, str(Path(__file__).with_name('select-built-rpms.py')),
+                       str(config), str(artifacts), str(root / 'cache')]
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(len(list((root / 'cache').glob('*.rpm'))), len(REQUIRED))
+            (artifacts / self.config['rpm_packages'][0]['filename']).write_bytes(b'tampered')
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('No checksum-matching built RPM', result.stderr)
