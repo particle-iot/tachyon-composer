@@ -192,3 +192,29 @@ with `libc6-2.43+git0+e9517114ac-r1.armv8_2a`. This also exposed that the initia
 lock validator excluded Yocto's actual `armv8_2a` tune architecture; it now
 accepts that ARM64 architecture alongside aarch64 and noarch. The composer
 suite now has 20 passing tests. This dependency query is not an install test.
+
+
+### Shared SDK cache follow-up
+
+The component PRs now include a common S3 SDK cache implementation. Its identity
+covers the QLI Yocto lock, SDK build and checkout scripts, host architecture and
+kas version, rather than the entire composer revision. RIL provides the cold
+SDK build; a separate job publishes with fresh AWS OIDC credentials. Syscon and
+Particle Linux consume the shared SDK without launching their own cold Yocto
+builds. Previously completed per-project caches can seed S3.
+
+The upload stores checksummed installer/provenance objects and conditionally
+creates the input-specific manifest. All repositories use the first complete
+publication, including when two cached builds are uploaded concurrently.
+`qli-sdk/sdk-pin.json` records the exact `qli_sdk` manifest key/checksum to copy
+into this `versions.json` after a real upload. No placeholder SDK pin has been
+added. Candidate SDK sharing is permitted on PR branches; RPM publication
+remains main-only.
+
+Validation: 33 local packaging tests per component (13 RPM publication tests
+and 20 SDK tests), including actual shell entry-point tests with fixture S3
+responses proving a shared hit skips Yocto and an existing cache can seed S3.
+Live S3 permissions, the first uploaded SDK, component RPM compilation and
+main-image/device testing are still unverified. The current legacy SDK jobs
+remain RIL 414, syscon 200 and Particle Linux 3616; their results are not tests
+of this new CI configuration.
