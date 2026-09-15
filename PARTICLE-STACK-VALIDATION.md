@@ -37,9 +37,8 @@ need the corresponding lab equipment.
 
 ## Status
 
-Implementation is a **draft**, not an accepted Particle QLI image. Exact QLI
-RPM outputs have not been built/pinned, so composition intentionally fails its
-package preflight. The local Mac has 86 GB free; Qualcomm's locked Yocto build
+Implementation is a **draft**, not an accepted Particle QLI image. The Kigen LPA RPM is built and pinned; the remaining native QLI RPM outputs
+have not been built/pinned, so composition intentionally fails its package preflight. The local Mac has 86 GB free; Qualcomm's locked Yocto build
 requires an x86 Linux host and 300 GB free. No QLI SDK runner was supplied.
 The Embroid app connector returns an authentication error, but the **Embroid
 CLI works**. `embroid adb head2-tachyon status` reports `device`, and bounded
@@ -127,3 +126,13 @@ The prior bring-up image's hardware results do not satisfy these gates.
 - [ril](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63)
 - [syscon](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36)
 - [cli](https://github.com/particle-iot/particle-cli/pull/938)
+
+## First candidate RPM
+
+`particle-kigen-lpa-0.1.8-1.aarch64.rpm` was built twice with the pinned vendor
+binary and fixed source timestamp. Both runs produced SHA-256
+`fa874f9f91e7a73dbd8e70d21e3ccc45c37cdb93dcc81265feaec26719e401b4`.
+The wrapper package records the actual aarch64/glibc dependencies and is pinned
+in `versions.json`. It is a local candidate artifact, not an S3 upload or feed.
+This step wraps an already built vendor binary; it does not require the QLI SDK
+needed to compile the other components. No functional eSIM pass is implied.

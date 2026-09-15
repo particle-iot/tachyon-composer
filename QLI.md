@@ -407,8 +407,8 @@ can use a versions file from the Ubuntu branch explicitly; the QLI branch no
 longer carries a second set of Ubuntu kernel/firmware/package pins.
 
 `build_qli` requires the exact component RPM artifacts and their complete
-additional dependency closure in `rpm_packages`. The checked-in list is empty
-because the QLI SDK build has not run yet. This deliberately blocks composition:
+additional dependency closure in `rpm_packages`. The checked-in list currently contains only the built Kigen LPA wrapper;
+the other packages await the QLI SDK build. This deliberately blocks composition:
 there is no fallback to a partial image, Debian packages or an external feed.
 
 1. On a Linux x86_64 host meeting Qualcomm's build requirements, run

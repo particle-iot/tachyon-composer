@@ -90,7 +90,18 @@
     "repository": "https://github.com/particle-iot/tachyon-overlay-tool.git",
     "revision": "4b63dbf7378fadccc2fc35c9ce09a3601b51d10a"
   },
-  "rpm_packages": [],
+  "rpm_packages": [
+    {
+      "name": "particle-kigen-lpa",
+      "version": "0.1.8",
+      "release": "1",
+      "architecture": "aarch64",
+      "filename": "particle-kigen-lpa-0.1.8-1.aarch64.rpm",
+      "sha256": "fa874f9f91e7a73dbd8e70d21e3ccc45c37cdb93dcc81265feaec26719e401b4",
+      "source_revision": "973755701421813c6a8e19b2a2a0c4f1aa7946e6",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed"
+    }
+  ],
   "lpa": {
     "repository": "particle-iot-inc/kigen-sdk",
     "version": "0.1.8",

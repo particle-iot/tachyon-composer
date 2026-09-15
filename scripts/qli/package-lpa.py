@@ -1,22 +1,32 @@
 #!/usr/bin/env python3
 """Wrap the pinned Kigen serial LPA in an RPM, without rebuilding vendor code."""
+import argparse
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
 from assets import digest
-config = json.loads(Path(sys.argv[1]).read_text())
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('versions')
+parser.add_argument('output')
+parser.add_argument('--binary', type=Path, help='Previously downloaded pinned LPA binary')
+args = parser.parse_args()
+config = json.loads(Path(args.versions).read_text())
 lpa = config['lpa']
-out = Path(sys.argv[2]).resolve()
+out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
 with tempfile.TemporaryDirectory() as temporary:
     work = Path(temporary)
     for name in ('SOURCES', 'SPECS', 'BUILD', 'BUILDROOT', 'RPMS', 'SRPMS'):
         (work / name).mkdir()
-    subprocess.run(['gh', 'release', 'download', lpa['version'], '--repo', lpa['repository'],
-                    '--pattern', lpa['filename'], '--dir', str(work / 'SOURCES')], check=True)
+    if args.binary:
+        shutil.copyfile(args.binary, work / 'SOURCES' / lpa['filename'])
+    else:
+        subprocess.run(['gh', 'release', 'download', lpa['version'], '--repo', lpa['repository'],
+                        '--pattern', lpa['filename'], '--dir', str(work / 'SOURCES')], check=True)
     if digest(work / 'SOURCES' / lpa['filename']) != lpa['sha256']:
         raise SystemExit('Kigen LPA checksum mismatch')
     spec = work / 'SPECS/lpa.spec'
