@@ -144,7 +144,7 @@ pushes and `main`, preserving the existing Debian builds and artifact retention:
 
 | Component | PR | Debian build | RPM build |
 | --- | --- | --- | --- |
-| RIL | [#63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) | [passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/404) | [diagnostic retry](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/403) after job 398 failed |
+| RIL | [#63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) | [passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/404) | [failed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/403), including the diagnostic retry |
 | Syscon | [#36](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36) | [passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/191) | [failed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/190) |
 | Particle Linux | [#154](https://github.com/particle-iot-inc/particle-linux/pull/154) | [arm64 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3594), [amd64 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3589) | [failed](https://circleci.com/gh/particle-iot-inc/particle-linux/3593) |
 
@@ -153,7 +153,8 @@ The SDK target package names were corrected to `systemd-dev` and `libsqlite3-dev
 using the actual pinned Yocto recipes. SDK installers/configuration, RPMs,
 manifests, dependencies, file lists and logs are retained as CircleCI artifacts.
 Successful RPM outputs have **not** yet been verified. Private CircleCI log access
-is unavailable; a RIL diagnostic job exposes its first build error in GitHub checks.
+is unavailable. The RIL diagnostic retry also failed without exposing the first
+error through GitHub; the private failed-step log is still needed.
 
 After merge, `upload-rpm` is gated on `main` and successful builds/tests. It reuses
 the Debian AWS role, `packages-particle-production` context and
