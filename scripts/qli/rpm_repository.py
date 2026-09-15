@@ -26,8 +26,8 @@ def validate_lock(config):
                 raise ValueError(f'Invalid {key}: {package["name"]}')
         if package['qli_release_revision'] != config['yocto']['revision']:
             raise ValueError('RPM built against another QLI release')
-        if package['architecture'] not in ('aarch64', 'noarch'):
-            raise ValueError('RPM must be aarch64 or noarch')
+        if package['architecture'] not in ('aarch64', 'armv8_2a', 'noarch'):
+            raise ValueError('RPM must use a QLI ARM64 architecture (aarch64/armv8_2a) or noarch')
         if Path(package['filename']).name != package['filename'] or not package['filename'].endswith('.rpm'):
             raise ValueError('Invalid RPM filename')
         if package['name'] in seen:

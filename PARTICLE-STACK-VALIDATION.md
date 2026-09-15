@@ -157,3 +157,9 @@ An attempted LPA RPM transfer through `embroid adb ... push` returned
 `invalid gateway authority envelope` with both automatic and broker routing.
 ADB command execution still works. The package installation dry run has not
 been performed, and no eSIM operation is counted as passed.
+
+The live head2 RPM database satisfies all five LPA ELF dependency capabilities
+with `libc6-2.43+git0+e9517114ac-r1.armv8_2a`. This also exposed that the initial
+lock validator excluded Yocto's actual `armv8_2a` tune architecture; it now
+accepts that ARM64 architecture alongside aarch64 and noarch. The composer
+suite now has 20 passing tests. This dependency query is not an install test.

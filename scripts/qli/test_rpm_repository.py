@@ -28,6 +28,11 @@ class RPMLockTests(unittest.TestCase):
     def test_complete_lock_accepted(self):
         self.assertEqual(validate_lock(self.config), self.config['rpm_packages'])
 
+    def test_accepts_the_qli_reference_image_tune_architecture(self):
+        for package in self.config['rpm_packages']:
+            package['architecture'] = 'armv8_2a'
+        self.assertEqual(validate_lock(self.config), self.config['rpm_packages'])
+
     def test_metadata_uses_same_image_and_component_pins(self):
         for region in ('NA', 'RoW'):
             result = distro_versions(self.config, region, '1.4.0-dev')
