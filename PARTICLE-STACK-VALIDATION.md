@@ -1,26 +1,83 @@
-# Particle integration dependencies
+# Particle stack validation — 2026-09-15
 
-PR #88 supplies the QLI platform image and the separate 1.4+ release stream,
-with kernel `6.8.0-1058.59+particle9` and BP firmware `2.0.8`. The incomplete
-Particle RPM integration is split into a follow-up composer PR.
+## Status
 
-The following component PRs are prerequisites for accepting the full Particle
-stack; they do not need to land before the platform image PR #88:
+Implementation is a **draft**, not an accepted Particle QLI image. Exact QLI
+RPM outputs have not been built/pinned, so composition intentionally fails its
+package preflight. The local Mac has 86 GB free; Qualcomm's locked Yocto build
+requires an x86 Linux host and 300 GB free. No QLI SDK runner was supplied.
+Embroid returns `UNAUTHORIZED` / `oauth_token_invalid_grant` and requires
+reauthentication. No device was flashed, reset or provisioned during this work.
 
-- [Overlays #44](https://github.com/particle-iot/tachyon-overlays/pull/44): QLI common/headless stacks.
-- [Overlay tool #7](https://github.com/particle-iot/tachyon-overlay-tool/pull/7): offline RPM installation.
-- [Particle Linux #154](https://github.com/particle-iot-inc/particle-linux/pull/154): native packaging, version reporting and durable bootstrap.
-- [RIL #63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63): packaging, shared modem access and NetworkManager activation.
-- [Syscon #36](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36): packaging and verified firmware/flasher inputs.
-- [CLI #938](https://github.com/particle-iot/particle-cli/pull/938): QLI selection and GPT-preserving host setup. This gates the host setup experience, not image composition.
+## Kernel and BP input refresh
 
-Landing these PRs alone is insufficient: build the component/utility and
-NetworkManager RPMs against the locked QLI SDK, pin actual outputs and complete
-NA/RoW image and head2 acceptance. The current integration has no package lock
-entries. The repository has no QLI SDK runner configured, and package-build CI
-wiring remains local because the GitHub credential lacks `workflow` scope.
-Embroid also needs reauthentication before new hardware acceptance can run.
+QLI now follows the kernel/BP pins merged into Ubuntu 24.04 by composer
+[PR #90](https://github.com/particle-iot/tachyon-composer/pull/90), commit
+`fc9097245e2d3c0c8c59ec2f809f74c525fec416`:
 
-The existing Kigen LPA is pinned in the follow-up integration; no Kigen PR has
-been created or shown necessary. Kernel/BP adoption is already merged in
-[24.04 composer #90](https://github.com/particle-iot/tachyon-composer/pull/90).
+- Kernel image and modules: `6.8.0-1058.59+particle8` → `6.8.0-1058.59+particle9`.
+  Both downloaded packages report the expected version and `arm64` architecture;
+  the image, module tree and Tachyon DTB retain ABI `6.8.0-1058-particle`.
+- BP firmware: `2.0.7` → `2.0.8`. All 519 ZIP entries passed CRC checks; boot
+  binaries, firmware and both NA/RoW NON-HLOS images are present.
+- SHA-256 hashes were calculated from all three downloaded artifacts and pinned
+  in `versions.json`. The 19 composer tests and shell syntax checks pass.
+
+No complete image build or QLI hardware validation was performed for this
+refresh; the existing RPM and hardware acceptance gates still apply.
+
+## Verified locally
+
+- Particle Linux: Node 22 Linux typecheck/lint and 213 unit/integration tests,
+  including RPM version reporting, no-feed behavior and durable bootstrap ordering.
+- RIL: Linux build, 156 existing host cases, SMS/config tests, and a real-library
+  PTY test for cross-process AT exclusion and reacquisition. These are host checks;
+  the QLI NetworkManager activation path and modem operations need target testing.
+- Syscon: Linux build, installation staging, existing upgrade/identity/shutdown
+  guard tests, and all 19 deliberate mutations detected. Firmware and flasher
+  downloads verified against SHA-256 pins.
+- Existing Kigen 0.1.8 serial LPA and mspm0flash 0.4.3 load with the QLI reference
+  rootfs's actual dynamic loader and libc. This is an ABI loading check only;
+  no eSIM operation or MCU flash was performed.
+- Composer: 19 flash-layout, version-stream and RPM-lock/metadata tests.
+- Overlay tool: five offline installation tests, including missing dependencies
+  and external-source refusal. QLI stack check excludes APT/optional installers.
+- CLI: lint and 66 setup tests covering QLI selection, extent, protected-write, live misc and GPT
+  comparison tests. A full existing QLI ZIP passed streamed payload checksum and
+  extent validation against its saved fixture layout. This was not live attestation.
+
+## Required before merge / image acceptance
+
+- Build the QLI SDK and all component/utility RPMs; check package dependency names,
+  native Node modules, RPM source records and repeat-build checksums.
+- Add exact outputs to `versions.json` and successfully run the CI pipeline:
+  local CI wiring gates both NA and RoW image jobs on the SDK/component build
+  and selects artifacts by checksum. GitHub rejected the workflow push because
+  the credential lacks `workflow` scope; that commit remains local. Its first
+  configured-host run is pending.
+- Build and test the mandatory Yocto NetworkManager daemon/WWAN/Wi-Fi RPMs.
+  Kernel files still use the prior composer's file overrides; the reference RPM
+  database retains the original kernel records.
+- Fresh host CLI setup and on-device `particlectl setup`; password, SSH, timezone,
+  Wi-Fi, eSIM bootstrap, cloud registration and container credentials survive reboot.
+- Cloud connectivity, installed package/version reporting and container deployment.
+- Cellular/APN activation, eSIM download/delete/enable/disable, SIM selection and
+  PIN handling, SMS send/receive/storage, GNSS fixes, internal/external antenna
+  settings and recovery after modem restart. Modem capability reports are not passes.
+- Syscon identity, automatic service startup, shutdown notification and upgrade guards.
+- ADB identity/name Tachyon; Wi-Fi; Bluetooth; GPU; audio; suspend/resume; repeated
+  cold boots; CPU/GPU/storage/modem combined-load regression.
+- Live GPT geometry, both GPT copies, device identity, protected provisioning
+  hashes and persist UUID unchanged across flashing and bootstrap.
+
+All hardware-dependent acceptance checks above are **not run** for this stack.
+The prior bring-up image's hardware results do not satisfy these gates.
+
+## Linked component PRs
+
+- [overlays](https://github.com/particle-iot/tachyon-overlays/pull/44)
+- [overlay-tool](https://github.com/particle-iot/tachyon-overlay-tool/pull/7)
+- [particle-linux](https://github.com/particle-iot-inc/particle-linux/pull/154)
+- [ril](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63)
+- [syscon](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36)
+- [cli](https://github.com/particle-iot/particle-cli/pull/938)

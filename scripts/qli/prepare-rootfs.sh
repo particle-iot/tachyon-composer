@@ -40,8 +40,9 @@ patch --batch --forward "$root/usr/share/alsa/ucm2/Qualcomm/qcm6490-tachyon/HiFi
 mkdir -p "$root/etc/wireplumber/wireplumber.conf.d"
 install -m 644 "$here/51-tachyon-audio.conf" "$root/etc/wireplumber/wireplumber.conf.d/"
 
-python3 - "$root" "$cfg" "$region" "$version" <<'PY'
+PYTHONPATH="$here" python3 - "$root" "$cfg" "$region" "$version" <<'PY'
 import json,pathlib,secrets,subprocess,sys
+from rpm_repository import distro_versions
 r=pathlib.Path(sys.argv[1]); config=json.load(open(sys.argv[2]))
 (r/'etc/hostname').write_text('tachyon-qli\n')
 hosts=r/'etc/hosts'
@@ -53,6 +54,8 @@ lines += ['PARTLABEL=system / ext4 defaults,noatime,errors=remount-ro 0 1',
           'PARTLABEL=persist /persist ext4 defaults,nosuid,nodev,noatime,nofail 0 0',
           'PARTLABEL=dtb_a /boot/dtb_a vfat rw,nofail,x-systemd.automount,sync 0 0']
 fstab.write_text('\n'.join(lines)+'\n')
+(r/'etc/particle').mkdir(exist_ok=True)
+(r/'etc/particle/distro_versions.json').write_text(json.dumps(distro_versions(config,sys.argv[3],sys.argv[4]),indent=2)+'\n')
 (r/'etc/tachyon-qli').mkdir(exist_ok=True)
 (r/'etc/tachyon-qli/build.json').write_text(json.dumps({**config,'region':sys.argv[3], 'version':sys.argv[4], 'board':'formfactor_dvt','variant':'headless'},indent=2)+'\n')
 # A unique machine ID and fresh SSH host keys are generated on the board.
