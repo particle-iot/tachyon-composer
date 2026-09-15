@@ -1,6 +1,12 @@
 #!/bin/sh
 # QLI adbd with the Tachyon UDC, independent of reference-board UDC names.
 set -eu
+# Match Ubuntu 24.04's adbd-usb-gadget identity so fixture bindings survive
+# an OS switch: Particle's device prefix plus the 32-bit SoC serial in hex.
+serial=$(cat /sys/devices/soc0/serial_number)
+case "$serial" in ''|*[!0-9]*) echo 'Invalid Tachyon SoC serial' >&2; exit 1;; esac
+[ "$serial" -gt 0 ] && [ "$serial" -le 4294967295 ] || exit 1
+device_id=$(printf '422a060000000000%08x' "$serial")
 modprobe libcomposite
 mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
 udc=a600000.usb
@@ -15,10 +21,9 @@ unbind
 echo 0x18d1 > "$g/idVendor"
 echo 0x4ee7 > "$g/idProduct"
 mkdir -p "$g/strings/0x409" "$g/configs/c.1/strings/0x409" "$g/functions/ffs.adb"
-serial=$(cat /sys/devices/soc0/serial_number 2>/dev/null || cat /etc/machine-id)
-printf '%s' "$serial" > "$g/strings/0x409/serialnumber"
+printf '%s' "$device_id" > "$g/strings/0x409/serialnumber"
 echo Particle > "$g/strings/0x409/manufacturer"
-echo 'Tachyon QLI' > "$g/strings/0x409/product"
+echo Tachyon > "$g/strings/0x409/product"
 echo ADB > "$g/configs/c.1/strings/0x409/configuration"
 [ -L "$g/configs/c.1/ffs.adb" ] || ln -s "$g/functions/ffs.adb" "$g/configs/c.1/ffs.adb"
 mkdir -p /dev/usb-ffs/adb

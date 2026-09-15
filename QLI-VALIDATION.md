@@ -10,7 +10,12 @@ The flash used the previously authorized direct Particle CLI on head2-pi
 while Embroid was being updated. Subsequent device checks use Embroid ADB.
 At 07:15 UTC, Embroid reported `qcm6490-adb` as `peripheral_offline` for both
 status and a read-only exec request; reconnect returned `not_found`.
-Direct ADB polling was stopped. The target-owned soak was left running.
+The cause was QLI's raw decimal USB serial instead of Ubuntu's Particle device
+ID. The gadget now uses Ubuntu's prefix plus eight-digit hexadecimal SoC serial
+and the product name `Tachyon`. After deploying that script and restarting only
+ADB at 07:32 UTC, Embroid status returned `device` and bounded exec succeeded.
+Boot ID and the active soak invocation were unchanged. No Embroid service or
+binding configuration was modified. Subsequent tests run through Embroid ADB.
 
 ## Completed checks
 
@@ -48,9 +53,9 @@ Native QLI modem services differ from Ubuntu's legacy RFS/Particle RIL userspace
   onboard-mic capture showed weak matching frequency components. This does not
   establish audible output quality or acoustic fidelity.
 - **One-hour soak result pending:** started at 06:58:29 UTC as
-  `qli-validation-soak.service`. The last retained sample at 522 seconds showed
-  a maximum temperature of 51.2°C. Collection must use Embroid ADB when available;
-  do not treat a running test as a pass.
+  `qli-validation-soak.service`. Embroid ADB verified the same boot and invocation
+  at 2,046 seconds; that sample's maximum temperature was 52.3°C. Collection has
+  resumed through Embroid; do not treat a running test as a pass.
 - **Suspend/resume and ten cold boots remain pending.** Run these after collecting
   the soak result, then repeat the partition and kernel-log checks.
 - Early AudioReach status-query timeout and occasional probe messages remain;

@@ -63,6 +63,10 @@ Lab access is serial root autologin on `ttyMSM0`, USB ADB, and key-only SSH as
 root. Host keys and machine ID are generated on the board. Optional public
 keys are copied from `.tmp/qli/access/authorized_keys`; Wi-Fi credentials are
 configured after flashing and never included in the distributable ZIP.
+The USB product name is `Tachyon`. ADB retains Ubuntu 24.04's Particle device
+ID: `422a060000000000` followed by the SoC serial as eight hexadecimal digits.
+Using the raw decimal SoC serial changes the USB identity and leaves existing
+Embroid ADB bindings offline even though the node and USB device are online.
 
 ## Baseline and recovery on head2-pi
 
