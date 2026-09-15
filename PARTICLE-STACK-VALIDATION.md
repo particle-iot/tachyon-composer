@@ -144,17 +144,26 @@ pushes and `main`, preserving the existing Debian builds and artifact retention:
 
 | Component | PR | Debian build | RPM build |
 | --- | --- | --- | --- |
-| RIL | [#63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) | [passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/404) | [failed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/403), including the diagnostic retry |
-| Syscon | [#36](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36) | [passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/191) | [failed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/190) |
-| Particle Linux | [#154](https://github.com/particle-iot-inc/particle-linux/pull/154) | [arm64 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3594), [amd64 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3589) | [failed](https://circleci.com/gh/particle-iot-inc/particle-linux/3593) |
+| RIL | [#63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) | [passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/404) | [rebuilding with host fix](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/414) |
+| Syscon | [#36](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36) | [passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/191) | [rebuilding with host fix](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/200) |
+| Particle Linux | [#154](https://github.com/particle-iot-inc/particle-linux/pull/154) | [arm64 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3594), [amd64 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3589) | [rebuilding with host fix](https://circleci.com/gh/particle-iot-inc/particle-linux/3616) |
 
 The build uses each job's current checkout and a pinned composer SDK configuration.
 The SDK target package names were corrected to `systemd-dev` and `libsqlite3-dev`
 using the actual pinned Yocto recipes. SDK installers/configuration, RPMs,
 manifests, dependencies, file lists and logs are retained as CircleCI artifacts.
-Successful RPM outputs have **not** yet been verified. Private CircleCI log access
-is unavailable. The RIL diagnostic retry also failed without exposing the first
-error through GitHub; the private failed-step log is still needed.
+Successful RPM outputs have **not** yet been verified. The supplied log for RIL
+job 412 identifies the actual startup failure: Ubuntu's host `libgcc-14-dev`
+is installed without `libstdc++-14-dev`. All three component CI preparation
+scripts now install the matching C++ development package explicitly.
+
+The exact OE-core sanity error was reproduced on Ubuntu 24.04 amd64 with the
+pinned QLI configuration (exit 1). After installing `libstdc++-14-dev`, host
+sanity and metadata parsing passed in a fresh build directory (exit 0). This
+used an isolated one-recipe fixture to exercise the host check; it did not
+compile a component or produce an RPM. The normal sanity checker stayed enabled.
+The GitHub authentication/installer hypotheses were not the cause shown by
+this log. Full SDK/RPM builds remain subject to the new CircleCI runs above.
 
 After merge, `upload-rpm` is gated on `main` and successful builds/tests. It reuses
 the Debian AWS role, `packages-particle-production` context and
