@@ -1,9 +1,14 @@
 # QLI 2.0 Open on Tachyon
 
 This experiment runs Qualcomm Linux 2.0 open userspace with Particle's
-`6.8.0-1058.59+particle8` kernel, matching modules and Tachyon DTB. It retains
+`6.8.0-1058.59+particle9` kernel, matching modules and Tachyon DTB. It retains
 Tachyon's XBL → Quectel UEFI → GRUB boot chain. It does not port Tachyon to
 Qualcomm's reference image's 6.18 kernel.
+
+The kernel and BP inputs match Ubuntu 24.04 composer [PR #90](https://github.com/particle-iot/tachyon-composer/pull/90)
+(commit `fc9097245e2d3c0c8c59ec2f809f74c525fec416`). The kernel ABI remains
+`6.8.0-1058-particle`. Downloaded kernel image/modules and BP ZIP checksums are
+pinned in `versions.json`; this combination has not yet been boot-tested on QLI.
 
 ## Build
 
@@ -30,7 +35,7 @@ the Ubuntu branch when building from this QLI branch.
 Every downloaded input is pinned by SHA-256 and checked on every build. The
 QLI ZIP contributes only its raw ext4 root filesystem. Its reference boot
 firmware, EFI files, kernel/modules, DTBs, partition tables and provisioning
-instructions do not enter the Tachyon package. Particle BP 2.0.7's existing
+instructions do not enter the Tachyon package. Particle BP 2.0.8's existing
 test-signed payloads are carried unchanged; this build does not re-sign them.
 
 The composer adds the matching Particle kernel/modules, an Ubuntu-built

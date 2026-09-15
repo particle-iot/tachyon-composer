@@ -9,6 +9,23 @@ requires an x86 Linux host and 300 GB free. No QLI SDK runner was supplied.
 Embroid returns `UNAUTHORIZED` / `oauth_token_invalid_grant` and requires
 reauthentication. No device was flashed, reset or provisioned during this work.
 
+## Kernel and BP input refresh
+
+QLI now follows the kernel/BP pins merged into Ubuntu 24.04 by composer
+[PR #90](https://github.com/particle-iot/tachyon-composer/pull/90), commit
+`fc9097245e2d3c0c8c59ec2f809f74c525fec416`:
+
+- Kernel image and modules: `6.8.0-1058.59+particle8` → `6.8.0-1058.59+particle9`.
+  Both downloaded packages report the expected version and `arm64` architecture;
+  the image, module tree and Tachyon DTB retain ABI `6.8.0-1058-particle`.
+- BP firmware: `2.0.7` → `2.0.8`. All 519 ZIP entries passed CRC checks; boot
+  binaries, firmware and both NA/RoW NON-HLOS images are present.
+- SHA-256 hashes were calculated from all three downloaded artifacts and pinned
+  in `versions.json`. The 19 composer tests and shell syntax checks pass.
+
+No complete image build or QLI hardware validation was performed for this
+refresh; the existing RPM and hardware acceptance gates still apply.
+
 ## Verified locally
 
 - Particle Linux: Node 22 Linux typecheck/lint and 213 unit/integration tests,
