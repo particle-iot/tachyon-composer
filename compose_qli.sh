@@ -5,7 +5,7 @@ CFG="$(realpath "${1:?versions file}")"
 REGION="${2:?NA or RoW}"
 VERSION="${3:?output version}"
 [[ "$REGION" = NA || "$REGION" = RoW ]]
-[[ "$VERSION" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]
+[[ "$VERSION" =~ ^[a-zA-Z0-9][a-zA-Z0-9._+-]*$ ]]
 [[ $(id -u) = 0 ]] || { echo 'Run in the privileged builder as root'; exit 1; }
 PROJ="$(cd "$(dirname "$0")" && pwd)"
 IN=/work/input

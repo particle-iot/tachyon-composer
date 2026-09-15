@@ -68,8 +68,14 @@ def rootfs(root, config):
     fstab = (root / 'etc/fstab').read_text()
     if 'PARTLABEL=system / ext4' not in fstab or 'PARTLABEL=core_nhlos_a /vendor' not in fstab:
         raise ValueError('Wrong root/vendor mounts')
-    if (root / 'etc/systemd/system/systemd-repart.service').readlink() != Path('/dev/null'):
-        raise ValueError('QLI repartitioning service must be disabled')
+    for unit in ('systemd-repart.service', 'systemd-repart.socket', 'format-tee-partition.service'):
+        if (root / f'etc/systemd/system/{unit}').readlink() != Path('/dev/null'):
+            raise ValueError(f'Partition-changing service must be disabled: {unit}')
+    if (root / 'usr/sbin/check-tee-partition-fs.sh').exists():
+        raise ValueError('Reference persist formatter must be removed')
+    tee = (root / 'etc/systemd/system/var-lib-tee.mount').read_text()
+    if 'RequiresMountsFor=/persist' not in tee or 'Options=bind' not in tee or 'format-tee-partition' in tee:
+        raise ValueError('TEE must reuse the existing persist mount without formatting')
     # /vendor is a separate partition mounted at boot, so validate the mapping
     # without following it into the builder's filesystem.
     if (root / 'usr/lib/firmware/tachyon/modem').readlink() != Path('/vendor/modem'):

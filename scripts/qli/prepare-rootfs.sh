@@ -74,9 +74,13 @@ install -m 644 "$here/wireplumber.conf" "$units/wireplumber.service.d/tachyon.co
 ln -sfn /usr/lib/systemd/system/multi-user.target "$units/default.target"
 # The 6.18 reference-board gadget configuration and display startup are replaced
 # for this headless experiment. ModemManager owns the cellular modem.
-for unit in weston.service weston.socket ofono.service android-tools-adbd.service systemd-repart.service systemd-repart.socket; do
+for unit in weston.service weston.socket ofono.service android-tools-adbd.service systemd-repart.service systemd-repart.socket format-tee-partition.service; do
   ln -sfn /dev/null "$units/$unit"
 done
+# Reuse Ubuntu's existing persist filesystem. The reference image's TEE helper
+# can mkfs this calibration/state partition; it must never run on Tachyon.
+rm -f "$root/usr/sbin/check-tee-partition-fs.sh"
+install -m 644 "$here/var-lib-tee.mount" "$units/var-lib-tee.mount"
 mkdir -p "$units/serial-getty@ttyMSM0.service.d"
 cat > "$units/serial-getty@ttyMSM0.service.d/lab.conf" <<'EOF'
 [Service]
