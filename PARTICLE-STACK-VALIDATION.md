@@ -136,3 +136,24 @@ The wrapper package records the actual aarch64/glibc dependencies and is pinned
 in `versions.json`. It is a local candidate artifact, not an S3 upload or feed.
 This step wraps an already built vendor binary; it does not require the QLI SDK
 needed to compile the other components. No functional eSIM pass is implied.
+
+## Candidate build infrastructure attempt
+
+[RIL #63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) now
+contains a branch-scoped CircleCI `qli-candidate` job that builds the component
+SDK and all candidate RPMs using composer commit
+`0c84d141b09351ff67e951d5b1771503028c418a`. It uses a hosted x86_64 worker
+and `meta-toolchain` from the pinned QLI configuration, with disk-space guards,
+instead of rebuilding the complete multimedia image for the SDK. The new job
+configuration passes CircleCI's validator. Existing Debian jobs are retained.
+
+[First attempt, job 394](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/394)
+failed before producing accepted SDK/package outputs. Its failed-step log is
+needed for diagnosis; private CircleCI log access is unavailable in this session.
+No full candidate image exists yet. Candidate RPM jobs retain CI artifacts and
+do not upload RPMs to S3; the existing Debian publication paths remain separate.
+
+An attempted LPA RPM transfer through `embroid adb ... push` returned
+`invalid gateway authority envelope` with both automatic and broker routing.
+ADB command execution still works. The package installation dry run has not
+been performed, and no eSIM operation is counted as passed.
