@@ -100,7 +100,8 @@ updated with QLI builds. `PUSH_QLI_JSON=false` disables that channel update;
 `UPLOAD_TAG_ASSETS=false` leaves only downloadable GitHub build artifacts.
 Ubuntu latest/stable metadata and GitHub's default latest-release marker are
 not changed by this branch. Existing AWS role/bucket/CloudFront configuration
-and the `ubuntu-tachyon` runner are reused.
+are reused. Builds use GitHub's native `ubuntu-24.04-arm` runner by default;
+`QLI_BUILD_RUNNER` can select a larger runner when available.
 
 Before replacing Ubuntu, establish root access and collect the actual board
 layout, region, identity, firmware version, NV/persist and network profiles.

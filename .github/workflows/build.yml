@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-tachyon
+    runs-on: ${{ vars.QLI_BUILD_RUNNER || 'ubuntu-24.04-arm' }}
     timeout-minutes: 90
     environment: production
     permissions:
@@ -43,6 +43,12 @@ jobs:
         variant: [headless]
 
     steps:
+      - name: Make room for Linux image assembly
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android
+          df -h /
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
