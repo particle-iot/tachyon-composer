@@ -407,15 +407,21 @@ can use a versions file from the Ubuntu branch explicitly; the QLI branch no
 longer carries a second set of Ubuntu kernel/firmware/package pins.
 
 `build_qli` requires the exact component RPM artifacts and their complete
-additional dependency closure in `rpm_packages`. The checked-in list currently contains only the built Kigen LPA wrapper;
-the other packages await the QLI SDK build. This deliberately blocks composition:
+additional dependency closure in `rpm_packages`. The checked-in list currently
+contains only the built Kigen LPA wrapper. All three component RPM jobs passed
+using the published shared SDK, but their private artifacts still need to be
+retrieved and pinned; the image's runtime dependency RPMs also remain to be built.
+This deliberately blocks composition:
 there is no fallback to a partial image, Debian packages or an external feed.
 
-1. On a Linux x86_64 host meeting Qualcomm's build requirements, run
+1. Reuse the checksummed SDK published by the RIL CI job. For a deliberate cold
+   build on a Linux x86_64 host, run
    `scripts/qli/build-sdk.sh versions.json /path/to/yocto-workspace`.
-2. Source the generated aarch64 SDK. Build each component with its
+2. Retrieve the successful component RPM artifacts, or source the aarch64 SDK
+   and build each component with its
    `packaging/build-rpm.sh`; stage the pinned syscon inputs using its checksum
-   verifier. Build the missing utilities with the locked Yocto configuration.
+   verifier. Build the missing utilities with `scripts/qli/build-runtime-rpms.sh`
+   in a separate workspace using the locked Yocto configuration.
    Kigen's existing serial binary is wrapped by `scripts/qli/package-lpa.py`.
 3. Verify native module loading and installed dependencies against the QLI
    rootfs. Pin successful outputs from `packages.json`, including source commit,
@@ -423,7 +429,9 @@ there is no fallback to a partial image, Debian packages or an external feed.
 4. Run `make build_qli INPUT_REGION=NA` and `INPUT_REGION=RoW`. The composer
    stages only locked RPMs, generates a private file repository, installs exact
    package identities with external repositories disabled, applies the pinned
-   QLI overlays, verifies installed identities/loading and removes the repository.
+   QLI overlays, verifies installed identities/loading, file integrity, service
+   definitions/enabled state and version metadata, and removes the repository.
+   The factory ZIP includes a checksummed `package-validation.json` report.
 
 The locally committed composer CI workflow builds the pinned Yocto utilities/SDK
 and component RPMs first,

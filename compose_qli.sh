@@ -11,6 +11,7 @@ PROJ="$(cd "$(dirname "$0")" && pwd)"
 IN=/work/input
 OUT=/work/output
 mkdir -p "$OUT"
+name="tachyon-qli-2.0-$REGION-headless-formfactor_dvt-$VERSION"
 work=$(mktemp -d)
 root="$work/root"
 src="$work/source"
@@ -81,6 +82,7 @@ bash "$PROJ/scripts/qli/build-pd-mapper.sh" "$root" "$CFG" "$IN" "$work"
 for special in dev proc sys; do
   mount --bind "/$special" "$root/$special"
 done
+bash "$PROJ/scripts/qli/prepare-rpm-chroot.sh" "$root"
 
 # Stage only the pinned RPMs. Keep this transient repository out of the image.
 python3 "$PROJ/scripts/qli/rpm_repository.py" "$CFG" --cache "$IN/rpms" --destination "$root/tmp/particle-rpms"
@@ -96,7 +98,8 @@ PYRPM
 stack=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["overlay_stack"])' "$CFG")
 python3 /work/overlay-tool/overlay.py --mount-point "$root" --overlay-dirs /work/overlays   --package-manager rpm-offline --rpm-repo /tmp/particle-rpms --stack "$stack" apply
 # The RPM database must describe the packages actually installed.
-python3 "$PROJ/scripts/qli/verify-rpms.py" "$root" "$CFG"
+python3 "$PROJ/scripts/qli/verify-rpms.py" "$root" "$CFG" \
+  --region "$REGION" --version "$VERSION" --report "$OUT/$name.package-validation.json"
 rm -rf "$root/tmp/particle-rpms" "$root/var/cache/dnf"
 for special in dev proc sys; do
   umount "$root/$special"
@@ -153,8 +156,8 @@ bash "$PROJ/scripts/assemble/make_factory_img.sh" \
   --bootbinaries "$work/bootbinaries.zip" --system "$work/rootfs.ext4" \
   --efi "$work/efi.img" --dtb_a "$work/dtb.img" \
   --core_nhlos_a "$work/bp/nonhlos-$nonhlos.img" --output "$work/factory"
-name="tachyon-qli-2.0-$REGION-headless-formfactor_dvt-$VERSION"
 cp "$work/initramfs-files.txt" "$work/factory/initramfs-files.txt"
+cp "$OUT/$name.package-validation.json" "$work/factory/package-validation.json"
 python3 "$PROJ/scripts/qli/package.py" "$work/factory" "$CFG" "$REGION" "$VERSION" "$name"
 (cd "$work/factory"; zip -q -r "$OUT/$name.zip.partial" .)
 mv "$OUT/$name.zip.partial" "$OUT/$name.zip"

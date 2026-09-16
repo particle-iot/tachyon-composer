@@ -1,0 +1,41 @@
+Directory walk started
+Directory walk done - 1 packages
+Temporary output repo path: /target/tmp/lpa-validation/.repodata/
+Preparing sqlite DBs
+Pool started (with 5 workers)
+Pool finished
+sudo: unable to resolve host 43609833805f: Temporary failure in name resolution
+Added particle-build repo from file:///tmp/lpa-validation
+particle-build                                  220 kB/s | 763  B     00:00    
+Dependencies resolved.
+================================================================================
+ Package                 Architecture Version         Repository           Size
+================================================================================
+Installing:
+ particle-kigen-lpa      aarch64      0.1.8-1         particle-build      1.9 M
+
+Transaction Summary
+================================================================================
+Install  1 Package
+
+Total size: 1.9 M
+Installed size: 6.6 M
+Downloading Packages:
+Running transaction check
+Transaction check succeeded.
+Running transaction test
+Transaction test succeeded.
+Running transaction
+  Preparing        :                                                        1/1 
+  Installing       : particle-kigen-lpa-0.1.8-1.aarch64                     1/1 
+
+Installed:
+  particle-kigen-lpa-0.1.8-1.aarch64                                            
+
+Complete!
+particle-kigen-lpa-0.1.8-1.aarch64
+	linux-vdso.so.1 (0x0000ffff8860d000)
+	libc.so.6 => /lib/libc.so.6 (0x0000ffff88310000)
+	/lib/ld-linux-aarch64.so.1 (0x0000ffff885d0000)
+PASS: isolated offline LPA RPM install, file verification and loader resolution
+Hardware eSIM operations: NOT RUN

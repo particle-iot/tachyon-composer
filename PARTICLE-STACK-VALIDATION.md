@@ -29,232 +29,145 @@ build inputs.
    user review. Do not merge PRs, tag releases or publish image/package releases
    before that review and explicit approval.
 
-This workflow requires a QLI-capable Linux x86_64 build host (300 GB free),
-private component input access, GitHub workflow-write access and an authenticated
-Embroid connection to head2. Full functional radio testing additionally requires
+Component builds use the shared SDK in CircleCI. Building the remaining Yocto
+runtime RPMs requires a Linux x86_64 build host with sufficient disk space. Image
+composition needs access to the exact private RPM artifacts; enabling the local
+GitHub image workflow also requires workflow-write access. Hardware testing needs
+an authenticated Embroid CLI connection to head2. Full functional radio testing additionally requires
 working SIM/eSIM test resources and a peer for SMS; peripheral and power tests
 need the corresponding lab equipment.
 
-## Status
+## Current status
 
-Implementation is a **draft**, not an accepted Particle QLI image. The Kigen LPA RPM is built and pinned; the remaining native QLI RPM outputs
-have not been built/pinned, so composition intentionally fails its package preflight. The local Mac has 86 GB free; Qualcomm's locked Yocto build
-requires an x86 Linux host and 300 GB free. No QLI SDK runner was supplied.
-The Embroid app connector returns an authentication error, but the **Embroid
-CLI works**. `embroid adb head2-tachyon status` reports `device`, and bounded
-ADB commands successfully read the board inventory. Use the CLI for subsequent
-head2 testing; connector reauthentication is not a hardware-access blocker.
-No device was flashed, reset or provisioned during this work.
+**Not ready for image acceptance or landing.** All three component RPM builds
+have passed, but their private artifacts have not been retrieved and installed
+in a complete candidate image. Only LPA is currently pinned in `rpm_packages`;
+the source pins now identify the successful component builds below. Missing
+artifact/dependency pins intentionally stop full composition.
 
-Read-only baseline (2026-09-15): head2 runs QLI 2.0 with the older particle8
-kernel; the candidate Particle Linux, RIL and syscon packages are absent. The
-live partition inventory was recorded, including a 1 MiB existing `misc` and
-approximately 60.8 GB `system` partition. This confirms access only, not a
-candidate acceptance pass. Platform PR #88 now has successful NA and RoW
-image builds at commit `4bc549161db7bc123c6f1ceb0adccd8a11d5f277`;
-these platform images do not contain the full-stack candidate.
-
-## Kernel and BP input refresh
-
-QLI now follows the kernel/BP pins merged into Ubuntu 24.04 by composer
-[PR #90](https://github.com/particle-iot/tachyon-composer/pull/90), commit
-`fc9097245e2d3c0c8c59ec2f809f74c525fec416`:
-
-- Kernel image and modules: `6.8.0-1058.59+particle8` → `6.8.0-1058.59+particle9`.
-  Both downloaded packages report the expected version and `arm64` architecture;
-  the image, module tree and Tachyon DTB retain ABI `6.8.0-1058-particle`.
-- BP firmware: `2.0.7` → `2.0.8`. All 519 ZIP entries passed CRC checks; boot
-  binaries, firmware and both NA/RoW NON-HLOS images are present.
-- SHA-256 hashes were calculated from all three downloaded artifacts and pinned
-  in `versions.json`. The 19 composer tests and shell syntax checks pass.
-
-No complete image build or QLI hardware validation was performed for this
-refresh; the existing RPM and hardware acceptance gates still apply.
-
-## Verified locally
-
-- Particle Linux: Node 22 Linux typecheck/lint and 213 unit/integration tests,
-  including RPM version reporting, no-feed behavior and durable bootstrap ordering.
-- RIL: Linux build, 156 existing host cases, SMS/config tests, and a real-library
-  PTY test for cross-process AT exclusion and reacquisition. These are host checks;
-  the QLI NetworkManager activation path and modem operations need target testing.
-- Syscon: Linux build, installation staging, existing upgrade/identity/shutdown
-  guard tests, and all 19 deliberate mutations detected. Firmware and flasher
-  downloads verified against SHA-256 pins.
-- Existing Kigen 0.1.8 serial LPA and mspm0flash 0.4.3 load with the QLI reference
-  rootfs's actual dynamic loader and libc. This is an ABI loading check only;
-  no eSIM operation or MCU flash was performed.
-- Composer: 19 flash-layout, version-stream and RPM-lock/metadata tests.
-- Overlay tool: five offline installation tests, including missing dependencies
-  and external-source refusal. QLI stack check excludes APT/optional installers.
-- CLI: lint and 66 setup tests covering QLI selection, extent, protected-write, live misc and GPT
-  comparison tests. A full existing QLI ZIP passed streamed payload checksum and
-  extent validation against its saved fixture layout. This was not live attestation.
-
-## Required before merge / image acceptance
-
-- Build the QLI SDK and all component/utility RPMs; check package dependency names,
-  native Node modules, RPM source records and repeat-build checksums.
-- Add exact outputs to `versions.json` and successfully run the CI pipeline:
-  local CI wiring gates both NA and RoW image jobs on the SDK/component build
-  and selects artifacts by checksum. GitHub rejected the workflow push because
-  the credential lacks `workflow` scope; that commit remains local. Its first
-  configured-host run is pending.
-- Build and test the mandatory Yocto NetworkManager daemon/WWAN/Wi-Fi RPMs.
-  Kernel files still use the prior composer's file overrides; the reference RPM
-  database retains the original kernel records.
-- Fresh host CLI setup and on-device `particlectl setup`; password, SSH, timezone,
-  Wi-Fi, eSIM bootstrap, cloud registration and container credentials survive reboot.
-- Cloud connectivity, installed package/version reporting and container deployment.
-- Cellular/APN activation, eSIM download/delete/enable/disable, SIM selection and
-  PIN handling, SMS send/receive/storage, GNSS fixes, internal/external antenna
-  settings and recovery after modem restart. Modem capability reports are not passes.
-- Syscon identity, automatic service startup, shutdown notification and upgrade guards.
-- ADB identity/name Tachyon; Wi-Fi; Bluetooth; GPU; audio; suspend/resume; repeated
-  cold boots; CPU/GPU/storage/modem combined-load regression.
-- Live GPT geometry, both GPT copies, device identity, protected provisioning
-  hashes and persist UUID unchanged across flashing and bootstrap.
-
-All hardware-dependent acceptance checks above are **not run** for this stack.
-The prior bring-up image's hardware results do not satisfy these gates.
-
-## Linked component PRs
-
-- [overlays](https://github.com/particle-iot/tachyon-overlays/pull/44)
-- [overlay-tool](https://github.com/particle-iot/tachyon-overlay-tool/pull/7)
-- [particle-linux](https://github.com/particle-iot-inc/particle-linux/pull/154)
-- [ril](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63)
-- [syscon](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36)
-- [cli](https://github.com/particle-iot/particle-cli/pull/938)
-
-## First candidate RPM
-
-`particle-kigen-lpa-0.1.8-1.aarch64.rpm` was built twice with the pinned vendor
-binary and fixed source timestamp. Both runs produced SHA-256
-`fa874f9f91e7a73dbd8e70d21e3ccc45c37cdb93dcc81265feaec26719e401b4`.
-The wrapper package records the actual aarch64/glibc dependencies and is pinned
-in `versions.json`. It is a local candidate artifact, not an S3 upload or feed.
-This step wraps an already built vendor binary; it does not require the QLI SDK
-needed to compile the other components. No functional eSIM pass is implied.
-
-## Component package CI (2026-09-15)
-
-All three component PRs now add automatic CircleCI RPM builds on PR/source-branch
-pushes and `main`, preserving the existing Debian builds and artifact retention:
-
-| Component | PR | Debian build | RPM build |
+| Component | Source commit | RPM build | Debian build |
 | --- | --- | --- | --- |
-| RIL | [#63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) | [passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/404) | [rebuilding with host fix](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/414) |
-| Syscon | [#36](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36) | [passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/191) | [rebuilding with host fix](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/200) |
-| Particle Linux | [#154](https://github.com/particle-iot-inc/particle-linux/pull/154) | [arm64 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3594), [amd64 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3589) | [rebuilding with host fix](https://circleci.com/gh/particle-iot-inc/particle-linux/3616) |
+| [RIL #63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) | `fac5f6468caf1b784c17bcf87982f73f4e4b69db` | [428 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/428) | [424 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/424) |
+| [Syscon #36](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36) | `fe0a407fc036b9416ac2f3cf4d776cd09d0195d2` | [203 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/203) | [201 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/201) |
+| [Particle Linux #154](https://github.com/particle-iot-inc/particle-linux/pull/154) | `0a1a7a15279e8375bf0d13dda2746792ca4f12a1` | [3628 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3628) | [ARM64 3625 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3625), [AMD64 3622 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3622) |
 
-The build uses each job's current checkout and a pinned composer SDK configuration.
-The SDK target package names were corrected to `systemd-dev` and `libsqlite3-dev`
-using the actual pinned Yocto recipes. SDK installers/configuration, RPMs,
-manifests, dependencies, file lists and logs are retained as CircleCI artifacts.
-Successful RPM outputs have **not** yet been verified. The supplied log for RIL
-job 412 identifies the actual startup failure: Ubuntu's host `libgcc-14-dev`
-is installed without `libstdc++-14-dev`. All three component CI preparation
-scripts now install the matching C++ development package explicitly.
+The minimal [SDK build 426](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/426)
+and [SDK link validation/S3 publication 427](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/427)
+passed. SDK publication checks C/C++, libsystemd and SQLite linking, AArch64 ELF
+headers and S3 readback. Syscon and Particle Linux consume this shared SDK without
+launching cold Yocto builds. The graph remains 153 recipes / 2,511 tasks, guarded
+at 170 recipes / 2,800 tasks. See [SDK details](scripts/qli/SDK.md).
 
-The exact OE-core sanity error was reproduced on Ubuntu 24.04 amd64 with the
-pinned QLI configuration (exit 1). After installing `libstdc++-14-dev`, host
-sanity and metadata parsing passed in a fresh build directory (exit 0). This
-used an isolated one-recipe fixture to exercise the host check; it did not
-compile a component or produce an RPM. The normal sanity checker stayed enabled.
-The GitHub authentication/installer hypotheses were not the cause shown by
-this log. Full SDK/RPM builds remain subject to the new CircleCI runs above.
+Successful component jobs retain `qli-rpm/rpm/`: the RPM, `packages.json`,
+`SHA256SUMS`, dependency and file inventories. The private CircleCI artifact API
+returns 404 in this session, so direct authenticated download links are still
+needed. No RPM checksums have been invented or inferred from successful jobs.
 
-After merge, `upload-rpm` is gated on `main` and successful builds/tests. It reuses
-the Debian AWS role, `packages-particle-production` context and
-`PACKAGES_S3_BUCKET`, writing under
-`rpm/qli-2.0/dev/<repository>/<source-commit>/<manifest-sha256>/`. It retains
-versioned RPMs, `packages.json` and `SHA256SUMS`; no hosted DNF feed is added.
-Each repository's 13 publication guard/integrity tests passed locally and in CI.
-Those tests use mocked AWS calls and do not demonstrate a real upload, RPM
-installation or functional acceptance. No merge or RPM S3 upload has occurred.
+## Actual QLI installation checks — 2026-09-15
 
-The earlier RIL `qli-candidate` branch-only all-component job (394) is superseded
-by these per-component builds. No full candidate image exists yet. Do not promote
-prospective RPM pins or count the platform image's passing builds as full-stack
-acceptance.
+Downloaded and verified the pinned QLI 2.0 reference ZIP:
+`31e25f8af580319737f76e825107ab6e9f99aa4bc523b181f130ee9af4a0ac0d`.
+Its rootfs reports build ID `local-20260625153136`. Read-only chroot queries
+confirmed libc 2.43, libstdc++ 15.2.0, systemd/libsystemd 259.5 and SQLite 3.51.3.
+Docker, Compose, UPower, ModemManager and NetworkManager daemon/nmcli/Wi-Fi are
+present. `jq`, `socat`, `sudo`, `libgpiod` and NetworkManager WWAN are absent.
 
-Embroid CLI now reports head2's `qcm6490-adb` binding as `peripheral_offline`;
-the fixture is in use by the Mac app. No reset or flash was attempted.
+The pinned `particle-kigen-lpa-0.1.8-1.aarch64.rpm` has SHA-256
+`fa874f9f91e7a73dbd8e70d21e3ccc45c37cdb93dcc81265feaec26719e401b4`.
+Two previous builds produced that same hash. This run installed it into a
+writable overlay over the read-only QLI reference rootfs, in an ARM64 Docker
+container with networking disabled. It used `createrepo_c` and the pinned overlay
+tool's actual `rpm-offline` installer, with all external repositories disabled.
+DNF dependency resolution and transaction checks, `rpm -V`, and the QLI loader's
+library resolution all **passed**. [Retained output](scripts/qli/validation/lpa-offline-install.log).
 
-An attempted LPA RPM transfer through `embroid adb ... push` returned
-`invalid gateway authority envelope` with both automatic and broker routing.
-ADB command execution worked at that earlier point. The package installation dry run has not
-been performed, and no eSIM operation is counted as passed.
+This real test first failed because QLI's `/var/log -> volatile/log` symlink
+points to a directory only created at boot. `prepare-rpm-chroot.sh` now creates
+the required volatile log/tmp directories before DNF runs; the install then
+passed. The same preparation is wired into `compose_qli.sh`.
 
-The live head2 RPM database satisfies all five LPA ELF dependency capabilities
-with `libc6-2.43+git0+e9517114ac-r1.armv8_2a`. This also exposed that the initial
-lock validator excluded Yocto's actual `armv8_2a` tune architecture; it now
-accepts that ARM64 architecture alongside aarch64 and noarch. The composer
-suite now has 20 passing tests. This dependency query is not an install test.
+This is an LPA package installation/ABI pass only. No eSIM operation, full stack
+overlay, regional image build or hardware acceptance pass is implied.
 
+## Checks enforced during full overlay composition
 
-### Shared SDK cache follow-up
+After the offline RPM transaction and QLI overlay stack, `verify-rpms.py` checks:
 
-The component PRs now include a common S3 SDK cache implementation. Its identity
-covers the QLI Yocto lock, SDK build and checkout scripts, host architecture and
-kas version, rather than the entire composer revision. RIL provides the cold
-SDK build; a separate job publishes with fresh AWS OIDC credentials. Syscon and
-Particle Linux consume the shared SDK without launching their own cold Yocto
-builds. Previously completed per-project caches can seed S3.
+- Exact installed version, release and architecture against every RPM pin.
+- Particle RPM non-configuration file integrity, permissions and ownership.
+- Packaged `particlectl --version` and QLI dynamic-loader resolution for RIL,
+  GNSS, syscon, the flasher, LPA and NetworkManager.
+- Systemd unit definitions and enabled state for all five Particle services.
+- Particle sudoers syntax and exact generated image/package version metadata.
 
-The upload stores checksummed installer/provenance objects and conditionally
-creates the input-specific manifest. All repositories use the first complete
-publication, including when two cached builds are uploaded concurrently.
-`qli-sdk/sdk-pin.json` records the exact `qli_sdk` manifest key/checksum to copy
-into this `versions.json` after a real upload. No placeholder SDK pin has been
-added. Candidate SDK sharing is permitted on PR branches; RPM publication
-remains main-only.
+A failure stops composition. Results are written to
+`<image>.package-validation.json`, including failures, and successful results
+are embedded as `package-validation.json` in the factory ZIP and covered by
+`SHA256SUMS`. Reports explicitly mark hardware tests `not_run`.
 
-Validation: 33 local packaging tests per component (13 RPM publication tests
-and 20 SDK tests), including actual shell entry-point tests with fixture S3
-responses proving a shared hit skips Yocto and an existing cache can seed S3.
-Live S3 permissions, the first uploaded SDK, component RPM compilation and
-main-image/device testing are still unverified. The current legacy SDK jobs
-remain RIL 414, syscon 200 and Particle Linux 3616; their results are not tests
-of this new CI configuration.
+Local validation: **39 composer tests pass**, including wrong installed versions,
+modified payloads, missing shared libraries, disabled services, stale metadata,
+failure-report retention and validation-report checksum protection. These tests
+use fixtures where indicated; they are not substitutes for the actual RPM run.
+Shell syntax and `git diff --check` pass. The ARM64 composition builder with RPM
+and repository-generation tools built successfully.
 
-### Minimal component SDK (2026-09-15)
+## Remaining before a complete candidate run
 
-The original syscon log completed 5,568 runtime tasks and then started a
-separate 7,949-task SDK graph. Component CI now builds only the compiler and
-link-time SDK; image utilities move to `scripts/qli/build-runtime-rpms.sh` in
-a separate workspace. Image repository collection rejects SDK-only workspaces.
+1. Retrieve the three successful RPM artifacts and provenance/checksum manifests;
+   verify bytes and package headers, then pin their exact outputs. Retrieve the
+   published SDK's `sdk-pin.json` as well.
+2. Build the missing runtime dependencies with `build-runtime-rpms.sh`, using the
+   pinned stock QLI recipe configuration in a separate workspace. The minimal
+   SDK's reduced libraries must not be installed into an image. Build and pin
+   NetworkManager daemon/WWAN/Wi-Fi together with any required dependency closure.
+3. Run complete NA and RoW overlay/image composition and inspect their retained
+   package reports. The local component-first GitHub workflow remains unpublished:
+   GitHub rejected its earlier push because the credential lacks `workflow` scope.
+   That CI limitation does not prevent local composition once artifacts exist.
+4. Perform the live hardware acceptance workflow below using Embroid CLI. No
+   device has been flashed, reset or provisioned during this validation.
 
-A real pinned-QLI metadata run (`build-sdk.sh ... --graph-only`) passed with
-**153 recipes and 2,511 tasks**, without kernel, image, QEMU, graphics, DNF
-or networking daemons. The SDK internally uses IPK to assemble the
-sysroot; component output remains a native aarch64 RPM. The locked QLI source
-revisions and target ABI are retained. See [SDK details](scripts/qli/SDK.md)
-and the [measured recipe inventory](scripts/qli/validation/sdk-graph.json).
+## Head2 baseline and functional acceptance
 
-Validation: 28 composer tests and 34 packaging tests per component pass, plus
-shell syntax and CircleCI YAML/producer sequencing checks. The SDK graph guard
-rejected two oversized trial configurations before accepting the final one;
-no compilation ran during these local graph checks. CI additionally links C,
-C++, libsystemd and SQLite probes and checks AArch64 before publishing the SDK.
-Those compiler checks still require the real SDK build. No completed new SDK,
-component RPM, live S3 upload or main-image/head2 acceptance pass is claimed.
+The Embroid product CLI with `--gateway broker` successfully reported ADB state
+`device` and read head2's inventory. It runs QLI 2.0 and kernel ABI
+`6.8.0-1058-particle`, with all three candidate Particle packages absent.
+The root filesystem has about 51 GiB free. A subsequent read failed because its
+actor lease was reissued without usable authority; resolve that before device
+operations. CLI access and read-only inventory are not candidate acceptance.
 
-### SDK systemd packaging fix (job 418)
+All of the following are **not run for the full-stack candidate**:
 
-The supplied job 418 log shows systemd configuration, compilation and installation
-succeeded, but `do_package` failed because `/usr/share/mime/packages/io.systemd.xml`
-and its parent directories were installed but unshipped. The SDK append had moved
-`MIMEDIR`, which also changed systemd's `FILES:${PN}-mime` package mapping.
+- Fresh host CLI and on-device setup; password, SSH keys, timezone, Wi-Fi,
+  registration, eSIM bootstrap and container credentials persist after reboot.
+- Cloud connectivity, installed version reporting and container deployment.
+- Cellular/APN activation, eSIM operations, SIM selection/PIN, SMS storage and
+  send/receive, GNSS fixes, antenna selection and modem-restart recovery.
+- Syscon identity, service startup, shutdown notification and upgrade guards.
+- ADB name Tachyon, Wi-Fi, Bluetooth, GPU, audio, suspend/resume, cold boots
+  and CPU/GPU/storage/modem combined-load tests.
+- Unchanged live GPT geometry and both GPT copies, Particle identity, protected
+  provisioning hashes and persist UUID across flashing and bootstrap. Write
+  bootstrap only into existing `misc`; never add/resize/format partitions.
 
-The SDK-only append now removes the unused journal MIME data from that recipe's
-staging directory during `do_install`, leaving `MIMEDIR` at its upstream value.
-Packaging QA remains enabled. A regression test executes the real install hook
-on the reported file layout and checks that SDK libraries, headers and pkg-config
-files survive, including a staging path with spaces and an alternate datadir.
-All 29 composer tests pass; the install regression also passes on Linux x86_64.
-A fresh graph resolution of the final fix still passes at 153 recipes / 2,511
-tasks. The retry retains the minimal dependency guard and
-uses the existing intermediate-cache fallback; reuse depends on job 418 having
-successfully saved its cache. No completed SDK or RPM is claimed from that job.
+## Package publication and related PRs
+
+Each component retains Debian builds, adds PR/main RPM builds and gates RPM S3
+uploads on successful `main` builds/tests. Uploads use the existing package AWS
+context and `PACKAGES_S3_BUCKET`, under
+`rpm/qli-2.0/dev/<repository>/<source-commit>/<manifest-sha256>/`.
+PR RPMs are CircleCI artifacts; the shared SDK may be published from its PR.
+No merge, RPM release upload, image release or hosted DNF feed has occurred.
+
+- Platform/base: [composer #88](https://github.com/particle-iot/tachyon-composer/pull/88).
+  Its earlier NA/RoW build passes do not test this full stack. Kernel particle9
+  and BP 2.0.8 follow the Ubuntu 24.04 updates from merged composer #90.
+- Full candidate: [composer #91](https://github.com/particle-iot/tachyon-composer/pull/91).
+- [Overlays #44](https://github.com/particle-iot/tachyon-overlays/pull/44).
+- [Offline overlay tool #7](https://github.com/particle-iot/tachyon-overlay-tool/pull/7).
+- [Particle CLI #938](https://github.com/particle-iot/particle-cli/pull/938).
+- Component PR links and exact build revisions are in the current-status table.
+
+No new Kigen PR is required by the current wrapper: it reuses the pinned Kigen
+0.1.8 serial binary. Functional eSIM testing may still reveal required changes.

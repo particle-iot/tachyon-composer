@@ -113,15 +113,15 @@
   "components": {
     "particle-linux": {
       "repository": "https://github.com/particle-iot-inc/particle-service.git",
-      "revision": "5e31d7efe9693f29849a554e74e9a735792a0786"
+      "revision": "0a1a7a15279e8375bf0d13dda2746792ca4f12a1"
     },
     "ril": {
       "repository": "https://github.com/particle-iot-inc/particle-tachyon-ril.git",
-      "revision": "87c4abafd2f6dfd59b2587120c62ab970c8896b2"
+      "revision": "fac5f6468caf1b784c17bcf87982f73f4e4b69db"
     },
     "syscon": {
       "repository": "https://github.com/particle-iot-inc/particle-tachyon-syscon.git",
-      "revision": "954ba7ab10abb123254fbfe6438b49c228cfcb2c"
+      "revision": "fe0a407fc036b9416ac2f3cf4d776cd09d0195d2"
     }
   }
 }
