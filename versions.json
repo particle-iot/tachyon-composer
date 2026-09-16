@@ -107,10 +107,10 @@
       "version": "0.7.0",
       "release": "1",
       "architecture": "aarch64",
-      "source_revision": "2ce5ee1c746801e1ef620ffb08cfe343fb373b11",
+      "source_revision": "6bbb9550920a6df7e3cae5a5821b7868ca194bf5",
       "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
-      "sha256": "b37ba12ec01cfce2e4c9622a97505ed4584cb7c24444529c7296e34e8ed45d5a",
-      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-tachyon-ril/2ce5ee1c746801e1ef620ffb08cfe343fb373b11/b37ba12ec01cfce2e4c9622a97505ed4584cb7c24444529c7296e34e8ed45d5a/particle-tachyon-ril-0.7.0-1.aarch64-2ce5ee1c746801e1ef620ffb08cfe343fb373b11.rpm"
+      "sha256": "d1058ed5e88da7692beaa093c98a02121d7f3921d26edb59ab1449b10c4bf809",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-tachyon-ril/6bbb9550920a6df7e3cae5a5821b7868ca194bf5/d1058ed5e88da7692beaa093c98a02121d7f3921d26edb59ab1449b10c4bf809/particle-tachyon-ril-0.7.0-1.aarch64-6bbb9550920a6df7e3cae5a5821b7868ca194bf5.rpm"
     },
     {
       "filename": "particle-tachyon-syscon-1.0.52-1.aarch64.rpm",
@@ -118,10 +118,10 @@
       "version": "1.0.52",
       "release": "1",
       "architecture": "aarch64",
-      "source_revision": "e89453dc0ac11754ae7d62c95d4788c33ccfde9c",
+      "source_revision": "157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd",
       "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
-      "sha256": "d6c1df9f086240ff791af50a156b5b46a5e165e51446dd878e2b2951d8f2a29a",
-      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-tachyon-syscon/e89453dc0ac11754ae7d62c95d4788c33ccfde9c/d6c1df9f086240ff791af50a156b5b46a5e165e51446dd878e2b2951d8f2a29a/particle-tachyon-syscon-1.0.52-1.aarch64-e89453dc0ac11754ae7d62c95d4788c33ccfde9c.rpm"
+      "sha256": "13f3e9b3b494c036d273ef5f5b8b6b70a5deff4c515b6c5f80f37f695c8cbffc",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-tachyon-syscon/157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd/13f3e9b3b494c036d273ef5f5b8b6b70a5deff4c515b6c5f80f37f695c8cbffc/particle-tachyon-syscon-1.0.52-1.aarch64-157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd.rpm"
     },
     {
       "filename": "particle-linux-0.25.2-1.aarch64.rpm",
@@ -150,11 +150,11 @@
     },
     "ril": {
       "repository": "https://github.com/particle-iot-inc/particle-tachyon-ril.git",
-      "revision": "2ce5ee1c746801e1ef620ffb08cfe343fb373b11"
+      "revision": "6bbb9550920a6df7e3cae5a5821b7868ca194bf5"
     },
     "syscon": {
       "repository": "https://github.com/particle-iot-inc/particle-tachyon-syscon.git",
-      "revision": "e89453dc0ac11754ae7d62c95d4788c33ccfde9c"
+      "revision": "157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd"
     }
   },
   "qli_sdk": {

@@ -61,6 +61,14 @@ job to avoid expired OIDC credentials after compilation, then verifies public
 CDN links and posts them in a separate RIL PR comment. Auth or integrity failures
 must never silently trigger a cold rebuild.
 
+For composition, pin the published manifest key and checksum in `qli_runtime`,
+then mark individually reviewed `rpm_packages` entries with `runtime_bundle: true`.
+`rpm_repository.py` downloads the pinned public bundle, verifies the QLI source
+lock, package identities and individual checksums, and stages only those selected
+RPMs. Unselected build dependencies cannot satisfy the image transaction. Archive
+paths and links are never extracted; malformed or incomplete bundles fail closed.
+The final DNF transaction still runs with external repositories disabled.
+
 The shared SDK S3 input key hashes the release lock, build/setup/graph-check
 scripts and kas version. Changing to this minimal profile invalidates the old
 broad SDK. Source downloads and completed Yocto task outputs are cached by the

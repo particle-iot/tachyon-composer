@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 from assets import digest, fetch
+from runtime_bundle import stage_runtime
 
 REQUIRED = {'particle-linux', 'particle-tachyon-ril', 'particle-tachyon-syscon', 'particle-kigen-lpa', 'jq', 'socat', 'sudo', 'grep', 'sed',
             'networkmanager-daemon', 'networkmanager-wwan', 'networkmanager-wifi'}
@@ -43,6 +44,7 @@ def stage(config, cache, destination):
     # Build a new repository. A stale unpinned RPM must never satisfy a dependency.
     if destination.exists():
         raise ValueError('RPM staging directory must not already exist')
+    stage_runtime(config, cache, [p for p in packages if p.get('runtime_bundle')])
     destination.mkdir(parents=True)
     for package in packages:
         fetch(cache, package)
