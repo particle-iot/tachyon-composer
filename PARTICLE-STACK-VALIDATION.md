@@ -1,4 +1,4 @@
-# Particle stack validation — 2026-09-15
+# Particle stack validation — 2026-09-16 UTC
 
 ## Candidate workflow
 
@@ -31,7 +31,7 @@ build inputs.
 
 Component builds use the shared SDK in CircleCI. Building the remaining Yocto
 runtime RPMs requires a Linux x86_64 build host with sufficient disk space. Image
-composition needs access to the exact private RPM artifacts; enabling the local
+composition needs the exact pinned RPM artifacts; enabling the local
 GitHub image workflow also requires workflow-write access. Hardware testing needs
 an authenticated Embroid CLI connection to head2. Full functional radio testing additionally requires
 working SIM/eSIM test resources and a peer for SMS; peripheral and power tests
@@ -39,23 +39,50 @@ need the corresponding lab equipment.
 
 ## Current status
 
-**Not ready for image acceptance or landing.** All three exact PR RPM candidates
-have now been downloaded, checksum-verified, and tested for installability both
-in the QLI reference rootfs and on head2 through Embroid CLI. Both DNF runs fail
-on missing runtime packages: `socat`, `jq`, `sudo`, `grep`, and `sed`. No dependency
-checks were bypassed. No component candidate was installed on head2 and no setup,
-service, or functional hardware pass is claimed.
+**Not ready for image acceptance or landing.** Candidate testing has found and
+fixed packaging/runtime defects; full installation, regional image builds and
+successful setup still remain unverified. The complete DNF transaction currently
+fails on absent runtime packages: `socat`, `jq`, `sudo`, `grep`, and `sed`.
+The bounded dependency build is [job 444](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/444).
+Its graph contains 223 recipes / 2,477 tasks and excludes image, kernel and SDK builds.
 
-| Component | Source commit | RPM build | Debian build | Downloads |
+| Component | Current published source | RPM build | Debian build | Downloads |
 | --- | --- | --- | --- | --- |
-| [RIL #63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) | `2ce5ee1c746801e1ef620ffb08cfe343fb373b11` | [441 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/441) | [437 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/437) | [Verified S3 links](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63#issuecomment-5690745458) |
-| [Syscon #36](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36) | `e89453dc0ac11754ae7d62c95d4788c33ccfde9c` | [209 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/209) | [210 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/210) | [Verified S3 links](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36#issuecomment-5690729732) |
-| [Particle Linux #154](https://github.com/particle-iot-inc/particle-linux/pull/154) | `74e8aa614be5022a08e97fde40649251b29bfc13` | [3639 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3639) | [ARM64 3637 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3637), [AMD64 3641 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3641) | [Verified S3 links](https://github.com/particle-iot-inc/particle-linux/pull/154#issuecomment-5690740398) |
+| [RIL #63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) | `6bbb9550920a6df7e3cae5a5821b7868ca194bf5` | [449 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/449) | [450 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/450) | [S3 links](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63#issuecomment-5690745458) |
+| [Syscon #36](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36) | `157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd` | [214 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/214) | [212 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/212) | [S3 links](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36#issuecomment-5690729732) |
+| [Particle Linux #154](https://github.com/particle-iot-inc/particle-linux/pull/154) | `e952c705e60f6a85cac06efd75daebe5a452c791` | [3657 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3657) | [ARM64 3654 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3654), [AMD64 3656 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3656) | [S3 links](https://github.com/particle-iot-inc/particle-linux/pull/154#issuecomment-5690740398) |
 
-`versions.json` now pins these three actual RPM outputs, their public download
-URLs, SHA-256 hashes, and source revisions, alongside LPA. It also records the
-verified shared SDK manifest. Runtime artifacts are still unbuilt/unpinned and
-composition intentionally rejects the incomplete dependency lock.
+Every published artifact in these comments was downloaded and checksum-verified.
+`versions.json` pins the corresponding RPM identities, source revisions and public
+URLs. Runtime dependencies remain unpinned pending the actual build outputs.
+
+## Defects found by candidate testing
+
+- **Syscon:** `--timeout 5 version` crashed with exit 139 on head2. PR36 fixes
+  required option arguments and numeric validation. The corrected candidate
+  controller now returns firmware `1.0.52` on head2 for short, long and equals
+  forms. [Device output](scripts/qli/validation/head2-syscon-fixed-rpm.log).
+  This ran the extracted controller; the full syscon package/service is pending.
+- **RIL:** the published RPM installs Debian-prefixed unit filenames, so all
+  three canonical RIL/GNSS services fail to enable. [Reproduction](scripts/qli/validation/ril-unit-names.log).
+  Local commit `55831b8b4f3aebd6516c22a7990f5000dd46dcca` fixes the installer;
+  67 packaging tests pass. A locally rebuilt RPM has SHA-256
+  `b5bae97eed57cf7c112a4d04573c079ed4eb74b178d94febb4d348b6454e429c`
+  and passes actual QLI unit verification, enablement and library loading.
+  [Corrected RPM output](scripts/qli/validation/ril-fixed-unit-names.log).
+  Push/rebuild is pending completion of the existing shared dependency job.
+- **Setup:** a missing Particle daemon previously printed an error but returned
+  status 0. Error propagation alone still returned 0 when offline telemetry
+  failed. PR154 now preserves status 1 before telemetry. Its actual rebuilt RPM
+  passes the isolated QLI/D-Bus test with container networking disabled.
+  [Result](scripts/qli/validation/setup-failure-final.log),
+  [reproduction](scripts/qli/validation/check-setup-failure.sh).
+  All 216 Node 22 tests and CI builds pass. This tests failure handling, not
+  successful cloud registration or on-device setup.
+- **LPA:** the exact pinned RPM is installed on head2 using DNF with external
+  repositories disabled. Package integrity and executable usage checks pass.
+  [Device output](scripts/qli/validation/head2-lpa-installed.log).
+  eSIM operations have not yet been tested.
 
 The minimal [SDK build 426](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/426)
 and [SDK link validation/S3 publication 427](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/427)
@@ -88,12 +115,13 @@ included and required by the artifact lock before composition. The other three
 were already targets but had never been built/pinned. NetworkManager WWAN and
 GPIO runtime support also remain absent from the reference image.
 
-The Embroid CLI can issue device commands after releasing its own idle automatic
-lease. Reusing that lease currently fails with “reissued without usable authority”.
-The successful device preflight downloaded candidates directly from their public
-S3 URLs, avoiding the separate ADB push transport error. No foreign lease was
-broken. Candidate RPMs remain in `/tmp/qli-candidate-rpms` on head2; no partitions,
-bootstrap configuration, provisioning identity or installed packages were changed.
+The initial preflight used public S3 downloads. A local Embroid client compatibility
+fix now handles the broker's implicit lease fields correctly. Keychain renewal
+completed and device commands work. The separate ADB push transport rejects its
+authority envelope; the supported interactive ADB CLI successfully transferred
+LPA and verified its checksum. No foreign lease was broken. LPA has since been
+installed; the other three Particle packages remain absent. No flashing or
+bootstrap/identity changes have occurred.
 
 ## Actual QLI installation checks — 2026-09-15
 
@@ -137,7 +165,7 @@ A failure stops composition. Results are written to
 are embedded as `package-validation.json` in the factory ZIP and covered by
 `SHA256SUMS`. Reports explicitly mark hardware tests `not_run`.
 
-Local validation: **39 composer tests pass**, including wrong installed versions,
+Local validation: **70 composer tests pass**, including wrong installed versions,
 modified payloads, missing shared libraries, disabled services, stale metadata,
 failure-report retention and validation-report checksum protection. These tests
 use fixtures where indicated; they are not substitutes for the actual RPM run.
@@ -146,13 +174,13 @@ and repository-generation tools built successfully.
 
 ## Remaining before a complete candidate run
 
-1. Component artifact retrieval, readback and pins are complete.
+1. Publish the RIL service-name fix, rebuild, then refresh its artifact pins.
 2. Build the missing runtime dependencies with `build-runtime-rpms.sh`, using the
    pinned stock QLI recipe configuration in a separate workspace. The minimal
    SDK's reduced libraries must not be installed into an image. Build and pin
    NetworkManager daemon/WWAN/Wi-Fi together with any required dependency closure.
 3. Run complete NA and RoW overlay/image composition and inspect their retained
-   package reports. The local component-first GitHub workflow remains unpublished:
+   package reports. The updated regional GitHub workflow remains unpublished:
    GitHub rejected its earlier push because the credential lacks `workflow` scope.
    That CI limitation does not prevent local composition once artifacts exist.
 4. Perform the live hardware acceptance workflow below using Embroid CLI. No
@@ -164,9 +192,11 @@ The Embroid product CLI with `--gateway broker` successfully reported ADB state
 `device`, read head2's inventory, downloaded the exact candidates and ran the
 DNF preflight recorded above. It runs QLI 2.0 and kernel ABI
 `6.8.0-1058-particle`, with all three candidate Particle packages absent.
-The root filesystem has about 51 GiB free. A subsequent read failed because its
-actor lease was reissued without usable authority; resolve that before device
-operations. CLI access and read-only inventory are not candidate acceptance.
+The root filesystem has about 51 GiB free. Embroid access is restored. Seven
+protected NV/persist partition backups were captured, transferred to a private
+host directory and checksum-verified. Network credentials in that archive are
+not published. Raw GPT copies and a fresh baseline remain required before flashing.
+CLI access and extracted-payload probes are not full candidate acceptance.
 
 All of the following are **not run for the full-stack candidate**:
 

@@ -129,10 +129,10 @@
       "version": "0.25.2",
       "release": "1",
       "architecture": "aarch64",
-      "source_revision": "74e8aa614be5022a08e97fde40649251b29bfc13",
+      "source_revision": "e952c705e60f6a85cac06efd75daebe5a452c791",
       "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
-      "sha256": "28037edef3c4510872e5011ae755d7cd94095f725dd208c910a91d82812515b8",
-      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-linux/74e8aa614be5022a08e97fde40649251b29bfc13/28037edef3c4510872e5011ae755d7cd94095f725dd208c910a91d82812515b8/particle-linux-0.25.2-1.aarch64-74e8aa614be5022a08e97fde40649251b29bfc13.rpm"
+      "sha256": "a6aee23999809f28ffa602ab69c9a194b598cfa0271b7f5831eafcfb2ef89a3a",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-linux/e952c705e60f6a85cac06efd75daebe5a452c791/a6aee23999809f28ffa602ab69c9a194b598cfa0271b7f5831eafcfb2ef89a3a/particle-linux-0.25.2-1.aarch64-e952c705e60f6a85cac06efd75daebe5a452c791.rpm"
     }
   ],
   "lpa": {
@@ -146,7 +146,7 @@
   "components": {
     "particle-linux": {
       "repository": "https://github.com/particle-iot-inc/particle-linux.git",
-      "revision": "74e8aa614be5022a08e97fde40649251b29bfc13"
+      "revision": "e952c705e60f6a85cac06efd75daebe5a452c791"
     },
     "ril": {
       "repository": "https://github.com/particle-iot-inc/particle-tachyon-ril.git",
