@@ -1,0 +1,102 @@
+particle-tachyon-rild test suite
+unit=particle-tachyon-rild  service=io.particle.tachyon.RILD
+
+PASS  pre_ctl_present                        particle-tachyon-ril-ctl is installed
+PASS  pre_busctl_present                     busctl is available for D-Bus assertions
+PASS  pre_unit_active                        particle-tachyon-rild is active
+PASS  pre_bus_name_owned                     io.particle.tachyon.RILD owns its bus name
+PASS  dbus_introspect_connection_methods     Connect/Disconnect/Enable are exported with the documented signatures
+PASS  dbus_introspect_apn_methods            APN and SIM methods are exported with the documented signatures
+PASS  dbus_introspect_antenna_methods        antenna methods are exported with the documented signatures
+PASS  dbus_introspect_status_methods         status and vitals methods are exported with the documented signatures
+PASS  dbus_introspect_passthrough_methods    passthrough and AT methods are exported with the documented signatures
+PASS  dbus_introspect_lpa_methods            eSIM methods are exported with the documented signatures
+PASS  dbus_introspect_sms_methods            SMS methods are exported with the documented signatures
+PASS  dbus_introspect_sms_signals            SMS change signals are exported
+PASS  dbus_introspect_sim_methods            SIM status and PIN methods are exported with the documented signatures
+PASS  dbus_introspect_phone_number_methods   phone number override methods and property are exported
+PASS  dbus_introspect_properties             State, LpaStatus, LpaProfiles and ModemVitals are exported as properties
+PASS  dbus_unprivileged_access               the bus policy lets a non-root caller reach the interface
+PASS  dbus_getstatus_returns_dict            GetStatus returns a dictionary carrying the documented keys
+PASS  dbus_getapnlist_returns_dict           GetApnList returns a dictionary
+PASS  dbus_getproperties_returns_dict        GetProperties returns a{ss}
+PASS  dbus_state_is_a_known_value            State reports one of the documented strings
+PASS  dbus_setstatusinterval_rejects_below_min SetStatusInterval rejects a value below the minimum
+PASS  read_ctl_help                          'help' prints usage and exits 0
+PASS  read_ctl_state                         'state' prints the modem state and exits 0
+PASS  read_ctl_status                        'status' prints a status report and exits 0
+PASS  read_ctl_vitals                        'vitals' prints the modem vitals and exits 0
+PASS  read_cgi_valid_when_registered         a registered modem reports a complete cell identity
+PASS  read_ctl_status_get                    'status --get' prints the interval and exits 0
+PASS  read_ctl_apn_get                       'apn --get' lists the configured profiles and exits 0
+PASS  read_ctl_active_sim_get                'active_sim --get' reports 1 or 2
+PASS  read_ctl_antenna_get                   'antenna --get' reports the configured profile and exits 0
+PASS  read_ctl_antenna_list                  'antenna --list' describes both profiles without touching the modem
+PASS  read_ctl_info                          'info' prints modem information and exits 0
+PASS  read_info_keeps_what_modemmanager_has  'info' reports a baseband version whenever ModemManager holds one
+PASS  read_no_sim_slot_switch_failures       no SIM-slot switch has failed since boot
+PASS  read_ctl_sim_status                    'sim status' reports the SIM and PIN lock state
+PASS  read_ctl_sms_list                      'sms list' lists stored messages and exits 0
+PASS  read_dbus_getsimstatus                 GetSimStatus returns a dictionary
+PASS  read_dbus_listsms                      ListSms returns an array without needing stored messages
+PASS  param_status_set_non_numeric           'status --set abc' is rejected rather than silently meaning 0
+PASS  param_status_set_empty                 'status --set' with an empty argument is rejected
+PASS  param_status_set_below_min             'status --set 1' is rejected, below the minimum
+PASS  param_status_set_negative              'status --set -5' is rejected
+PASS  param_status_set_missing_argument      'status --set' with no argument prints usage and exits non-zero
+PASS  param_status_unknown_flag              'status --gett' is rejected rather than falling through to a bare query
+PASS  param_status_set_round_trip            a valid 'status --set' is applied and reported back
+PASS  param_active_sim_invalid               'active_sim --set banana' is rejected without changing the SIM
+PASS  param_active_sim_missing_argument      'active_sim --set' with no argument prints usage and exits non-zero
+PASS  param_active_sim_unknown_flag          an unknown active_sim flag exits non-zero
+PASS  param_antenna_invalid                  'antenna --set banana' is rejected without touching the modem
+PASS  param_antenna_missing_argument         'antenna --set' with no argument prints usage and exits non-zero
+PASS  param_antenna_unknown_flag             an unknown antenna flag exits non-zero
+PASS  param_power_invalid                    'power banana' is rejected locally, without reaching the modem
+PASS  param_power_missing_argument           'power' with no argument prints usage and exits non-zero
+PASS  param_apn_unknown_flag                 an unknown apn flag exits non-zero
+PASS  param_apn_add_wrong_arity              'apn --add' with a missing APN prints usage and exits non-zero
+PASS  param_apn_add_oversized_iccid          'apn --add' with an over-long ICCID is refused without writing
+PASS  param_apn_add_absurdly_long_arguments  'apn --add' survives arguments far longer than any buffer
+PASS  param_apn_remove_absent_iccid          'apn --remove' of an absent ICCID reports not-found without writing
+PASS  param_sms_list_rejects_non_numeric     'sms list --limit abc' is rejected
+PASS  param_sms_list_rejects_odd_arity       'sms list --limit' with no value prints usage and exits non-zero
+PASS  param_sms_list_rejects_unknown_flag    an unknown sms list flag is rejected
+PASS  param_sms_read_rejects_non_numeric     'sms read abc' is rejected rather than reading message 0
+PASS  param_sms_delete_rejects_non_numeric   'sms delete abc' is rejected rather than deleting message 0
+PASS  param_sms_send_rejects_missing_body    'sms send' without a body is rejected before anything is sent
+PASS  param_sms_rejects_unknown_subcommand   'sms banana' is rejected
+PASS  param_sim_rejects_unknown_subcommand   'sim banana' prints help and exits non-zero without prompting
+PASS  param_sim_rejects_wrong_arity          'sim' with no subcommand prints help and exits non-zero
+PASS  param_phone_number_rejects_wrong_arity 'phone-number set' with a missing number prints usage and exits non-zero
+PASS  param_phone_number_rejects_unknown_subcommand 'phone-number banana' is rejected
+PASS  param_unknown_command                  an unknown command exits non-zero
+PASS  param_no_arguments                     no arguments prints help and exits non-zero
+PASS  esim_status                            'esim status' reports the last operation and exits 0
+PASS  esim_list                              'esim list' is repeatable and has no side effect on what is installed
+PASS  esim_lpastatus_property                LpaStatus reports a value from the documented enum
+PASS  esim_lpaprofiles_property              LpaProfiles is readable and looks like JSON
+PASS  esim_reject_unknown_subcommand         'esim banana' is rejected by ctl without a D-Bus call
+PASS  esim_reject_wrong_arity                eSIM subcommands with the wrong number of arguments are rejected
+PASS  esim_reject_empty_iccid                an empty ICCID is refused before lpa runs
+PASS  esim_reject_oversized_iccid            an over-long ICCID is refused before lpa runs
+PASS  esim_reject_oversized_rsp_url          an over-long RSP URL is refused before lpa runs
+PASS  esim_reject_invalid_confirmation_code  empty and over-long confirmation codes are refused before lpa runs
+SKIP  fake_baseline_captured                 the installed profile list is captured, and the fake ICCID is not in it
+      -> skipped by --no-esim
+SKIP  fake_delete_absent_iccid               deleting a profile that does not exist fails and changes nothing
+      -> skipped by --no-esim
+SKIP  fake_enable_absent_iccid               enabling a profile that does not exist fails and changes nothing
+      -> skipped by --no-esim
+SKIP  fake_disable_absent_iccid              disabling a profile that does not exist fails and changes nothing
+      -> skipped by --no-esim
+SKIP  fake_download_unresolvable_url         downloading from an unresolvable RSP server fails and installs nothing
+      -> skipped by --no-esim
+SKIP  fake_profiles_unchanged                the installed profile list is identical to the baseline
+      -> skipped by --no-esim
+
+81 passed, 0 failed, 6 skipped
+
+Restoring device state...
+Restored.
+Suite exit code: 0

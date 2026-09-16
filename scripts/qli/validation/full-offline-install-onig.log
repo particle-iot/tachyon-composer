@@ -1,0 +1,225 @@
+Directory walk started
+Directory walk done - 33 packages
+Temporary output repo path: /target/tmp/stack-validation/.repodata/
+Preparing sqlite DBs
+Pool started (with 5 workers)
+Pool finished
+sudo: unable to resolve host a956c14cb97c: Temporary failure in name resolution
+Added particle-build repo from file:///tmp/stack-validation
+particle-build                                  3.9 MB/s | 8.3 kB     00:00
+Dependencies resolved.
+================================================================================
+ Package                  Arch      Version               Repository       Size
+================================================================================
+Installing:
+ grep                     armv8_2a  3.12-r0               particle-build  148 k
+ jq                       armv8_2a  1.8.1-r0              particle-build  195 k
+ libgpiod-tools           armv8_2a  2.2.4-r0              particle-build   51 k
+ networkmanager-wwan      armv8_2a  1.56.0-r0.particle1   particle-build   59 k
+ particle-kigen-lpa       aarch64   0.1.8-1               particle-build  1.9 M
+ particle-linux           aarch64   0.25.2-1              particle-build   52 M
+ particle-tachyon-ril     aarch64   0.7.0-1               particle-build  631 k
+ particle-tachyon-syscon  aarch64   1.0.52-1              particle-build  144 k
+ sed                      armv8_2a  4.10-r0               particle-build  115 k
+ socat                    armv8_2a  1.8.1.1-r0            particle-build  251 k
+ sudo                     armv8_2a  1.9.17p2-r0           particle-build  417 k
+Upgrading:
+ networkmanager-daemon    armv8_2a  1.56.0-r0.particle1   particle-build  2.1 M
+ networkmanager-wifi      armv8_2a  1.56.0-r0.particle1   particle-build   78 k
+Installing dependencies:
+ libgpiod3                armv8_2a  2.2.4-r0              particle-build   22 k
+ libonig5                 armv8_2a  6.9.10-r0             particle-build  207 k
+ sudo-lib                 armv8_2a  1.9.17p2-r0           particle-build  400 k
+ sudo-sudo                armv8_2a  1.9.17p2-r0           particle-build  137 k
+
+Transaction Summary
+================================================================================
+Install  15 Packages
+Upgrade   2 Packages
+
+Total size: 59 M
+Downloading Packages:
+Running transaction check
+Transaction check succeeded.
+Running transaction test
+Transaction test succeeded.
+Running transaction
+  Preparing        :                                                        1/1
+  Upgrading        : networkmanager-daemon-1.56.0-r0.particle1.armv8_2a    1/19
+  Running scriptlet: networkmanager-daemon-1.56.0-r0.particle1.armv8_2a    1/19
+%post(networkmanager-daemon-1.56.0-r0.particle1.armv8_2a): scriptlet start
+%post(networkmanager-daemon-1.56.0-r0.particle1.armv8_2a): execv(/bin/sh) pid 40
++ set -e
++ type systemctl
++ OPTS=
++ '[' -n '' ']'
++ '[' enable = enable ']'
++ for service in NetworkManager.service NetworkManager-dispatcher.service
++ systemctl enable NetworkManager.service
++ for service in NetworkManager.service NetworkManager-dispatcher.service
++ systemctl enable NetworkManager-dispatcher.service
++ '[' -z '' ']'
++ systemctl
++ systemctl daemon-reload
+Running in chroot, ignoring command 'daemon-reload'
++ '[' -n 'NetworkManager.service NetworkManager-dispatcher.service' ']'
++ systemctl preset NetworkManager.service NetworkManager-dispatcher.service
++ '[' -n '' ']'
++ '[' enable = enable ']'
++ '[' -n 'NetworkManager.service NetworkManager-dispatcher.service' ']'
++ systemctl --no-block restart NetworkManager.service NetworkManager-dispatcher.service
+Running in chroot, ignoring command 'restart'
+%post(networkmanager-daemon-1.56.0-r0.particle1.armv8_2a): waitpid(40) rc 40 status 0
+
+  Installing       : sudo-lib-1.9.17p2-r0.armv8_2a                         2/19
+  Installing       : sudo-sudo-1.9.17p2-r0.armv8_2a                        3/19
+  Installing       : sudo-1.9.17p2-r0.armv8_2a                             4/19
+  Installing       : socat-1.8.1.1-r0.armv8_2a                             5/19
+  Installing       : sed-4.10-r0.armv8_2a                                  6/19
+  Running scriptlet: sed-4.10-r0.armv8_2a                                  6/19
+%post(sed-4.10-r0.armv8_2a): scriptlet start
+%post(sed-4.10-r0.armv8_2a): execv(/bin/sh) pid 47
++ set -e
++ update-alternatives --install /usr/bin/sed sed /usr/bin/sed.sed 100
+update-alternatives: Linking /usr/bin/sed to /usr/bin/sed.sed
+%post(sed-4.10-r0.armv8_2a): waitpid(47) rc 47 status 0
+
+  Installing       : libonig5-6.9.10-r0.armv8_2a                           7/19
+  Running scriptlet: libonig5-6.9.10-r0.armv8_2a                           7/19
+%post(libonig5-6.9.10-r0.armv8_2a): scriptlet start
+%post(libonig5-6.9.10-r0.armv8_2a): execv(/bin/sh) pid 75
++ set -e
++ '[' x = x ']'
++ '[' -x /sbin/ldconfig ']'
++ /sbin/ldconfig
+%post(libonig5-6.9.10-r0.armv8_2a): waitpid(75) rc 75 status 0
+
+  Installing       : jq-1.8.1-r0.armv8_2a                                  8/19
+  Running scriptlet: jq-1.8.1-r0.armv8_2a                                  8/19
+%post(jq-1.8.1-r0.armv8_2a): scriptlet start
+%post(jq-1.8.1-r0.armv8_2a): execv(/bin/sh) pid 77
++ set -e
++ '[' x = x ']'
++ '[' -x /sbin/ldconfig ']'
++ /sbin/ldconfig
+%post(jq-1.8.1-r0.armv8_2a): waitpid(77) rc 77 status 0
+
+  Installing       : libgpiod3-2.2.4-r0.armv8_2a                           9/19
+  Running scriptlet: libgpiod3-2.2.4-r0.armv8_2a                           9/19
+%post(libgpiod3-2.2.4-r0.armv8_2a): scriptlet start
+%post(libgpiod3-2.2.4-r0.armv8_2a): execv(/bin/sh) pid 79
++ set -e
++ '[' x = x ']'
++ '[' -x /sbin/ldconfig ']'
++ /sbin/ldconfig
+%post(libgpiod3-2.2.4-r0.armv8_2a): waitpid(79) rc 79 status 0
+
+  Installing       : grep-3.12-r0.armv8_2a                                10/19
+  Running scriptlet: grep-3.12-r0.armv8_2a                                10/19
+%post(grep-3.12-r0.armv8_2a): scriptlet start
+%post(grep-3.12-r0.armv8_2a): execv(/bin/sh) pid 81
++ set -e
++ update-alternatives --install /usr/bin/grep grep /usr/bin/grep.grep 100
+update-alternatives: Linking /usr/bin/grep to /usr/bin/grep.grep
++ update-alternatives --install /usr/bin/egrep egrep /usr/bin/egrep.grep 100
+update-alternatives: Linking /usr/bin/egrep to /usr/bin/egrep.grep
++ update-alternatives --install /usr/bin/fgrep fgrep /usr/bin/fgrep.grep 100
+update-alternatives: Linking /usr/bin/fgrep to /usr/bin/fgrep.grep
+%post(grep-3.12-r0.armv8_2a): waitpid(81) rc 81 status 0
+
+  Installing       : particle-tachyon-syscon-1.0.52-1.aarch64             11/19
+  Installing       : libgpiod-tools-2.2.4-r0.armv8_2a                     12/19
+  Installing       : particle-tachyon-ril-0.7.0-1.aarch64                 13/19
+  Installing       : particle-linux-0.25.2-1.aarch64                      14/19
+  Installing       : networkmanager-wwan-1.56.0-r0.particle1.armv8_2a     15/19
+  Upgrading        : networkmanager-wifi-1.56.0-r0.particle1.armv8_2a     16/19
+  Installing       : particle-kigen-lpa-0.1.8-1.aarch64                   17/19
+  Cleanup          : networkmanager-wifi-1.56.0-r0.armv8_2a               18/19
+  Running scriptlet: networkmanager-daemon-1.56.0-r0.armv8_2a             19/19
+%preun(networkmanager-daemon-1.56.0-r0.armv8_2a): scriptlet start
+%preun(networkmanager-daemon-1.56.0-r0.armv8_2a): execv(/bin/sh) pid 163
++ '[' 1 = 0 ']'
+%preun(networkmanager-daemon-1.56.0-r0.armv8_2a): waitpid(163) rc 163 status 0
+
+  Cleanup          : networkmanager-daemon-1.56.0-r0.armv8_2a             19/19
+
+Upgraded:
+  networkmanager-daemon-1.56.0-r0.particle1.armv8_2a
+  networkmanager-wifi-1.56.0-r0.particle1.armv8_2a
+Installed:
+  grep-3.12-r0.armv8_2a
+  jq-1.8.1-r0.armv8_2a
+  libgpiod-tools-2.2.4-r0.armv8_2a
+  libgpiod3-2.2.4-r0.armv8_2a
+  libonig5-6.9.10-r0.armv8_2a
+  networkmanager-wwan-1.56.0-r0.particle1.armv8_2a
+  particle-kigen-lpa-0.1.8-1.aarch64
+  particle-linux-0.25.2-1.aarch64
+  particle-tachyon-ril-0.7.0-1.aarch64
+  particle-tachyon-syscon-1.0.52-1.aarch64
+  sed-4.10-r0.armv8_2a
+  socat-1.8.1.1-r0.armv8_2a
+  sudo-1.9.17p2-r0.armv8_2a
+  sudo-lib-1.9.17p2-r0.armv8_2a
+  sudo-sudo-1.9.17p2-r0.armv8_2a
+
+Complete!
+0.25.2
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-linux.service' → '/usr/lib/systemd/system/particle-linux.service'.
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-tachyon-rild.service' → '/usr/lib/systemd/system/particle-tachyon-rild.service'.
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-tachyon-gnss.service' → '/usr/lib/systemd/system/particle-tachyon-gnss.service'.
+Created symlink '/etc/systemd/system/suspend.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/hibernate.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/suspend-then-hibernate.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/hybrid-sleep.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-tachyon-syscon.service' → '/usr/lib/systemd/system/particle-tachyon-syscon.service'.
+	linux-vdso.so.1 (0x0000ffffb8566000)
+	libparticle_ril.so => /usr/lib/libparticle_ril.so (0x0000ffffb84a0000)
+	libsystemd.so.0 => /usr/lib/libsystemd.so.0 (0x0000ffffb8200000)
+	libsqlite3.so.0 => /usr/lib/libsqlite3.so.0 (0x0000ffffb8080000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x0000ffffb7ec0000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffffb8529000)
+	libm.so.6 => /usr/lib/libm.so.6 (0x0000ffffb7df0000)
+	linux-vdso.so.1 (0x0000ffff89fef000)
+	libparticle_ril.so => /usr/lib/libparticle_ril.so (0x0000ffff89f50000)
+	libsystemd.so.0 => /usr/lib/libsystemd.so.0 (0x0000ffff89c00000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x0000ffff89a40000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffff89fb2000)
+	libm.so.6 => /usr/lib/libm.so.6 (0x0000ffff89e80000)
+	linux-vdso.so.1 (0x0000ffff96832000)
+	libsystemd.so.0 => /usr/lib/libsystemd.so.0 (0x0000ffff96400000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x0000ffff96610000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffff967f5000)
+	libm.so.6 => /usr/lib/libm.so.6 (0x0000ffff96330000)
+	linux-vdso.so.1 (0x0000ffffb6823000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x0000ffffb6600000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffffb67e6000)
+	linux-vdso.so.1 (0x0000ffffb0d83000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x0000ffffb0b60000)
+	/lib/ld-linux-aarch64.so.1 (0x0000ffffb0d46000)
+	linux-vdso.so.1 (0x0000ffff859f5000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x0000ffff856f0000)
+	/lib/ld-linux-aarch64.so.1 (0x0000ffff859b8000)
+	linux-vdso.so.1 (0x0000ffff82f76000)
+	libgio-2.0.so.0 => /usr/lib/libgio-2.0.so.0 (0x0000ffff82600000)
+	libgobject-2.0.so.0 => /usr/lib/libgobject-2.0.so.0 (0x0000ffff82eb0000)
+	libglib-2.0.so.0 => /usr/lib/libglib-2.0.so.0 (0x0000ffff82880000)
+	libgmodule-2.0.so.0 => /usr/lib/libgmodule-2.0.so.0 (0x0000ffff82e80000)
+	libndp.so.0 => /usr/lib/libndp.so.0 (0x0000ffff82e50000)
+	libudev.so.1 => /usr/lib/libudev.so.1 (0x0000ffff824c0000)
+	libsystemd.so.0 => /usr/lib/libsystemd.so.0 (0x0000ffff82200000)
+	libsmime3.so => /usr/lib/libsmime3.so (0x0000ffff82e00000)
+	libnss3.so => /usr/lib/libnss3.so (0x0000ffff820b0000)
+	libnspr4.so => /usr/lib/libnspr4.so (0x0000ffff82450000)
+	libc.so.6 => /usr/lib/libc.so.6 (0x0000ffff81ef0000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffff82f39000)
+	libz.so.1 => /usr/lib/libz.so.1 (0x0000ffff82dc0000)
+	libmount.so.1 => /usr/lib/libmount.so.1 (0x0000ffff81e50000)
+	libffi.so.8 => /usr/lib/libffi.so.8 (0x0000ffff82840000)
+	libpcre2-8.so.0 => /usr/lib/libpcre2-8.so.0 (0x0000ffff81dc0000)
+	libm.so.6 => /usr/lib/libm.so.6 (0x0000ffff81cf0000)
+	libnssutil3.so => /usr/lib/libnssutil3.so (0x0000ffff82400000)
+	libplc4.so => /usr/lib/libplc4.so (0x0000ffff81cc0000)
+	libplds4.so => /usr/lib/libplds4.so (0x0000ffff81c90000)
+	libblkid.so.1 => /usr/lib/libblkid.so.1 (0x0000ffff81c10000)
+PASS: complete offline DNF transaction, component integrity, units and ELF libraries

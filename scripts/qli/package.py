@@ -90,7 +90,7 @@ def package(factory, config, region, version, name):
         ET.SubElement(xml, 'program', attrs)
     # Delete all unused assembler output, so even a flasher which scans *.xml
     # cannot accidentally pick up a GPT or provisioning operation.
-    keep = {r['filename'] for _, r in rows} | {'prog_firehose_ddr.elf', 'initramfs-files.txt'}
+    keep = {r['filename'] for _, r in rows} | {'prog_firehose_ddr.elf', 'initramfs-files.txt', 'package-validation.json'}
     if not (factory / 'prog_firehose_ddr.elf').is_file():
         raise ValueError('Missing Particle firehose')
     for p in factory.iterdir():

@@ -51,8 +51,12 @@ class FlashSafetyTests(unittest.TestCase):
 
     def test_final_zip_verifies_and_detects_changed_payload(self):
         self.write()
+        report = self.root/'package-validation.json'
+        report.write_text(json.dumps({'passed': True, 'hardware_tests': 'not_run'}))
         config = json.loads((Path(__file__).parents[2]/'versions.json').read_text())
         package(self.root, config, 'NA', '0.1.0-test', 'test-image')
+        self.assertTrue(report.is_file())
+        self.assertIn('package-validation.json', (self.root/'SHA256SUMS').read_text())
         with tempfile.TemporaryDirectory() as tmp:
             image = Path(tmp)/'image.zip'
             def archive():
@@ -64,6 +68,21 @@ class FlashSafetyTests(unittest.TestCase):
             self.assertEqual(len(writes), 4)
             (self.root/'system.img').write_bytes(b'corrupted')
             archive()
+            with self.assertRaisesRegex(ValueError, 'Archive hash mismatch'):
+                verify_bundle(image)
+
+    def test_changed_validation_report_invalidates_bundle(self):
+        self.write()
+        report = self.root/'package-validation.json'
+        report.write_text(json.dumps({'passed': True, 'hardware_tests': 'not_run'}))
+        config = json.loads((Path(__file__).parents[2]/'versions.json').read_text())
+        package(self.root, config, 'NA', '0.1.0-test', 'test-image')
+        report.write_text(json.dumps({'passed': True, 'hardware_tests': 'passed'}))
+        with tempfile.TemporaryDirectory() as tmp:
+            image = Path(tmp)/'image.zip'
+            with zipfile.ZipFile(image, 'w') as z:
+                for p in self.root.iterdir():
+                    z.write(p, p.name)
             with self.assertRaisesRegex(ValueError, 'Archive hash mismatch'):
                 verify_bundle(image)
 

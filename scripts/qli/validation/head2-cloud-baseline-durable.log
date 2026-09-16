@@ -1,0 +1,55 @@
+{
+  "attributes": {
+    "deviceId": "422a060000000000d0c7965f",
+    "deviceModel": "Particle Tachyon",
+    "distroVersions": {
+      "distro": {
+        "board": "formfactor_dvt",
+        "distribution": "qualcomm-linux",
+        "distribution_variant": "open",
+        "distribution_version": "2.0",
+        "os": "linux",
+        "platform": "qcm6490",
+        "region": "NA",
+        "stack": "qli-headless-2.0",
+        "variant": "headless",
+        "version": "1.4.0-dev+build.350ff22"
+      },
+      "src": {
+        "bp-fw": "2.0.7",
+        "grep": "3.12-r0",
+        "jq": "1.8.1-r0",
+        "libgpiod-tools": "2.2.4-r0",
+        "libgpiod3": "2.2.4-r0",
+        "libonig5": "6.9.10-r0",
+        "linux-particle": "6.8.0-1058.59+particle8",
+        "networkmanager-daemon": "1.56.0-r0.particle1",
+        "networkmanager-wifi": "1.56.0-r0.particle1",
+        "networkmanager-wwan": "1.56.0-r0.particle1",
+        "particle-kigen-lpa": "0.1.8-1",
+        "particle-linux": "0.25.2-1",
+        "particle-tachyon-ril": "0.7.0-1",
+        "particle-tachyon-syscon": "1.0.52-1",
+        "qli-rootfs-sha256": "31e25f8af580319737f76e825107ab6e9f99aa4bc523b181f130ee9af4a0ac0d",
+        "sed": "4.10-r0",
+        "socat": "1.8.1.1-r0",
+        "sudo": "1.9.17p2-r0",
+        "sudo-lib": "1.9.17p2-r0",
+        "sudo-sudo": "1.9.17p2-r0"
+      }
+    },
+    "packageVersions": {
+      "particle-linux": "0.25.2-1",
+      "particle-tachyon-ril": "0.7.0-1",
+      "particle-tachyon-syscon": "1.0.52-1"
+    },
+    "productId": 43400
+  }
+}
+PASS: package versions reported through Particle system document; registration key/certificate fingerprints saved privately
+Cloud connection status: Connected
+enabled
+enabled
+enabled
+enabled
+Remote exit code: 0

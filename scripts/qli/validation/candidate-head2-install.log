@@ -1,0 +1,14 @@
+particle-tachyon-ril-0.7.0-1.aarch64.rpm: OK
+particle-tachyon-syscon-1.0.52-1.aarch64.rpm: OK
+particle-linux-0.25.2-1.aarch64.rpm: OK
+No repository match: *
+Error: 
+ Problem 1: conflicting requests
+  - nothing provides sudo needed by particle-linux-0.25.2-1.aarch64 from @commandline
+ Problem 2: conflicting requests
+  - nothing provides socat needed by particle-tachyon-ril-0.7.0-1.aarch64 from @commandline
+ Problem 3: conflicting requests
+  - nothing provides grep needed by particle-tachyon-syscon-1.0.52-1.aarch64 from @commandline
+  - nothing provides jq needed by particle-tachyon-syscon-1.0.52-1.aarch64 from @commandline
+  - nothing provides sed needed by particle-tachyon-syscon-1.0.52-1.aarch64 from @commandline
+(try to add '--skip-broken' to skip uninstallable packages)

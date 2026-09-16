@@ -1,0 +1,41 @@
+particle-kigen-lpa-0.1.8-1.aarch64.rpm: OK
+No repository match: *
+Dependencies resolved.
+================================================================================
+ Package                  Architecture  Version        Repository          Size
+================================================================================
+Installing:
+ particle-kigen-lpa       aarch64       0.1.8-1        @commandline       1.9 M
+
+Transaction Summary
+================================================================================
+Install  1 Package
+
+Total size: 1.9 M
+Installed size: 6.6 M
+Downloading Packages:
+Running transaction check
+Transaction check succeeded.
+Running transaction test
+Transaction test succeeded.
+Running transaction
+  Preparing        :                                                        1/1 
+  Installing       : particle-kigen-lpa-0.1.8-1.aarch64                     1/1 
+
+Installed:
+  particle-kigen-lpa-0.1.8-1.aarch64                                            
+
+Complete!
+particle-kigen-lpa 0.1.8-1.aarch64
+usage: lpa command [ options ]
+available commands:
+   enable          Enable a profile
+   disable         Disable a profile
+   delete          Delete a profile
+   download        Download and install a profile
+   setNick         Give a profile a nickname
+   listProfiles    List all profiles on the eUICC
+   getEid          Get the EID of the eUICC
+   notify          Send and remove pending notifications on the eUICC
+   version         Show the version of the LPA
+LPA no-command exit status: 0

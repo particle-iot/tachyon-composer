@@ -1,0 +1,632 @@
+{
+  "scope": "offline-overlay",
+  "passed": true,
+  "checks": [
+    {
+      "name": "installed:particle-kigen-lpa",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "particle-kigen-lpa"
+      ],
+      "returncode": 0,
+      "output": "0.1.8-1.aarch64"
+    },
+    {
+      "name": "installed:particle-tachyon-ril",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "particle-tachyon-ril"
+      ],
+      "returncode": 0,
+      "output": "0.7.0-1.aarch64"
+    },
+    {
+      "name": "installed:particle-tachyon-syscon",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "particle-tachyon-syscon"
+      ],
+      "returncode": 0,
+      "output": "1.0.52-1.aarch64"
+    },
+    {
+      "name": "installed:particle-linux",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "particle-linux"
+      ],
+      "returncode": 0,
+      "output": "0.25.2-1.aarch64"
+    },
+    {
+      "name": "installed:grep",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "grep"
+      ],
+      "returncode": 0,
+      "output": "3.12-r0.armv8_2a"
+    },
+    {
+      "name": "installed:jq",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "jq"
+      ],
+      "returncode": 0,
+      "output": "1.8.1-r0.armv8_2a"
+    },
+    {
+      "name": "installed:libgpiod-tools",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "libgpiod-tools"
+      ],
+      "returncode": 0,
+      "output": "2.2.4-r0.armv8_2a"
+    },
+    {
+      "name": "installed:libgpiod3",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "libgpiod3"
+      ],
+      "returncode": 0,
+      "output": "2.2.4-r0.armv8_2a"
+    },
+    {
+      "name": "installed:libonig5",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "libonig5"
+      ],
+      "returncode": 0,
+      "output": "6.9.10-r0.armv8_2a"
+    },
+    {
+      "name": "installed:networkmanager-daemon",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "networkmanager-daemon"
+      ],
+      "returncode": 0,
+      "output": "1.56.0-r0.particle1.armv8_2a"
+    },
+    {
+      "name": "installed:networkmanager-wifi",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "networkmanager-wifi"
+      ],
+      "returncode": 0,
+      "output": "1.56.0-r0.particle1.armv8_2a"
+    },
+    {
+      "name": "installed:networkmanager-wwan",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "networkmanager-wwan"
+      ],
+      "returncode": 0,
+      "output": "1.56.0-r0.particle1.armv8_2a"
+    },
+    {
+      "name": "installed:sed",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "sed"
+      ],
+      "returncode": 0,
+      "output": "4.10-r0.armv8_2a"
+    },
+    {
+      "name": "installed:socat",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "socat"
+      ],
+      "returncode": 0,
+      "output": "1.8.1.1-r0.armv8_2a"
+    },
+    {
+      "name": "installed:sudo",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "sudo"
+      ],
+      "returncode": 0,
+      "output": "1.9.17p2-r0.armv8_2a"
+    },
+    {
+      "name": "installed:sudo-lib",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "sudo-lib"
+      ],
+      "returncode": 0,
+      "output": "1.9.17p2-r0.armv8_2a"
+    },
+    {
+      "name": "installed:sudo-sudo",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-q",
+        "--qf",
+        "%{VERSION}-%{RELEASE}.%{ARCH}",
+        "sudo-sudo"
+      ],
+      "returncode": 0,
+      "output": "1.9.17p2-r0.armv8_2a"
+    },
+    {
+      "name": "component-file-integrity",
+      "passed": true,
+      "command": [
+        "rpm",
+        "-V",
+        "--noconfig",
+        "particle-linux",
+        "particle-tachyon-ril",
+        "particle-tachyon-syscon",
+        "particle-kigen-lpa"
+      ],
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "name": "packaged-particle-cli",
+      "passed": true,
+      "command": [
+        "/usr/bin/particlectl",
+        "--version"
+      ],
+      "returncode": 0,
+      "output": "0.25.2"
+    },
+    {
+      "name": "loader:/usr/bin/particle-tachyon-rild",
+      "passed": true,
+      "command": [
+        "/lib/ld-linux-aarch64.so.1",
+        "--list",
+        "/usr/bin/particle-tachyon-rild"
+      ],
+      "returncode": 0,
+      "output": "linux-vdso.so.1 (0x0000ffff8eab7000)\n\tlibparticle_ril.so => /usr/lib/libparticle_ril.so (0x0000ffff8e9f0000)\n\tlibsystemd.so.0 => /usr/lib/libsystemd.so.0 (0x0000ffff8e600000)\n\tlibsqlite3.so.0 => /usr/lib/libsqlite3.so.0 (0x0000ffff8e870000)\n\tlibc.so.6 => /usr/lib/libc.so.6 (0x0000ffff8e440000)\n\t/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffff8ea7a000)\n\tlibm.so.6 => /usr/lib/libm.so.6 (0x0000ffff8e370000)"
+    },
+    {
+      "name": "loader:/usr/bin/particle-tachyon-gnss",
+      "passed": true,
+      "command": [
+        "/lib/ld-linux-aarch64.so.1",
+        "--list",
+        "/usr/bin/particle-tachyon-gnss"
+      ],
+      "returncode": 0,
+      "output": "linux-vdso.so.1 (0x0000ffffa0548000)\n\tlibparticle_ril.so => /usr/lib/libparticle_ril.so (0x0000ffffa04a0000)\n\tlibsystemd.so.0 => /usr/lib/libsystemd.so.0 (0x0000ffffa0200000)\n\tlibc.so.6 => /usr/lib/libc.so.6 (0x0000ffffa0040000)\n\t/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffffa050b000)\n\tlibm.so.6 => /usr/lib/libm.so.6 (0x0000ffff9ff70000)"
+    },
+    {
+      "name": "loader:/usr/bin/particle-tachyon-ril-ctl",
+      "passed": true,
+      "command": [
+        "/lib/ld-linux-aarch64.so.1",
+        "--list",
+        "/usr/bin/particle-tachyon-ril-ctl"
+      ],
+      "returncode": 0,
+      "output": "linux-vdso.so.1 (0x0000ffff92976000)\n\tlibsystemd.so.0 => /usr/lib/libsystemd.so.0 (0x0000ffff92600000)\n\tlibc.so.6 => /usr/lib/libc.so.6 (0x0000ffff92440000)\n\t/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffff92939000)\n\tlibm.so.6 => /usr/lib/libm.so.6 (0x0000ffff92840000)"
+    },
+    {
+      "name": "loader:/usr/bin/particle-tachyon-syscon-ctl",
+      "passed": true,
+      "command": [
+        "/lib/ld-linux-aarch64.so.1",
+        "--list",
+        "/usr/bin/particle-tachyon-syscon-ctl"
+      ],
+      "returncode": 0,
+      "output": "linux-vdso.so.1 (0x0000ffff93b9d000)\n\tlibc.so.6 => /usr/lib/libc.so.6 (0x0000ffff93970000)\n\t/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffff93b60000)"
+    },
+    {
+      "name": "loader:/usr/bin/mspm0flash",
+      "passed": true,
+      "command": [
+        "/lib/ld-linux-aarch64.so.1",
+        "--list",
+        "/usr/bin/mspm0flash"
+      ],
+      "returncode": 0,
+      "output": "linux-vdso.so.1 (0x0000ffffb4b41000)\n\tlibc.so.6 => /usr/lib/libc.so.6 (0x0000ffffb4920000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ffffb4b04000)"
+    },
+    {
+      "name": "loader:/usr/bin/lpa",
+      "passed": true,
+      "command": [
+        "/lib/ld-linux-aarch64.so.1",
+        "--list",
+        "/usr/bin/lpa"
+      ],
+      "returncode": 0,
+      "output": "linux-vdso.so.1 (0x0000ffff818a8000)\n\tlibc.so.6 => /usr/lib/libc.so.6 (0x0000ffff815b0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ffff8186b000)"
+    },
+    {
+      "name": "loader:/usr/sbin/NetworkManager",
+      "passed": true,
+      "command": [
+        "/lib/ld-linux-aarch64.so.1",
+        "--list",
+        "/usr/sbin/NetworkManager"
+      ],
+      "returncode": 0,
+      "output": "linux-vdso.so.1 (0x0000ffffae3e3000)\n\tlibgio-2.0.so.0 => /usr/lib/libgio-2.0.so.0 (0x0000ffffada00000)\n\tlibgobject-2.0.so.0 => /usr/lib/libgobject-2.0.so.0 (0x0000ffffae320000)\n\tlibglib-2.0.so.0 => /usr/lib/libglib-2.0.so.0 (0x0000ffffadc80000)\n\tlibgmodule-2.0.so.0 => /usr/lib/libgmodule-2.0.so.0 (0x0000ffffae2f0000)\n\tlibndp.so.0 => /usr/lib/libndp.so.0 (0x0000ffffae2c0000)\n\tlibudev.so.1 => /usr/lib/libudev.so.1 (0x0000ffffad8c0000)\n\tlibsystemd.so.0 => /usr/lib/libsystemd.so.0 (0x0000ffffad600000)\n\tlibsmime3.so => /usr/lib/libsmime3.so (0x0000ffffae270000)\n\tlibnss3.so => /usr/lib/libnss3.so (0x0000ffffad4b0000)\n\tlibnspr4.so => /usr/lib/libnspr4.so (0x0000ffffae200000)\n\tlibc.so.6 => /usr/lib/libc.so.6 (0x0000ffffad2f0000)\n\t/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffffae3a6000)\n\tlibz.so.1 => /usr/lib/libz.so.1 (0x0000ffffae1c0000)\n\tlibmount.so.1 => /usr/lib/libmount.so.1 (0x0000ffffad820000)\n\tlibffi.so.8 => /usr/lib/libffi.so.8 (0x0000ffffadc40000)\n\tlibpcre2-8.so.0 => /usr/lib/libpcre2-8.so.0 (0x0000ffffad260000)\n\tlibm.so.6 => /usr/lib/libm.so.6 (0x0000ffffad190000)\n\tlibnssutil3.so => /usr/lib/libnssutil3.so (0x0000ffffad140000)\n\tlibplc4.so => /usr/lib/libplc4.so (0x0000ffffad110000)\n\tlibplds4.so => /usr/lib/libplds4.so (0x0000ffffad0e0000)\n\tlibblkid.so.1 => /usr/lib/libblkid.so.1 (0x0000ffffad060000)"
+    },
+    {
+      "name": "networkmanager",
+      "passed": true,
+      "command": [
+        "/usr/sbin/NetworkManager",
+        "--version"
+      ],
+      "returncode": 0,
+      "output": "1.56.0"
+    },
+    {
+      "name": "service-definitions",
+      "passed": true,
+      "command": [
+        "/usr/bin/systemd-analyze",
+        "verify",
+        "--man=no",
+        "particle-linux.service",
+        "particle-tachyon-rild.service",
+        "particle-tachyon-gnss.service",
+        "particle-tachyon-gnss-resume.service",
+        "particle-tachyon-syscon.service"
+      ],
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "name": "enabled:particle-linux.service",
+      "passed": true,
+      "command": [
+        "/usr/bin/systemctl",
+        "is-enabled",
+        "particle-linux.service"
+      ],
+      "returncode": 0,
+      "output": "enabled"
+    },
+    {
+      "name": "enabled:particle-tachyon-rild.service",
+      "passed": true,
+      "command": [
+        "/usr/bin/systemctl",
+        "is-enabled",
+        "particle-tachyon-rild.service"
+      ],
+      "returncode": 0,
+      "output": "enabled"
+    },
+    {
+      "name": "enabled:particle-tachyon-gnss.service",
+      "passed": true,
+      "command": [
+        "/usr/bin/systemctl",
+        "is-enabled",
+        "particle-tachyon-gnss.service"
+      ],
+      "returncode": 0,
+      "output": "enabled"
+    },
+    {
+      "name": "enabled:particle-tachyon-gnss-resume.service",
+      "passed": true,
+      "command": [
+        "/usr/bin/systemctl",
+        "is-enabled",
+        "particle-tachyon-gnss-resume.service"
+      ],
+      "returncode": 0,
+      "output": "enabled"
+    },
+    {
+      "name": "enabled:particle-tachyon-syscon.service",
+      "passed": true,
+      "command": [
+        "/usr/bin/systemctl",
+        "is-enabled",
+        "particle-tachyon-syscon.service"
+      ],
+      "returncode": 0,
+      "output": "enabled"
+    },
+    {
+      "name": "sudoers",
+      "passed": true,
+      "command": [
+        "/usr/sbin/visudo",
+        "-cf",
+        "/etc/sudoers.d/particle"
+      ],
+      "returncode": 0,
+      "output": "/etc/sudoers.d/particle: parsed OK"
+    },
+    {
+      "name": "image-version-metadata",
+      "passed": true
+    }
+  ],
+  "versions_sha256": "163602fd7d17332952c094f208c17150640212d88668a6f7581033dfc105c162",
+  "hardware_tests": "not_run",
+  "region": "NA",
+  "version": "1.4.0-candidate.20260916.1",
+  "started_at": "2026-09-16T03:23:58.510487+00:00",
+  "packages": [
+    {
+      "name": "particle-kigen-lpa",
+      "version": "0.1.8",
+      "release": "1",
+      "architecture": "aarch64",
+      "filename": "particle-kigen-lpa-0.1.8-1.aarch64.rpm",
+      "sha256": "fa874f9f91e7a73dbd8e70d21e3ccc45c37cdb93dcc81265feaec26719e401b4",
+      "source_revision": "973755701421813c6a8e19b2a2a0c4f1aa7946e6",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed"
+    },
+    {
+      "filename": "particle-tachyon-ril-0.7.0-1.aarch64.rpm",
+      "name": "particle-tachyon-ril",
+      "version": "0.7.0",
+      "release": "1",
+      "architecture": "aarch64",
+      "source_revision": "74934c1e46ae0226724cb9bf8fb7de83660b7d36",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "sha256": "e18c16a74bb836a2786c53ef37bfb6d2046ace422df3dd26b7d12e0097c26999",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-tachyon-ril/74934c1e46ae0226724cb9bf8fb7de83660b7d36/e18c16a74bb836a2786c53ef37bfb6d2046ace422df3dd26b7d12e0097c26999/particle-tachyon-ril-0.7.0-1.aarch64-74934c1e46ae0226724cb9bf8fb7de83660b7d36.rpm"
+    },
+    {
+      "filename": "particle-tachyon-syscon-1.0.52-1.aarch64.rpm",
+      "name": "particle-tachyon-syscon",
+      "version": "1.0.52",
+      "release": "1",
+      "architecture": "aarch64",
+      "source_revision": "157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "sha256": "13f3e9b3b494c036d273ef5f5b8b6b70a5deff4c515b6c5f80f37f695c8cbffc",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-tachyon-syscon/157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd/13f3e9b3b494c036d273ef5f5b8b6b70a5deff4c515b6c5f80f37f695c8cbffc/particle-tachyon-syscon-1.0.52-1.aarch64-157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd.rpm"
+    },
+    {
+      "filename": "particle-linux-0.25.2-1.aarch64.rpm",
+      "name": "particle-linux",
+      "version": "0.25.2",
+      "release": "1",
+      "architecture": "aarch64",
+      "source_revision": "e952c705e60f6a85cac06efd75daebe5a452c791",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "sha256": "a6aee23999809f28ffa602ab69c9a194b598cfa0271b7f5831eafcfb2ef89a3a",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-linux/e952c705e60f6a85cac06efd75daebe5a452c791/a6aee23999809f28ffa602ab69c9a194b598cfa0271b7f5831eafcfb2ef89a3a/particle-linux-0.25.2-1.aarch64-e952c705e60f6a85cac06efd75daebe5a452c791.rpm"
+    },
+    {
+      "name": "grep",
+      "version": "3.12",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "grep-3.12-r0.src.rpm",
+      "filename": "grep-3.12-r0.armv8_2a.rpm",
+      "sha256": "4255540ef9e4e4cdd8b1a5b6c16357fbbae3c4e5d699d62371de5178ff6f7699",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "jq",
+      "version": "1.8.1",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "jq-1.8.1-r0.src.rpm",
+      "filename": "jq-1.8.1-r0.armv8_2a.rpm",
+      "sha256": "c4a21303ef2b956a2d75a30da851d9e0e273a9ece604801bcc3c8da13361599a",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libgpiod-tools",
+      "version": "2.2.4",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "libgpiod-2.2.4-r0.src.rpm",
+      "filename": "libgpiod-tools-2.2.4-r0.armv8_2a.rpm",
+      "sha256": "413869bec8fe43707c68ee45707e6ecedeb236f3c39d0755ce33e6f71d4889da",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libgpiod3",
+      "version": "2.2.4",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "libgpiod-2.2.4-r0.src.rpm",
+      "filename": "libgpiod3-2.2.4-r0.armv8_2a.rpm",
+      "sha256": "ad67ac1e873cf774c05d56c251a53f040c864c87d57e485ffa56190ebc176983",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libonig5",
+      "version": "6.9.10",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "onig-6.9.10-r0.src.rpm",
+      "filename": "libonig5-6.9.10-r0.armv8_2a.rpm",
+      "sha256": "224c2f3cde6878caa67a7ef741dcd10ffabbc2bcd5b3daeb6428bc824cc2718c",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-daemon",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-daemon-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "35930a8d7d3936326ed060889ea08e857d45ea92c9af912ba5dcaeb889d1a314",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-wifi",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-wifi-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "554b05c2db65077df9992a28d7f30e24fd821ab4566b7ba271fcd0ad99f96f1b",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-wwan",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-wwan-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "19424d1242f6632d68c095349863fc59da879d0cb288ec53b2939a8e75e7dcb6",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sed",
+      "version": "4.10",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sed-4.10-r0.src.rpm",
+      "filename": "sed-4.10-r0.armv8_2a.rpm",
+      "sha256": "50651484e87366bc39d0131abfafeac0c3b777682f336d3dbcd4dc9d3062e098",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "socat",
+      "version": "1.8.1.1",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "socat-1.8.1.1-r0.src.rpm",
+      "filename": "socat-1.8.1.1-r0.armv8_2a.rpm",
+      "sha256": "239fc79a84fbfeb90261bff7f49b4f9e625fd6aff805c456d09aa8b671533915",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "ab2a9c3b7d05202244dca52c7ef51d87d45a438f2cb4587034a61425454ae69f",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo-lib",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-lib-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "e52fb97a83508317c5511ab5037de5784302a5178750274fddd331b82ab577a2",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo-sudo",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-sudo-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "3129980f96817c21eb016a7f536628139739cae712472416f1bb1aff6b455496",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    }
+  ],
+  "finished_at": "2026-09-16T03:23:59.357123+00:00"
+}

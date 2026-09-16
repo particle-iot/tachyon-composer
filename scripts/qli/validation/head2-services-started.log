@@ -1,0 +1,29 @@
+Metadata describes actual base: 1.4.0-dev+build.350ff22 6.8.0-1058.59+particle8 2.0.7
+/etc/sudoers.d/particle: parsed OK
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-linux.service' -> '/usr/lib/systemd/system/particle-linux.service'.
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-tachyon-rild.service' -> '/usr/lib/systemd/system/particle-tachyon-rild.service'.
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-tachyon-gnss.service' -> '/usr/lib/systemd/system/particle-tachyon-gnss.service'.
+Created symlink '/etc/systemd/system/suspend.target.wants/particle-tachyon-gnss-resume.service' -> '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/hibernate.target.wants/particle-tachyon-gnss-resume.service' -> '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/suspend-then-hibernate.target.wants/particle-tachyon-gnss-resume.service' -> '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/hybrid-sleep.target.wants/particle-tachyon-gnss-resume.service' -> '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-tachyon-syscon.service' -> '/usr/lib/systemd/system/particle-tachyon-syscon.service'.
+Id=particle-linux.service
+ActiveState=active
+SubState=running
+ExecMainStatus=0
+
+Id=particle-tachyon-rild.service
+ActiveState=active
+SubState=running
+ExecMainStatus=0
+
+Id=particle-tachyon-gnss.service
+ActiveState=active
+SubState=running
+ExecMainStatus=0
+Device ID: 422a060000000000d0c7965f
+Cloud connection status: Disconnected
+1.0.52
+Version=1.0.52
+Remote exit code: 0

@@ -64,11 +64,6 @@
     "audio_ucm_hifi": {
       "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-tachyon-audio/files/HiFi.conf",
       "sha256": "af15a338012bb643a3f618fbee42777757cd880d4c5eed28b51193af0b982e7c"
-    },
-    "networkmanager_source": {
-      "url": "https://codeload.github.com/NetworkManager/NetworkManager/tar.gz/refs/tags/1.56.0",
-      "filename": "NetworkManager-1.56.0.tar.gz",
-      "sha256": "42c1249f2e7c1d877ae03b63540d8d81fed94fabcdb4186b247295ac24d4088e"
     }
   },
   "recovery_images": {
@@ -80,5 +75,250 @@
       "url": "https://linux-dist.particle.io/releases/1.2.24/RoW/tachyon-ubuntu-24.04-RoW-desktop-1.2.24.zip",
       "sha256": "1e6e42f9418d52d8992205b90a544a955f866599dd4866c20009aefe0751e7ba"
     }
+  },
+  "yocto": {
+    "repository": "https://github.com/qualcomm-linux/meta-qcom-releases.git",
+    "revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+    "lock_sha256": "e4325fd591b38241c4a00398cbb2232d7f562282c542b313a1e06a671abeb4f0"
+  },
+  "overlay_stack": "qli-headless-2.0",
+  "overlays": {
+    "repository": "https://github.com/particle-iot/tachyon-overlays.git",
+    "revision": "81f025a5c1ff8c9c1de8b6478fc895e65881241b"
+  },
+  "overlay_tool": {
+    "repository": "https://github.com/particle-iot/tachyon-overlay-tool.git",
+    "revision": "4b63dbf7378fadccc2fc35c9ce09a3601b51d10a"
+  },
+  "rpm_packages": [
+    {
+      "name": "particle-kigen-lpa",
+      "version": "0.1.8",
+      "release": "1",
+      "architecture": "aarch64",
+      "filename": "particle-kigen-lpa-0.1.8-1.aarch64.rpm",
+      "sha256": "fa874f9f91e7a73dbd8e70d21e3ccc45c37cdb93dcc81265feaec26719e401b4",
+      "source_revision": "973755701421813c6a8e19b2a2a0c4f1aa7946e6",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed"
+    },
+    {
+      "filename": "particle-tachyon-ril-0.7.0-1.aarch64.rpm",
+      "name": "particle-tachyon-ril",
+      "version": "0.7.0",
+      "release": "1",
+      "architecture": "aarch64",
+      "source_revision": "74934c1e46ae0226724cb9bf8fb7de83660b7d36",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "sha256": "e18c16a74bb836a2786c53ef37bfb6d2046ace422df3dd26b7d12e0097c26999",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-tachyon-ril/74934c1e46ae0226724cb9bf8fb7de83660b7d36/e18c16a74bb836a2786c53ef37bfb6d2046ace422df3dd26b7d12e0097c26999/particle-tachyon-ril-0.7.0-1.aarch64-74934c1e46ae0226724cb9bf8fb7de83660b7d36.rpm"
+    },
+    {
+      "filename": "particle-tachyon-syscon-1.0.52-1.aarch64.rpm",
+      "name": "particle-tachyon-syscon",
+      "version": "1.0.52",
+      "release": "1",
+      "architecture": "aarch64",
+      "source_revision": "157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "sha256": "13f3e9b3b494c036d273ef5f5b8b6b70a5deff4c515b6c5f80f37f695c8cbffc",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-tachyon-syscon/157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd/13f3e9b3b494c036d273ef5f5b8b6b70a5deff4c515b6c5f80f37f695c8cbffc/particle-tachyon-syscon-1.0.52-1.aarch64-157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd.rpm"
+    },
+    {
+      "filename": "particle-linux-0.25.2-1.aarch64.rpm",
+      "name": "particle-linux",
+      "version": "0.25.2",
+      "release": "1",
+      "architecture": "aarch64",
+      "source_revision": "e952c705e60f6a85cac06efd75daebe5a452c791",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "sha256": "a6aee23999809f28ffa602ab69c9a194b598cfa0271b7f5831eafcfb2ef89a3a",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-linux/e952c705e60f6a85cac06efd75daebe5a452c791/a6aee23999809f28ffa602ab69c9a194b598cfa0271b7f5831eafcfb2ef89a3a/particle-linux-0.25.2-1.aarch64-e952c705e60f6a85cac06efd75daebe5a452c791.rpm"
+    },
+    {
+      "name": "grep",
+      "version": "3.12",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "grep-3.12-r0.src.rpm",
+      "filename": "grep-3.12-r0.armv8_2a.rpm",
+      "sha256": "4255540ef9e4e4cdd8b1a5b6c16357fbbae3c4e5d699d62371de5178ff6f7699",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "jq",
+      "version": "1.8.1",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "jq-1.8.1-r0.src.rpm",
+      "filename": "jq-1.8.1-r0.armv8_2a.rpm",
+      "sha256": "c4a21303ef2b956a2d75a30da851d9e0e273a9ece604801bcc3c8da13361599a",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libgpiod-tools",
+      "version": "2.2.4",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "libgpiod-2.2.4-r0.src.rpm",
+      "filename": "libgpiod-tools-2.2.4-r0.armv8_2a.rpm",
+      "sha256": "413869bec8fe43707c68ee45707e6ecedeb236f3c39d0755ce33e6f71d4889da",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libgpiod3",
+      "version": "2.2.4",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "libgpiod-2.2.4-r0.src.rpm",
+      "filename": "libgpiod3-2.2.4-r0.armv8_2a.rpm",
+      "sha256": "ad67ac1e873cf774c05d56c251a53f040c864c87d57e485ffa56190ebc176983",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libonig5",
+      "version": "6.9.10",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "onig-6.9.10-r0.src.rpm",
+      "filename": "libonig5-6.9.10-r0.armv8_2a.rpm",
+      "sha256": "224c2f3cde6878caa67a7ef741dcd10ffabbc2bcd5b3daeb6428bc824cc2718c",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-daemon",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-daemon-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "35930a8d7d3936326ed060889ea08e857d45ea92c9af912ba5dcaeb889d1a314",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-wifi",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-wifi-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "554b05c2db65077df9992a28d7f30e24fd821ab4566b7ba271fcd0ad99f96f1b",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-wwan",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-wwan-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "19424d1242f6632d68c095349863fc59da879d0cb288ec53b2939a8e75e7dcb6",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sed",
+      "version": "4.10",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sed-4.10-r0.src.rpm",
+      "filename": "sed-4.10-r0.armv8_2a.rpm",
+      "sha256": "50651484e87366bc39d0131abfafeac0c3b777682f336d3dbcd4dc9d3062e098",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "socat",
+      "version": "1.8.1.1",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "socat-1.8.1.1-r0.src.rpm",
+      "filename": "socat-1.8.1.1-r0.armv8_2a.rpm",
+      "sha256": "239fc79a84fbfeb90261bff7f49b4f9e625fd6aff805c456d09aa8b671533915",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "ab2a9c3b7d05202244dca52c7ef51d87d45a438f2cb4587034a61425454ae69f",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo-lib",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-lib-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "e52fb97a83508317c5511ab5037de5784302a5178750274fddd331b82ab577a2",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo-sudo",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-sudo-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "3129980f96817c21eb016a7f536628139739cae712472416f1bb1aff6b455496",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    }
+  ],
+  "lpa": {
+    "repository": "particle-iot-inc/kigen-sdk",
+    "version": "0.1.8",
+    "source_revision": "973755701421813c6a8e19b2a2a0c4f1aa7946e6",
+    "filename": "lpa-linux-arm64",
+    "sha256": "77c76192dcdc3c3920831a7662bc03bf8529b234f62aa058ca31c47e4ed7f7e1",
+    "source_date_epoch": 1786863571
+  },
+  "components": {
+    "particle-linux": {
+      "repository": "https://github.com/particle-iot-inc/particle-linux.git",
+      "revision": "e952c705e60f6a85cac06efd75daebe5a452c791"
+    },
+    "ril": {
+      "repository": "https://github.com/particle-iot-inc/particle-tachyon-ril.git",
+      "revision": "74934c1e46ae0226724cb9bf8fb7de83660b7d36"
+    },
+    "syscon": {
+      "repository": "https://github.com/particle-iot-inc/particle-tachyon-syscon.git",
+      "revision": "157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd"
+    }
+  },
+  "qli_sdk": {
+    "manifest_key": "sdk/qli-2.0/x86_64/v1/f60db25b6dae7e1b6052bab9048eb3737192b8a065da1a0454e6873ca52f8d29/manifest.json",
+    "sha256": "596df0e8028f1d9c9093ba46dd8c3e1f0a1d3eaf9c64fe186a1fee9f65051da6"
+  },
+  "qli_runtime": {
+    "manifest_key": "candidates/qli-2.0/runtime/v1/c1c47bc678ae784ec21cfbd291d62a272eb5d42b2bd61392bac8c4f5cf4cd4ca/manifest.json",
+    "sha256": "3edd3a90ff8f6eaeac15ac0dc69213eed93a96c0abbacba2d723861a7bac9114"
   }
 }
