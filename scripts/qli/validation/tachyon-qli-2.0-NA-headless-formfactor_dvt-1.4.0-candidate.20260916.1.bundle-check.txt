@@ -1,0 +1,3 @@
+SHA-256: 0cec25ed45ac4bb679baa3523698c0a712d2ae730e6310090dffd31e82476554
+Verified QLI bundle: tachyon-qli-2.0-NA-headless-formfactor_dvt-1.4.0-candidate.20260916.1.zip
+Exit code: 0

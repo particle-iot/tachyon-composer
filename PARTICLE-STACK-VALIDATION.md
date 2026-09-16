@@ -39,14 +39,26 @@ need the corresponding lab equipment.
 
 ## Current status
 
-**Not ready for image acceptance or landing.** Candidate testing has found and
-fixed packaging/runtime defects; full installation, regional image builds and
-successful setup still remain unverified. The initial dependency bundle now supplies `socat`, `jq`, `sudo`, `grep` and
-`sed`, but a new complete DNF transaction found jq's missing `libonig5` RPM.
-The [cached dependency refresh, job 460](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/460)
-adds that explicit output. Its audited graph contains 223 recipes / 2,478 tasks:
-one additional packaging task, with no image, kernel or SDK build.
-[Actual DNF failure](scripts/qli/validation/missing-libonig.log).
+**Not ready for hardware acceptance or landing.** All 17 pinned RPMs now install
+successfully in a clean QLI filesystem with external repositories and container
+networking disabled. Both regional candidate images were built locally from
+composer commit `ec1a29b94d396d1a60b13c75076cae281431ae8f`; each passes all 35
+composition checks and the ZIP checksum/flash-operation verifier. No candidate
+image has been flashed or successfully set up on head2.
+
+The cached runtime refresh added the missing `libonig5` output. The complete
+[bundle manifest](https://packages.particle.io/candidates/qli-2.0/runtime/v1/c1c47bc678ae784ec21cfbd291d62a272eb5d42b2bd61392bac8c4f5cf4cd4ca/manifest.json)
+is pinned in `versions.json`, with SHA-256
+`3edd3a90ff8f6eaeac15ac0dc69213eed93a96c0abbacba2d723861a7bac9114`.
+The audited runtime graph contains 223 recipes / 2,478 tasks, with no image,
+kernel or SDK build. Only the 13 required runtime RPMs plus four Particle RPMs
+are staged in the image repository.
+
+**Device testing is paused at Embroid client/transport failures.** A locally
+modified lease-handling client and an interactive transfer workaround were used
+earlier; the user instructed that Embroid bugs must be reported and work stopped.
+Neither workaround is approved for continued testing. A supported Embroid path
+must be established before resuming device operations.
 
 | Component | Current published source | RPM build | Debian build | Downloads |
 | --- | --- | --- | --- | --- |
@@ -56,7 +68,7 @@ one additional packaging task, with no image, kernel or SDK build.
 
 Every published artifact in these comments was downloaded and checksum-verified.
 `versions.json` pins the corresponding RPM identities, source revisions and public
-URLs. Runtime dependencies remain unpinned pending the actual build outputs.
+URLs. All 13 runtime dependencies are also pinned to the verified build outputs.
 
 ## Defects found by candidate testing
 
@@ -98,31 +110,38 @@ three RPMs, four DEBs, and RPM provenance/checksum manifests. PR candidates now
 use public S3 URLs with the full source commit appended to filenames and a
 checksum-qualified path. No CircleCI artifact token is needed.
 
-## Candidate acceptance attempt — 2026-09-16 UTC
+## Full offline installation and regional image results
 
-The base is still the pinned QLI 2.0 build `local-20260625153136`.
+The base is the pinned QLI 2.0 build `local-20260625153136`, with kernel
+particle9 and BP 2.0.8 applied during candidate composition.
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| Offline overlay-tool RPM installation, external repositories and container networking disabled | **FAIL**: missing socat, jq, sudo, grep, sed | [DNF log](scripts/qli/validation/candidate-offline-install.log), [reproduction script](scripts/qli/validation/check-candidate-install.sh) |
-| Head2 public download and SHA-256 verification of all three PR RPMs | **PASS** | [Embroid device log](scripts/qli/validation/candidate-head2-install.log) |
-| Head2 DNF installability preflight, external repositories disabled | **FAIL**: same five missing dependencies | [Embroid device log](scripts/qli/validation/candidate-head2-install.log) |
-| QLI loader resolution of extracted RIL, GNSS, RIL CLI, syscon controller, flasher, LPA and Particle CLI | **PASS**, payload-only diagnostic | [ABI log](scripts/qli/validation/candidate-payload-abi.log), [reproduction script](scripts/qli/validation/check-candidate-abi.sh) |
-| Packaged `particlectl --version` and `particlectl setup --help` in QLI rootfs | **PASS**, version 0.25.2; no setup execution | [ABI log](scripts/qli/validation/candidate-payload-abi.log) |
-| Actual on-device setup, installed services, registration, cellular and other functional tests | **BLOCKED / NOT RUN** | Installation dependencies must be supplied first |
+| Complete offline overlay-tool DNF transaction | **PASS**, all 17 pinned RPMs; 15 installs and two NetworkManager upgrades | [Install log](scripts/qli/validation/full-offline-install-onig.log) |
+| Component non-config file integrity, five service definitions/enablement, seven ELF loader checks and CLI version | **PASS** in QLI filesystem | Same install log and regional reports below |
+| NA image overlay checks | **PASS**, 35 checks | [Report](scripts/qli/validation/tachyon-qli-2.0-NA-headless-formfactor_dvt-1.4.0-candidate.20260916.1.package-validation.json) |
+| RoW image overlay checks | **PASS**, 35 checks | [Report](scripts/qli/validation/tachyon-qli-2.0-RoW-headless-formfactor_dvt-1.4.0-candidate.20260916.1.package-validation.json) |
+| Both ZIP checksum inventories and allowed flash operations | **PASS**, check-only; no device operations | [NA](scripts/qli/validation/tachyon-qli-2.0-NA-headless-formfactor_dvt-1.4.0-candidate.20260916.1.bundle-check.txt), [RoW](scripts/qli/validation/tachyon-qli-2.0-RoW-headless-formfactor_dvt-1.4.0-candidate.20260916.1.bundle-check.txt) |
+| Head2 staged package inventory | **PASS**, 17 RPM hashes and package identities verified; staging only | Saved Embroid result, exit 0; full installation not executed |
+| Full candidate on-device installation, setup, registration and functional radio tests | **NOT RUN / PAUSED** | Supported Embroid client/transport required |
 
-The runtime build script was missing `grep` and `sed`; both targets are now
-included and required by the artifact lock before composition. The other three
-were already targets but had never been built/pinned. NetworkManager WWAN and
-GPIO runtime support also remain absent from the reference image.
+Candidate version: `1.4.0-candidate.20260916.1`. ZIP SHA-256 values:
 
-The initial preflight used public S3 downloads. A local Embroid client compatibility
-fix now handles the broker's implicit lease fields correctly. Keychain renewal
-completed and device commands work. The separate ADB push transport rejects its
-authority envelope; the supported interactive ADB CLI successfully transferred
-LPA and verified its checksum. No foreign lease was broken. LPA has since been
-installed; the other three Particle packages remain absent. No flashing or
-bootstrap/identity changes have occurred.
+- NA: `0cec25ed45ac4bb679baa3523698c0a712d2ae730e6310090dffd31e82476554`
+- RoW: `c66ffe7ccc3ac74920b2d53e87c7f9a8d9fa5f1b8bcccae05a2f7f0dbde7b52d`
+
+Images are local outputs under `.tmp/qli/output/`; no image download URL or CI
+image pass is claimed. Composition validated 22 allowed in-place writes. The
+inherited base layout warns that `xbl_config_b` on LUNs 1 and 2 exceeds the LUN
+by 64 KiB; neither candidate writes that partition. This does not establish
+coverage for future B-slot updates. Live layout and provisioning preservation
+still require pre-flash and post-flash verification.
+
+The earlier missing-dependency failures are superseded by the successful full
+transaction above. The archived failure logs remain diagnostic evidence.
+Head2 still has kernel package particle8 and BP 2.0.7. LPA is installed there;
+the other three Particle packages are staged but have not been installed. No
+flashing or bootstrap/identity changes have occurred.
 
 ## Actual QLI installation checks — 2026-09-15
 
@@ -175,18 +194,16 @@ and repository-generation tools built successfully.
 
 ## Remaining before a complete candidate run
 
-1. The RIL service-name fix and updated Particle Linux/syscon artifacts are built,
-   downloaded, verified and pinned. Complete runtime dependency pins next.
-2. Build the missing runtime dependencies with `build-runtime-rpms.sh`, using the
-   pinned stock QLI recipe configuration in a separate workspace. The minimal
-   SDK's reduced libraries must not be installed into an image. Build and pin
-   NetworkManager daemon/WWAN/Wi-Fi together with any required dependency closure.
-3. Run complete NA and RoW overlay/image composition and inspect their retained
-   package reports. The updated regional GitHub workflow remains unpublished:
-   GitHub rejected its earlier push because the credential lacks `workflow` scope.
-   That CI limitation does not prevent local composition once artifacts exist.
-4. Perform the live hardware acceptance workflow below using Embroid CLI. No
-   device has been flashed, reset or provisioned during this validation.
+1. Restore supported Embroid client/transport operation. Do not use the local
+   lease patch or interactive file-transfer workaround for further tests.
+2. Publish the prepared regional image CI workflow through an authorized
+   workflow-write credential. The current GitHub token lacks `workflow` scope;
+   PR #91 has no image CI checks. Both local image builds have passed.
+3. Revalidate the live board layout and private backups, stage a verified
+   recovery image, and verify compatibility with the supported Embroid flash
+   interface before flashing the exact NA candidate.
+4. Complete all head2 setup/runtime and preservation checks below. Obtain the
+   required Particle account/product and radio test resources for those flows.
 
 ## Head2 baseline and functional acceptance
 
@@ -194,7 +211,7 @@ The Embroid product CLI with `--gateway broker` successfully reported ADB state
 `device`, read head2's inventory, downloaded the exact candidates and ran the
 DNF preflight recorded above. It runs QLI 2.0 and kernel ABI
 `6.8.0-1058-particle`, with all three candidate Particle packages absent.
-The root filesystem has about 51 GiB free. Embroid access is restored. Seven
+The root filesystem had about 51 GiB free at capture. Device work is now paused. Seven
 protected NV/persist partition backups were captured, transferred to a private
 host directory and checksum-verified. Network credentials in that archive are
 not published. Both GPT copies from all seven UFS LUNs were CRC-validated, privately downloaded
