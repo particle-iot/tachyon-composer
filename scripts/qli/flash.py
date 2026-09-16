@@ -5,11 +5,11 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
-import xml.etree.ElementTree as ET
 import zipfile
 
 from assets import digest
-from package import ALLOWED, REQUIRED, compare_layout
+from package import programs, compare_layout
+from layout import PROGRAM_XML, PATCH_XML
 
 BACKUPS = {'fsc', 'fsg', 'modemst1', 'modemst2', 'nvdata1', 'nvdata2', 'persist'}
 
@@ -33,30 +33,16 @@ def verify_bundle(path):
         if (m['distribution'], m['distribution_version'], m['distribution_variant']) != ('qualcomm-linux','2.0','open'):
             raise ValueError('Not a QLI 2.0 open image')
         edl = m['targets'][0]['qcm6490']['edl']
-        if edl['program_xml'] != ['rawprogram_qli.xml'] or edl['patch_xml']:
+        if edl['program_xml'] != PROGRAM_XML or edl['patch_xml'] != PATCH_XML:
             raise ValueError('Unexpected flash operation files')
-        if {n for n in names if n.endswith('.xml')} != {'rawprogram_qli.xml'}:
+        if {n for n in names if n.endswith('.xml')} != set(PROGRAM_XML + PATCH_XML):
             raise ValueError('Archive contains extra operation XML')
         layout = json.loads(z.read('flash-layout.json'))['partitions']
-        programs = list(ET.fromstring(z.read('rawprogram_qli.xml')))
-        if len(programs) != len(layout):
-            raise ValueError('Layout and program count differ')
-        keys = set()
-        for p, w in zip(programs, layout):
-            lun, label = int(p.get('physical_partition_number')), p.get('label')
-            if p.tag != 'program' or label not in ALLOWED.get(lun, set()):
-                raise ValueError('Forbidden flash operation')
-            if (lun,label) in keys: raise ValueError('Duplicate flash operation')
-            keys.add((lun,label))
-            if int(p.get('SECTOR_SIZE_IN_BYTES')) != 4096 or int(p.get('file_sector_offset','0')) != 0:
-                raise ValueError('Unsupported sector geometry')
-            filename=p.get('filename'); size=int(p.get('num_partition_sectors'))*4096
-            if size <= 0 or size != ((z.getinfo(filename).file_size+4095)//4096)*4096:
-                raise ValueError('Program extent does not equal payload extent')
-            expected={'lun':lun,'label':label,'start_bytes':int(p.get('start_sector'))*4096,
-                      'size_bytes':size,'filename':filename,'sha256':sums[filename]}
-            if w != expected: raise ValueError('Program and recorded layout differ')
-        if not REQUIRED.issubset(keys): raise ValueError('Missing required partitions')
+        expected = [r for _, r in programs(None, read_bytes=z.read,
+                    payload_size=lambda name: z.getinfo(name).file_size,
+                    payload_digest=lambda name: sums[name])]
+        if layout != expected:
+            raise ValueError('Program and recorded layout differ')
         return m, layout
 
 

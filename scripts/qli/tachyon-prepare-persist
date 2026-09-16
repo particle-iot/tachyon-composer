@@ -1,0 +1,29 @@
+#!/usr/bin/python3
+"""Initialize only the 24.04/QLI persist extent when it has no filesystem."""
+from pathlib import Path
+import subprocess
+
+
+def prepare(device=Path('/dev/disk/by-partlabel/persist'), sys_block=Path('/sys/class/block'), run=subprocess.run):
+    partition = device.resolve(strict=True)
+    info = (sys_block / partition.name).resolve(strict=True)
+    disk = info.parent
+    # sysfs reports start and size in 512-byte units even on 4096-byte UFS.
+    if (int((info/'start').read_text()), int((info/'size').read_text())) != (131078*8, 7680*8):
+        raise RuntimeError('Refusing to initialize persist outside the QLI OS extent')
+    hctl = (disk/'device').resolve(strict=True).name
+    if len(hctl.split(':')) != 4 or hctl.split(':')[-1] != '0':
+        raise RuntimeError('Refusing to initialize persist outside UFS LUN 0')
+    sector = run(['blockdev', '--getss', str(partition)], capture_output=True, text=True, check=True)
+    if sector.stdout.strip() != '4096':
+        raise RuntimeError('Unexpected persist logical sector size')
+    probe = run(['blkid', '-p', '-s', 'TYPE', '-o', 'value', str(partition)], capture_output=True, text=True)
+    if probe.returncode == 0 and probe.stdout.strip() == 'ext4':
+        return  # Mount/fsck failures never trigger reformatting.
+    if probe.returncode != 2 or probe.stdout.strip():
+        raise RuntimeError('Persist contains an unexpected or ambiguous filesystem; refusing to format')
+    run(['mkfs.ext4', '-F', str(partition)], check=True)
+
+
+if __name__ == '__main__':
+    prepare()

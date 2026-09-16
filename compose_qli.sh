@@ -148,13 +148,22 @@ rc=0; e2fsck -fy "$work/rootfs.ext4" || rc=$?
 [[ "$rc" -lt 4 ]]
 e2fsck -fn "$work/rootfs.ext4"
 
-# Reuse the Particle assembly format and test-signed BP payloads, then remove
-# all GPT/provisioning writes from the experiment's manifest and archive.
+# Reuse the complete Ubuntu 24.04 assembly format and test-signed BP payloads.
+# Packaging retains GPTs and sizing patches, and excludes UFS provisioning/wipes.
 (cd "$work/bp"; zip -qr "$work/bootbinaries.zip" QCM6490_bootbinaries)
 nonhlos=na; [[ "$REGION" = NA ]] || nonhlos=em
+# Initialize the setup partition declared by the shared Ubuntu layout so the CLI finds it in
+# the flash manifest, then write its configuration after the OS flash.
+python3 - "$PROJ/scripts/assemble/config/partition_ext.xml" "$work/misc.img" <<'PY_MISC'
+from pathlib import Path
+import sys
+import xml.etree.ElementTree as ET
+misc = ET.parse(sys.argv[1]).find("./physical_partition/partition[@label='misc']")
+Path(sys.argv[2]).write_bytes(bytes(int(misc.attrib['size_in_kb']) * 1024))
+PY_MISC
 bash "$PROJ/scripts/assemble/make_factory_img.sh" \
   --bootbinaries "$work/bootbinaries.zip" --system "$work/rootfs.ext4" \
-  --efi "$work/efi.img" --dtb_a "$work/dtb.img" \
+  --efi "$work/efi.img" --dtb_a "$work/dtb.img" --misc "$work/misc.img" \
   --core_nhlos_a "$work/bp/nonhlos-$nonhlos.img" --output "$work/factory"
 cp "$work/initramfs-files.txt" "$work/factory/initramfs-files.txt"
 cp "$OUT/$name.package-validation.json" "$work/factory/package-validation.json"

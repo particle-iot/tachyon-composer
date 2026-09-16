@@ -51,13 +51,39 @@ and initramfs. Without it, the two display modules register duplicate drivers
 and this kernel can panic during device probing. The build checks QLI's actual
 kmod resolver to ensure `msm_display` is suppressed and `msm` remains available.
 
-The root image is 10 GiB and must fit the existing system partition. The
-packaged manifest has explicit, finite write extents for 22 Tachyon payloads.
-It contains no GPT writes, patch XML, UFS provisioning, NV writes or persist
-writes. Reference-image `systemd-repart` and `format-tee-partition` are masked.
-The persist-formatting helper is removed. TEE bind-mounts the existing
-`/persist` filesystem; a missing or damaged filesystem is never formatted.
-Root filesystem growth stays inside the existing `system` partition.
+The root image is 10 GiB. The package uses the **same partition layout and
+complete flash operation set as Ubuntu 24.04**: `rawprogram0.xml` through
+`rawprogram6.xml`, 14 primary/backup GPT payloads, and `patch0.xml` through
+`patch6.xml`. The patches adjust disk sizes and GPT CRCs for the physical UFS
+LUNs. This installs the target OS layout even when the previous OS was Ubuntu
+20.04. It never invokes UFS provisioning or wipe XML.
+
+All 22 Ubuntu 24.04 boot/firmware/EFI/rootfs targets are retained. QLI also
+initializes its 1 MiB `misc` partition with a blank payload. Ubuntu 24.04
+already has `misc`: its empty-filename XML declaration describes the partition
+without supplying a payload. The ordinary Particle CLI finds that declaration
+and writes setup configuration after installing the image. No special CLI
+partition handling is needed.
+
+The six modem NV partitions on LUN 5 retain their fixed sectors. Their data,
+legacy Ubuntu 20.04 persist (LUN 5, sectors 3904–12095), UEFI variables (LUN 4,
+518–645), and existing 24.04/QLI persist (LUN 0, 131078–138757) are excluded
+from payload writes. Validation checks GPT CRCs, program/GPT agreement, every
+sizing/CRC patch, the complete firmware payload set, and protected extents.
+Board preflight checks physical LUN capacities, rather than requiring the
+previous OS to have the target partition names and sizes.
+
+On first boot, QLI initializes the OS persist filesystem only if no filesystem
+is detected, after checking its exact LUN, sector size, start and length.
+Existing ext4 filesystems are retained; a mount failure does not authorize
+formatting. Unknown/ambiguous signatures fail initialization. Reference-image
+`systemd-repart` and `format-tee-partition` remain masked. TEE bind-mounts
+`/persist`; root growth stays inside the newly installed system partition.
+
+Hardware acceptance requires all six directed transitions between Ubuntu
+20.04, Ubuntu 24.04 and this complete QLI image, using standard Particle CLI
+setup followed by reboot and identity/provisioning checks. A same-layout QLI
+flash alone does not establish cross-version compatibility.
 
 The Ubuntu 24.04 1.2.24 NA recovery image and BP 2.0.7 NA image contain
 293 identical NON-HLOS files, including every modem and carrier MCFG file.
