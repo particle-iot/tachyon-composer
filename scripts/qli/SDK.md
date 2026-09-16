@@ -37,7 +37,7 @@ of unused daemon subpackages; automatic ELF library dependencies stay enabled.
 ## Image runtime packages are a separate build
 
 `build-runtime-rpms.sh versions.json RUNTIME_WORKSPACE [--graph-only]` builds
-jq, socat, sudo, grep, sed, libgpiod and NetworkManager with modem support. It
+jq, onig (jq’s runtime library), socat, sudo, grep, sed, libgpiod and NetworkManager with modem support. It
 runs `package_write_rpm` tasks only, rather than recursive `do_build` or image/
 SDK tasks. A separate graph audit rejects kernel, bootloader, graphics and SDK
 work before compilation. The measured graph is **223 recipes / 2,477 tasks**,

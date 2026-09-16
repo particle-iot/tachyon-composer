@@ -9,7 +9,7 @@ import subprocess
 from assets import digest, fetch
 from runtime_bundle import stage_runtime
 
-REQUIRED = {'particle-linux', 'particle-tachyon-ril', 'particle-tachyon-syscon', 'particle-kigen-lpa', 'jq', 'socat', 'sudo', 'grep', 'sed',
+REQUIRED = {'particle-linux', 'particle-tachyon-ril', 'particle-tachyon-syscon', 'particle-kigen-lpa', 'jq', 'libonig5', 'socat', 'sudo', 'grep', 'sed',
             'networkmanager-daemon', 'networkmanager-wwan', 'networkmanager-wifi'}
 
 

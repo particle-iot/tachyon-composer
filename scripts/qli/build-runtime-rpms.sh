@@ -30,8 +30,9 @@ local_conf_header:
 YAML
 configs=meta-qcom/ci/rb3gen2-core-kit.yml:meta-qcom/ci/qcom-distro.yml:meta-qcom/ci/lock.yml:meta-qcom/ci/particle-runtime-rpms.yml
 # Build only RPM outputs, not do_build's recursive runtime recommendations or
-# a new image/toolchain. createrepo_c indexes the selected RPMs during composition.
-kas shell "$configs" -c 'bitbake -g -c package_write_rpm jq socat sudo grep sed libgpiod networkmanager'
+# a new image/toolchain. onig must emit an RPM too: jq needs libonig5;
+# populate_sysroot alone does not put dependency RPMs in deploy/rpm. createrepo_c indexes the selected RPMs during composition.
+kas shell "$configs" -c 'bitbake -g -c package_write_rpm jq onig socat sudo grep sed libgpiod networkmanager'
 python3 "$project/scripts/qli/check-runtime-graph.py" build
 [[ $mode = --graph-only ]] && exit 0
-kas shell "$configs" -c 'bitbake -c package_write_rpm jq socat sudo grep sed libgpiod networkmanager'
+kas shell "$configs" -c 'bitbake -c package_write_rpm jq onig socat sudo grep sed libgpiod networkmanager'
