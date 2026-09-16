@@ -1,4 +1,6 @@
 import importlib.util
+import os
+import re
 from pathlib import Path
 import unittest
 import subprocess
@@ -59,6 +61,30 @@ class SDKGraphTests(unittest.TestCase):
                                     capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse((root / 'sdk-graph.json').exists())
+
+    def test_sdk_install_removes_unshipped_mime_data_and_preserves_libraries(self):
+        source = Path(__file__).with_name('build-sdk.sh').read_text()
+        append = source.split("<<'RECIPE'\n", 1)[1].split('\nRECIPE', 1)[0]
+        hook = re.search(r'do_install:append\(\) \{\n(.*?)\n\}', append, re.S)
+        self.assertIsNotNone(hook, 'SDK recipe must remove unused installed MIME data')
+        for datadir in ('/usr/share', '/opt/qli/share'):
+            with self.subTest(datadir=datadir), tempfile.TemporaryDirectory() as directory:
+                stage = Path(directory) / 'staged root'
+                mime = stage / datadir.lstrip('/') / 'mime/packages/io.systemd.xml'
+                mime.parent.mkdir(parents=True)
+                mime.write_text('<mime-info/>')
+                libraries = ('usr/lib/libsystemd.so', 'usr/lib/libudev.so',
+                             'usr/include/systemd/sd-bus.h', 'usr/lib/pkgconfig/libsystemd.pc')
+                for filename in libraries:
+                    path = stage / filename
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text('SDK library/header fixture')
+                # Execute the actual recipe hook on the file layout from job 418.
+                subprocess.run(['sh', '-eu', '-c', hook[1]], check=True,
+                               env=dict(os.environ, D=str(stage), datadir=datadir))
+                self.assertFalse((stage / datadir.lstrip('/') / 'mime').exists())
+                for filename in libraries:
+                    self.assertEqual((stage / filename).read_text(), 'SDK library/header fixture')
 
     def test_graph_size_regression_rejected(self):
         with self.assertRaisesRegex(ValueError, 'budget'):

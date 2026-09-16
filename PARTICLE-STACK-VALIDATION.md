@@ -240,3 +240,21 @@ no compilation ran during these local graph checks. CI additionally links C,
 C++, libsystemd and SQLite probes and checks AArch64 before publishing the SDK.
 Those compiler checks still require the real SDK build. No completed new SDK,
 component RPM, live S3 upload or main-image/head2 acceptance pass is claimed.
+
+### SDK systemd packaging fix (job 418)
+
+The supplied job 418 log shows systemd configuration, compilation and installation
+succeeded, but `do_package` failed because `/usr/share/mime/packages/io.systemd.xml`
+and its parent directories were installed but unshipped. The SDK append had moved
+`MIMEDIR`, which also changed systemd's `FILES:${PN}-mime` package mapping.
+
+The SDK-only append now removes the unused journal MIME data from that recipe's
+staging directory during `do_install`, leaving `MIMEDIR` at its upstream value.
+Packaging QA remains enabled. A regression test executes the real install hook
+on the reported file layout and checks that SDK libraries, headers and pkg-config
+files survive, including a staging path with spaces and an alternate datadir.
+All 29 composer tests pass; the install regression also passes on Linux x86_64.
+A fresh graph resolution of the final fix still passes at 153 recipes / 2,511
+tasks. The retry retains the minimal dependency guard and
+uses the existing intermediate-cache fallback; reuse depends on job 418 having
+successfully saved its cache. No completed SDK or RPM is claimed from that job.

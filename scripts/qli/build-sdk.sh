@@ -28,7 +28,12 @@ cat > meta-particle-sdk/recipes-core/systemd/systemd_%.bbappend <<'RECIPE'
 # MIME databases belong to unused daemon packages, never to SDK libraries.
 DEPENDS:remove = "shared-mime-info"
 PACKAGE_WRITE_DEPS:remove = "shared-mime-info-native qemuwrapper-cross"
-MIMEDIR = "${datadir}/particle-sdk-unused-mime"
+# These files describe journal MIME types; they are not used by SDK libraries.
+# Remove the installed data instead of changing MIMEDIR: FILES:${PN}-mime uses
+# that variable too, so redirecting it leaves io.systemd.xml unshipped.
+do_install:append() {
+    rm -rf "${D}${datadir}/mime"
+}
 python __anonymous () {
     for package in (d.getVar('PACKAGES') or '').split():
         d.setVar('RDEPENDS:' + package, '')
