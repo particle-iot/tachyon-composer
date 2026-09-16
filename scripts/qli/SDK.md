@@ -36,13 +36,30 @@ of unused daemon subpackages; automatic ELF library dependencies stay enabled.
 
 ## Image runtime packages are a separate build
 
-`build-runtime-rpms.sh versions.json RUNTIME_WORKSPACE` retains the original
-image dependency build (jq, socat, sudo, grep, sed, libgpiod and NetworkManager with modem
-support). This is an explicit image-composition operation. It is never called
-by component RPM CI. Use a different workspace from the SDK so that the stock
-runtime configuration and SDK-only library configuration cannot contaminate
-each other's deploy directories. `build-components.py` accepts only the runtime
-workspace when collecting the image's local RPM repository.
+`build-runtime-rpms.sh versions.json RUNTIME_WORKSPACE [--graph-only]` builds
+jq, socat, sudo, grep, sed, libgpiod and NetworkManager with modem support. It
+runs `package_write_rpm` tasks only, rather than recursive `do_build` or image/
+SDK tasks. A separate graph audit rejects kernel, bootloader, graphics and SDK
+work before compilation. The measured graph is **223 recipes / 2,477 tasks**,
+with hard limits of 250 recipes / 2,800 tasks. Ptest suites are disabled. The optional GPIO simulator
+subpackage is excluded from the runtime bundle, and its kernel-module
+recommendations do not pull in a Qualcomm kernel build; images use the separately
+pinned Particle kernel. Production GPIO libraries/tools remain included.
+
+Use a separate workspace from the SDK. Stock QLI runtime library configuration
+is retained; the SDK's reduced systemd libraries must never enter an image.
+`record-runtime-rpms.py` records RPM identities/checksums, the QLI release and layer
+source revisions, and the audited task graph. It excludes development/debug,
+locale, documentation, ptest and GPIO simulator packages from the deploy bundle.
+
+`shared-runtime.py` publishes the verified runtime bundle to the existing S3
+candidate prefix using content-addressed files and a create-once input manifest.
+Its input key covers the locked QLI release and build/collection scripts; updating
+Particle component artifacts alone does not rebuild the runtime dependencies.
+Publication reads back and verifies the stored bytes. CI publishes from a fresh
+job to avoid expired OIDC credentials after compilation, then verifies public
+CDN links and posts them in a separate RIL PR comment. Auth or integrity failures
+must never silently trigger a cold rebuild.
 
 The shared SDK S3 input key hashes the release lock, build/setup/graph-check
 scripts and kas version. Changing to this minimal profile invalidates the old
