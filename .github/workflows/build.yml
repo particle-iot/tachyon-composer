@@ -1,10 +1,8 @@
 name: Build Tachyon 26.04
 
-# 26.04-only composer branch. `main` builds 24.04; this branch builds 26.04 and
-# NEVER writes the served OTA channels (latest/stable) -- 26.04 is gated to an
-# un-served preview manifest until deliberately promoted. 26.04 versions live on
-# an independent '26.04/'-namespaced tag stream (see the Determine version step),
-# so they never collide with 24.04's bare 1.2.x tags.
+# 26.04-only composer branch. Releases merge their builds into the shared latest
+# metadata; stable promotion is managed separately. Versions use the independent
+# '26.04/' tag stream, separate from 24.04's bare 1.2.x tags.
 
 on:
   pull_request:
@@ -373,9 +371,7 @@ jobs:
             "s3://${LINUX_DIST_S3_BUCKET}/${METADATA_KEY}" \
             --content-type application/json --only-show-errors
 
-          # 26.04 per-version manifests are ALWAYS tagged prerelease lifecycle: they
-          # are immutable per-version records, never the served channel. (26.04 is
-          # deliberately kept off latest/stable; see publish_release.)
+          # Only candidate per-version manifests get the prerelease lifecycle tag.
           if [[ "$IS_RELEASE" != "true" ]]; then
             aws s3api put-object-tagging \
               --bucket "$LINUX_DIST_S3_BUCKET" \
@@ -406,10 +402,8 @@ jobs:
           retention-days: 30
 
   # ── GitHub Release + 26.04 preview manifest (tag builds only) ─────────
-  # 26.04 NEVER touches the served channels (latest/stable). On a 26.04/x.y.z tag
-  # it publishes a GitHub Release and, when explicitly enabled, an un-served
-  # preview manifest. Promotion to the fleet OTA channels is a separate, deliberate
-  # step that does not live on this branch.
+  # Tagged releases publish a GitHub Release and update only their entries in
+  # shared latest metadata. Stable is never written by this job.
   publish_release:
     needs: [build, publish_metadata]
     runs-on: ubuntu-latest
@@ -423,6 +417,8 @@ jobs:
       && needs.publish_metadata.result == 'success'
       && startsWith(github.ref, 'refs/tags/')
     env:
+      # Merge this release into latest; stable is promoted separately.
+      PUSH_LATEST_JSON:     ${{ vars.PUSH_LATEST_JSON || 'true' }}
       LINUX_DIST_S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
       AWS_REGION:           ${{ secrets.AWS_REGION }}
       # Off by default: publishing even the un-served 26.04 preview is opt-in.
@@ -566,6 +562,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Update shared latest release metadata
+        if: env.PUSH_LATEST_JSON == 'true'
+        env:
+          LATEST_KEY: 'meta/tachyon-latest.json'
+          CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          set -euo pipefail
+          tachyon-update-published-metadata \
+            "$LINUX_DIST_S3_BUCKET" "$LATEST_KEY" release_metadata.json \
+            --origin "26.04"
+          if [ -n "${CF_DIST_ID:-}" ]; then
+            aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" \
+              --paths "/${LATEST_KEY}"
+          fi
+
       - name: Publish 26.04 preview metadata (un-served channel)
         if: env.PUSH_26_04_JSON == 'true'
         env:
@@ -584,4 +595,4 @@ jobs:
 
       - name: Preview metadata (dry run)
         if: env.PUSH_26_04_JSON != 'true'
-        run: echo "PUSH_26_04_JSON != 'true' -- 26.04 preview manifest not published. 26.04 stays off served AND preview channels."
+        run: echo "PUSH_26_04_JSON != 'true' -- 26.04 preview manifest not published. The optional preview manifest is disabled."
