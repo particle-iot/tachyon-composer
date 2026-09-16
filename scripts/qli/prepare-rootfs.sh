@@ -51,7 +51,7 @@ fstab=r/'etc/fstab'
 lines=[s for s in fstab.read_text().splitlines() if not (s.strip() and not s.lstrip().startswith('#') and len(s.split())>1 and s.split()[1] in ('/','/vendor','/persist','/boot/dtb_a'))]
 lines += ['PARTLABEL=system / ext4 defaults,noatime,errors=remount-ro 0 1',
           'PARTLABEL=core_nhlos_a /vendor vfat ro,nosuid,nodev,noexec,nofail 0 0',
-          'PARTLABEL=persist /persist ext4 defaults,nosuid,nodev,noatime,nofail 0 0',
+          'PARTLABEL=persist /persist ext4 defaults,nosuid,nodev,noatime,nofail,x-systemd.requires=tachyon-prepare-persist.service 0 0',
           'PARTLABEL=dtb_a /boot/dtb_a vfat rw,nofail,x-systemd.automount,sync 0 0']
 fstab.write_text('\n'.join(lines)+'\n')
 (r/'etc/particle').mkdir(exist_ok=True)
@@ -80,9 +80,12 @@ ln -sfn /usr/lib/systemd/system/multi-user.target "$units/default.target"
 for unit in weston.service weston.socket ofono.service android-tools-adbd.service systemd-repart.service systemd-repart.socket format-tee-partition.service; do
   ln -sfn /dev/null "$units/$unit"
 done
-# Reuse Ubuntu's existing persist filesystem. The reference image's TEE helper
-# can mkfs this calibration/state partition; it must never run on Tachyon.
+# Preserve an existing OS persist filesystem; initialize it on a 20.04 -> QLI
+# transition only after checking the exact target extent and filesystem type.
+# The reference TEE formatter has no Tachyon geometry guards and stays disabled.
 rm -f "$root/usr/sbin/check-tee-partition-fs.sh"
+install -m 755 "$here/tachyon-prepare-persist" "$root/usr/sbin/tachyon-prepare-persist"
+install -m 644 "$here/tachyon-prepare-persist.service" "$units/tachyon-prepare-persist.service"
 install -m 644 "$here/var-lib-tee.mount" "$units/var-lib-tee.mount"
 mkdir -p "$units/serial-getty@ttyMSM0.service.d"
 cat > "$units/serial-getty@ttyMSM0.service.d/lab.conf" <<'EOF'

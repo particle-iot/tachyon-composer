@@ -34,7 +34,8 @@ def rootfs(root, config):
     for path in ('/sbin/init', '/etc/os-release', '/boot/vmlinuz', '/boot/initrd.img',
                  f'/usr/lib/modules/{krel}/modules.dep', '/usr/sbin/sshd',
                  '/usr/bin/nmcli', '/usr/lib/firmware/qupv3fw.elf',
-                 '/usr/bin/adbd', '/usr/bin/pd-mapper', '/usr/bin/rmtfs',
+                 '/usr/sbin/mkfs.ext4', '/usr/sbin/blkid', '/usr/sbin/blockdev',
+                 '/usr/sbin/tachyon-prepare-persist', '/usr/bin/adbd', '/usr/bin/pd-mapper', '/usr/bin/rmtfs',
                  '/usr/bin/tqftpserv', '/usr/sbin/ModemManager',
                  '/usr/sbin/NetworkManager',
                  '/usr/lib/NetworkManager/1.56.0/libnm-wwan.so',
@@ -68,6 +69,8 @@ def rootfs(root, config):
     fstab = (root / 'etc/fstab').read_text()
     if 'PARTLABEL=system / ext4' not in fstab or 'PARTLABEL=core_nhlos_a /vendor' not in fstab:
         raise ValueError('Wrong root/vendor mounts')
+    if 'x-systemd.requires=tachyon-prepare-persist.service' not in fstab:
+        raise ValueError('Persist mount must depend on guarded initialization')
     for unit in ('systemd-repart.service', 'systemd-repart.socket', 'format-tee-partition.service'):
         if (root / f'etc/systemd/system/{unit}').readlink() != Path('/dev/null'):
             raise ValueError(f'Partition-changing service must be disabled: {unit}')
@@ -99,6 +102,6 @@ if __name__ == '__main__':
     elif sys.argv[1] == 'layout':
         writes, baseline = [json.loads(Path(p).read_text()) for p in sys.argv[2:4]]
         compare_layout(writes['partitions'], baseline)
-        print('Every flash write fits the recorded board layout')
+        print('All writes fit physical LUNs and preserve fixed provisioning regions')
     else:
         sys.exit('Usage: validate.py rootfs ROOT CONFIG | layout IMAGE_LAYOUT BOARD_LAYOUT')

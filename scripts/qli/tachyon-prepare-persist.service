@@ -1,0 +1,11 @@
+[Unit]
+Description=Initialize the Tachyon OS persist filesystem if absent
+DefaultDependencies=no
+Requires=dev-disk-by\x2dpartlabel-persist.device
+After=dev-disk-by\x2dpartlabel-persist.device
+Before=persist.mount
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/tachyon-prepare-persist
+RemainAfterExit=yes

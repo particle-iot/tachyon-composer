@@ -23,10 +23,13 @@ def main():
         raise SystemExit('Refusing to capture a board without Tachyon device-tree identity')
     disks = json.loads(run('lsblk', '-J', '-d', '-o', 'PATH,HCTL,TYPE'))['blockdevices']
     parts = []
+    capacities = []
     for disk in disks:
         if disk['type'] != 'disk' or not disk.get('hctl'):
             continue
         lun = int(disk['hctl'].split(':')[-1])
+        capacities.append({'lun': lun, 'size_bytes': int(run('blockdev', '--getsize64', disk['path'])),
+                           'sector_size': int(run('blockdev', '--getss', disk['path']))})
         table = json.loads(run('sfdisk', '-J', disk['path']))['partitiontable']
         sector = table['sectorsize']
         for p in table['partitions']:
@@ -38,7 +41,7 @@ def main():
     distro = versions.get('distro', {})
     baseline = {'board_serial': Path('/sys/devices/soc0/serial_number').read_text().strip(),
                 'hostname': run('hostname').strip(), 'kernel': run('uname', '-r').strip(),
-                'region': distro.get('region'), 'distro_versions': versions, 'partitions': parts}
+                'region': distro.get('region'), 'distro_versions': versions, 'partitions': parts, 'disks': capacities}
     if not args.backup_dir:
         print(json.dumps(baseline, indent=2)); return
     directory = args.backup_dir

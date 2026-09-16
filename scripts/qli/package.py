@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Make a GPT-preserving QLI experiment ZIP tree from Particle's assembly."""
+"""Package QLI using the same complete Tachyon flash layout as Ubuntu 24.04."""
 import json
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 import shutil
 import sys
 import xml.etree.ElementTree as ET
 from assets import digest
+from layout import (SECTOR, PROGRAM_XML, PATCH_XML, NV, check_protected,
+                    sector_number, validate_layout)
 
-# Only payload partitions from the pinned Tachyon layout. No NV, persist, GPT,
-# erase commands, provisioning, or reference-board geometry is accepted.
+# OS and firmware payloads from the shared Ubuntu 24.04 assembler.
+# GPT installation is validated separately; NV/persist writes are forbidden.
 ALLOWED = {
     0: {'system', 'efi', 'misc'},
     1: {'xbl_a', 'xbl_config_a'},
@@ -23,83 +24,101 @@ ALLOWED = {
 REQUIRED = {(0, 'system'), (0, 'efi'), (0, 'misc'), (6, 'dtb_a'), (6, 'core_nhlos_a')}
 
 
-def programs(factory):
+def programs(factory, *, read_bytes=None, payload_size=None, payload_digest=None):
+    read_bytes = read_bytes or (lambda name: (factory / name).read_bytes())
+    payload_size = payload_size or (lambda name: (factory / name).stat().st_size)
+    payload_digest = payload_digest or (lambda name: digest(factory / name))
+    validate_layout(read_bytes)
     rows = []
-    for path in sorted(factory.glob('rawprogram[0-9]*.xml')):
-        if not re.fullmatch(r'rawprogram\d+\.xml', path.name):
-            continue
-        for p in ET.parse(path).getroot():
-            if p.tag != 'program':
-                raise ValueError(f'Unexpected {p.tag} in {path}')
+    for name in PROGRAM_XML:
+        for p in ET.fromstring(read_bytes(name)):
             a = dict(p.attrib)
-            filename, label = a.get('filename', ''), a.get('label', '')
-            if not filename or label in {'PrimaryGPT', 'BackupGPT'}:
-                continue
+            filename, label = a.get('filename', ''), a['label']
+            if not filename:
+                continue  # A declaration is retained, but does not write data.
             lun = int(a['physical_partition_number'])
-            if label not in ALLOWED.get(lun, set()):
+            is_gpt = label in {'PrimaryGPT', 'BackupGPT'}
+            if not is_gpt and label not in ALLOWED.get(lun, set()):
                 raise ValueError(f'Forbidden write: LUN {lun} {label}')
             if Path(filename).name != filename:
                 raise ValueError('Payload must be a plain filename')
-            sector = int(a['SECTOR_SIZE_IN_BYTES'])
-            start, count = int(a['start_sector']), int(a['num_partition_sectors'])
-            if sector != 4096 or start < 0 or count < 0 or (count == 0 and (lun, label) != (0, 'system')):
-                raise ValueError(f'Invalid extent: {a}')
-            payload = factory / filename
-            if not payload.is_file() or not payload.stat().st_size or (count and payload.stat().st_size > count * sector):
+            count = int(a['num_partition_sectors'])
+            size = payload_size(filename)
+            if size <= 0 or (count and size > count * SECTOR):
                 raise ValueError(f'Missing/oversize payload: {filename}')
-            if label == 'misc' and payload.stat().st_size != count * sector:
+            if label == 'misc' and size != count * SECTOR:
                 raise ValueError('misc payload must cover the declared setup partition')
-            if int(a.get('file_sector_offset', '0')) != 0:
-                raise ValueError('Partial payload offsets are not supported')
-            # ptool emits count=0 for the growing system partition. The experiment
-            # writes only the supplied image, with an explicit finite extent.
-            count = (payload.stat().st_size + sector - 1) // sector
-            a['num_partition_sectors'] = str(count)
-            a['size_in_KB'] = str(count * sector // 1024)
-            if a.get('sparse', 'false').lower() != 'false':
-                raise ValueError('Expected raw payloads; sparse extents need separate validation')
-            rows.append((a, {'lun': lun, 'label': label, 'start_bytes': start * sector,
-                             'size_bytes': count * sector, 'filename': filename,
-                             'sha256': digest(payload)}))
+            # Retain the assembler's partition capacity in XML, like Ubuntu.
+            # The sidecar records the actual payload extent for bounds checks.
+            written = (size + SECTOR - 1) // SECTOR
+            row = {'lun': lun, 'label': label, 'size_bytes': written * SECTOR,
+                   'filename': filename, 'sha256': payload_digest(filename)}
+            if label == 'BackupGPT':
+                row['start_sector'] = a['start_sector']
+            else:
+                start = int(a['start_sector'])
+                row['start_bytes'] = start * SECTOR
+                check_protected(lun, start, written)
+            rows.append((a, row))
     keys = [(r['lun'], r['label']) for _, r in rows]
     if len(keys) != len(set(keys)) or not REQUIRED.issubset(keys):
         raise ValueError('Missing required partition or duplicate write')
-    for lun in ALLOWED:
+    # All boot/firmware payloads used by Ubuntu 24.04 must be present.
+    if not {(lun, label) for lun, labels in ALLOWED.items() for label in labels}.issubset(keys):
+        raise ValueError('Incomplete Ubuntu-compatible payload set')
+    for lun in range(7):
         extents = sorted((r['start_bytes'], r['start_bytes'] + r['size_bytes'])
-                         for _, r in rows if r['lun'] == lun)
+                         for _, r in rows if r['lun'] == lun and 'start_bytes' in r)
         if any(a[1] > b[0] for a, b in zip(extents, extents[1:])):
             raise ValueError(f'Overlapping writes on LUN {lun}')
     return rows
 
 
 def compare_layout(writes, baseline):
-    """Baseline partitions are byte extents, indexed by UFS LUN + GPT label."""
+    """Check physical LUN capacities, not the previous OS's partition names."""
+    disks = {d['lun']: d for d in baseline.get('disks', [])}
+    if set(disks) != set(range(7)):
+        raise ValueError('Baseline must record capacities of all seven physical LUNs')
     by_key = {(p['lun'], p['label']): p for p in baseline['partitions']}
     if len(by_key) != len(baseline['partitions']):
         raise ValueError('Ambiguous baseline partition labels')
+    for label, (start, count) in NV.items():
+        p = by_key.get((5, label), {})
+        if (p.get('start_bytes'), p.get('size_bytes')) != (start * SECTOR, count * SECTOR):
+            raise ValueError(f'Board fixed provisioning geometry mismatch: {label}')
+    resolved = {}
     for w in writes:
-        p = by_key.get((w['lun'], w['label']))
-        if p is None or p['start_bytes'] != w['start_bytes'] or p['size_bytes'] < w['size_bytes']:
-            raise ValueError(f'Board layout mismatch: LUN {w["lun"]} {w["label"]}')
-        if p.get('sector_size', 4096) != 4096:
+        disk = disks[w['lun']]
+        if disk['sector_size'] != SECTOR or disk['size_bytes'] % SECTOR:
             raise ValueError('Board logical sector size differs from the image')
+        start = w.get('start_bytes')
+        if start is None:
+            start = sector_number(w['start_sector'], disk['size_bytes'] // SECTOR) * SECTOR
+        end = start + w['size_bytes']
+        if start < 0 or end > disk['size_bytes']:
+            raise ValueError(f'Write exceeds physical LUN {w["lun"]}: {w["label"]}')
+        if w['label'] not in {'PrimaryGPT', 'BackupGPT'} and end > disk['size_bytes'] - 5 * SECTOR:
+            raise ValueError('Payload overlaps backup GPT')
+        check_protected(w['lun'], start // SECTOR, w['size_bytes'] // SECTOR)
+        resolved.setdefault(w['lun'], []).append((start, end))
+    for lun, extents in resolved.items():
+        extents.sort()
+        if any(a[1] > b[0] for a, b in zip(extents, extents[1:])):
+            raise ValueError(f'Overlapping writes on physical LUN {lun}')
 
 
 def package(factory, config, region, version, name):
     rows = programs(factory)
-    xml = ET.Element('data')
-    for attrs, _ in rows:
-        ET.SubElement(xml, 'program', attrs)
-    # Delete all unused assembler output, so even a flasher which scans *.xml
-    # cannot accidentally pick up a GPT or provisioning operation.
-    keep = {r['filename'] for _, r in rows} | {'prog_firehose_ddr.elf', 'initramfs-files.txt', 'package-validation.json'}
+    # Keep exactly the normal Ubuntu-style flash operations, including empty
+    # declarations (misc/persist/NV), primary/backup GPTs and disk-size patches.
+    # The assembler's wipe and UFS provisioning files are never distributed.
+    keep = {r['filename'] for _, r in rows} | set(PROGRAM_XML + PATCH_XML) | {
+        'prog_firehose_ddr.elf', 'initramfs-files.txt', 'package-validation.json'}
     if not (factory / 'prog_firehose_ddr.elf').is_file():
         raise ValueError('Missing Particle firehose')
     for p in factory.iterdir():
         if p.name not in keep:
             shutil.rmtree(p) if p.is_dir() else p.unlink()
-    ET.indent(xml)
-    ET.ElementTree(xml).write(factory / 'rawprogram_qli.xml', encoding='utf-8', xml_declaration=True)
     manifest = {
         '$schema': 'https://linux-dist.particle.io/schema/image_manifest_v1.json',
         'release_name': name, 'version': version, 'region': region,
@@ -110,14 +129,14 @@ def package(factory, config, region, version, name):
                     {'key': 'bp-fw', 'value': config['bp_fw_version']},
                     {'key': 'qli-rootfs-sha256', 'value': config['assets']['rootfs']['sha256']}],
         'targets': [{'qcm6490': {'edl': {'base': '.', 'firehose': 'prog_firehose_ddr.elf',
-                                       'program_xml': ['rawprogram_qli.xml'], 'patch_xml': []}}}],
+                                       'program_xml': PROGRAM_XML, 'patch_xml': PATCH_XML}}}],
     }
     for filename, obj in [('manifest.json', manifest), ('sources.json', config),
                           ('flash-layout.json', {'partitions': [r for _, r in rows]})]:
         (factory / filename).write_text(json.dumps(obj, indent=2) + '\n')
     entries = sorted(p for p in factory.iterdir() if p.is_file())
     (factory / 'SHA256SUMS').write_text(''.join(f'{digest(p)}  {p.name}\n' for p in entries))
-    print(f'Validated {len(rows)} in-place writes; no GPT, NV, persist or UFS provisioning')
+    print(f'Validated {len(rows)} writes including 14 GPTs and 7 patch files; protected data untouched')
 
 
 if __name__ == '__main__':
