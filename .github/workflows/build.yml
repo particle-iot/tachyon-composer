@@ -6,7 +6,7 @@ name: Build Tachyon QLI 2.0
 
 on:
   pull_request:
-    branches: [qli-2.0]
+    branches: [qli-2.0, feature/qli-2.0-bringup]
     types: [opened, synchronize, reopened]
   push:
     branches:
@@ -52,6 +52,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0  # need tags/commits for versioning
 
       - name: Set up Python
@@ -87,6 +88,34 @@ jobs:
       - name: Validate QLI source
         run: make test_qli
 
+      - name: Prepare pinned Kigen LPA RPM
+        env:
+          GH_TOKEN: ${{ secrets.KIGEN_SDK_TOKEN }}
+        run: |
+          set -euo pipefail
+          make check_qli_packages docker/qli
+          mkdir -p .tmp/qli/lpa .tmp/qli/input/rpms
+          readarray -t pin < <(python3 - <<'PYLPA'
+          import json
+          config = json.load(open('versions.json'))['lpa']
+          for key in ('repository', 'version', 'filename'):
+              print(config[key])
+          PYLPA
+          )
+          gh release download "${pin[1]}" --repo "${pin[0]}" --pattern "${pin[2]}" --dir .tmp/qli/lpa
+          docker run --rm --platform linux/arm64 --user root \
+            -v "$PWD:/project:ro" -v "$PWD/.tmp/qli/input/rpms:/output" \
+            tachyon-system-image-builder:qli-2.0-3 \
+            python3 /project/scripts/qli/package-lpa.py /project/versions.json /output \
+            --binary "/project/.tmp/qli/lpa/${pin[2]}"
+          python3 - <<'PYLPA'
+          import hashlib, json, pathlib
+          package = next(p for p in json.load(open('versions.json'))['rpm_packages'] if p['name'] == 'particle-kigen-lpa')
+          path = pathlib.Path('.tmp/qli/input/rpms') / package['filename']
+          if hashlib.file_digest(path.open('rb'), 'sha256').hexdigest() != package['sha256']:
+              raise SystemExit('Built Kigen RPM differs from the reviewed artifact lock')
+          PYLPA
+
       - name: Build Qualcomm Linux image
         id: build_step
         env:
@@ -98,6 +127,10 @@ jobs:
           OUTNAME="tachyon-qli-2.0-${REGION}-headless-formfactor_dvt-${VERSION}.zip"
           OUTPUT_PATH=".tmp/qli/output/${OUTNAME}"
           python3 scripts/qli/flash.py "$OUTPUT_PATH" --check-only
+          test -s "${OUTPUT_PATH}.sha256"
+          for suffix in manifest.json flash-layout.json package-validation.json; do
+            test -s "${OUTPUT_PATH%.zip}.${suffix}"
+          done
           URL_ENCODED="$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$OUTNAME")"
           echo "output_name=${OUTNAME}" >> "$GITHUB_OUTPUT"
           echo "output_path=${OUTPUT_PATH}" >> "$GITHUB_OUTPUT"
@@ -105,6 +138,7 @@ jobs:
           echo "url_encoded_name=${URL_ENCODED}" >> "$GITHUB_OUTPUT"
 
       - name: Upload flashable Linux image
+        id: image_artifact
         uses: actions/upload-artifact@v4
         with:
           name: qli-2.0-${{ matrix.region }}-headless
@@ -113,9 +147,25 @@ jobs:
             ${{ steps.build_step.outputs.output_path }}.sha256
             ${{ steps.build_step.outputs.output_stem }}.manifest.json
             ${{ steps.build_step.outputs.output_stem }}.flash-layout.json
+            ${{ steps.build_step.outputs.output_stem }}.package-validation.json
           if-no-files-found: error
           compression-level: 0
+          # The explicitly listed outputs live below .tmp/.
+          include-hidden-files: true
           retention-days: 14
+
+      - name: Record candidate download in build summary
+        env:
+          ARTIFACT_URL: ${{ steps.image_artifact.outputs.artifact-url }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          REGION: ${{ matrix.region }}
+        run: |
+          {
+            echo "## QLI 2.0 ${REGION} headless image"
+            echo "Version: ${VERSION}"
+            echo "Source commit: $(git rev-parse HEAD)"
+            echo "[Download ZIP, checksum and validation reports](${ARTIFACT_URL})"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify artifact exists
         env:
@@ -149,20 +199,50 @@ jobs:
           OBJ_KEY: "prerelease/${{ steps.build_step.outputs.output_name }}"
           OUTPUT_PATH: ${{ steps.build_step.outputs.output_path }}
         run: |
+          set -euo pipefail
           aws s3 cp "$OUTPUT_PATH" "s3://${S3_BUCKET}/${OBJ_KEY}" --only-show-errors
+          aws s3 cp "${OUTPUT_PATH}.sha256" "s3://${S3_BUCKET}/${OBJ_KEY}.sha256" --only-show-errors
+          for suffix in manifest.json flash-layout.json package-validation.json; do
+            aws s3 cp "${OUTPUT_PATH%.zip}.${suffix}" "s3://${S3_BUCKET}/${OBJ_KEY%.zip}.${suffix}" --only-show-errors
+          done
           echo "s3_uri=s3://${S3_BUCKET}/${OBJ_KEY}" >> "$GITHUB_OUTPUT"
 
-      - name: Comment with download link
-        if: steps.s3_upload_pr.outputs.s3_uri &&
-          github.event_name == 'pull_request' &&
-          env.UPLOAD_PR_ASSETS != 'false'
-        uses: peter-evans/create-or-update-comment@v4
+      - name: Comment with candidate downloads
+        if: always() && steps.image_artifact.outputs.artifact-url &&
+            github.event_name == 'pull_request' &&
+            github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        env:
+          ARTIFACT_URL: ${{ steps.image_artifact.outputs.artifact-url }}
+          PUBLIC_URL: https://linux-dist.particle.io/prerelease/${{ steps.build_step.outputs.url_encoded_name }}
+          S3_URI: ${{ steps.s3_upload_pr.outputs.s3_uri }}
+          REGION: ${{ matrix.region }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
         with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            **PR build uploaded** for **qli-2.0 ${{ matrix.region }} ${{ matrix.variant }}**
-            **Version:** `${{ steps.ver.outputs.version }}`
-            **Download:** [URL](https://linux-dist.particle.io/prerelease/${{ steps.build_step.outputs.url_encoded_name }})
+          script: |
+            const { ARTIFACT_URL, PUBLIC_URL, S3_URI, REGION, VERSION, SOURCE_SHA } = process.env;
+            const marker = `<!-- qli-candidate-${REGION} -->`;
+            const lines = [marker, `### QLI 2.0 ${REGION} headless candidate`,
+              `Source commit: ${SOURCE_SHA}`, `Version: ${VERSION}`,
+              `[GitHub artifact: image ZIP, SHA-256, manifest, flash layout and package validation](${ARTIFACT_URL}) (retained for 14 days).`];
+            if (S3_URI) {
+              const stem = PUBLIC_URL.replace(/\.zip$/, '');
+              lines.push(`[Download flashable ZIP](${PUBLIC_URL}) · [SHA-256](${PUBLIC_URL}.sha256)`,
+                `[Manifest](${stem}.manifest.json) · [Flash layout](${stem}.flash-layout.json) · [Package validation](${stem}.package-validation.json)`);
+            } else {
+              lines.push('S3 upload was disabled or did not complete; use the GitHub artifact above.');
+            }
+            lines.push('Composition and archive checks passed. Flash/setup and hardware acceptance are separate checks.');
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { ...context.repo, issue_number });
+            const previous = comments.find(c => c.user.login === 'github-actions[bot]' && c.body.includes(marker));
+            const body = lines.join('\n\n');
+            if (previous) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number, body });
+            }
 
       - name: Invalidate CloudFront (optional for PR)
         if: steps.s3_upload_pr.outputs.s3_uri &&

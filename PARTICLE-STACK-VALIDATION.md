@@ -12,7 +12,8 @@ build inputs.
    Record the exact source revisions, package metadata and artifact hashes.
 2. Pin those built artifacts in the candidate and build both NA and RoW images
    with offline dependency checks. Retain images, manifests and logs as CI
-   artifacts. Disable prerelease/release uploads during candidate testing.
+   artifacts. Publish candidate ZIPs and validation sidecars under `prerelease/`
+   for setup testing; do not publish releases or advance release channels.
 3. Run the existing Debian checks, component tests and CLI tests against these
    revisions. Record image hashes and candidate commit IDs in the test report.
 4. On head2, capture device identity, both GPT copies, protected provisioning
@@ -29,10 +30,9 @@ build inputs.
    user review. Do not merge PRs, tag releases or publish image/package releases
    before that review and explicit approval.
 
-Component builds use the shared SDK in CircleCI. Building the remaining Yocto
-runtime RPMs requires a Linux x86_64 build host with sufficient disk space. Image
-composition needs the exact pinned RPM artifacts; enabling the local
-GitHub image workflow also requires workflow-write access. Hardware testing needs
+Component builds use the shared SDK in CircleCI. All required runtime RPMs are
+now built and pinned. Image composition consumes those artifacts without a Yocto
+or SDK build; pushing the GitHub image workflow requires workflow-write access. Hardware testing needs
 an authenticated Embroid CLI connection to head2. Full functional radio testing additionally requires
 working SIM/eSIM test resources and a peer for SMS; peripheral and power tests
 need the corresponding lab equipment.
@@ -59,8 +59,10 @@ repeated ADB execution and normal `adb push` after the user renewed sign-in.
 All 17 RPMs are now installed on head2. On-device setup completed successfully
 and the device connected to Particle cloud. The new candidate image has not
 been flashed: these runtime tests use the existing particle8/BP 2.0.7 base.
-A later Embroid sign-in expiration currently prevents the final second-reboot
-comparison. No client patches or transfer workarounds were used in this run.
+After the user renewed Embroid sign-in, the second-reboot comparison passed:
+device ID, registration key/certificate hashes and all 14 GPT copies are unchanged.
+Particle cloud reconnected and installed RPM integrity passes. No client patches
+or transfer workarounds were used in this run.
 
 | Component | Current published source | RPM build | Debian build | Downloads |
 | --- | --- | --- | --- | --- |
@@ -98,7 +100,8 @@ URLs. All 13 runtime dependencies are also pinned to the verified build outputs.
 - **LPA:** the exact pinned RPM is installed on head2 using DNF with external
   repositories disabled. Package integrity and executable usage checks pass.
   [Device output](scripts/qli/validation/head2-lpa-installed.log).
-  eSIM operations have not yet been tested.
+  Read-only eSIM profile listing also passed through RIL's LPA integration;
+  profile mutations have not been tested.
 
 The minimal [SDK build 426](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/426)
 and [SDK link validation/S3 publication 427](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/427)
@@ -197,18 +200,25 @@ and repository-generation tools built successfully.
 
 ## Remaining before a complete candidate run
 
-1. Renew the Embroid session to finish the second-reboot key/certificate and
-   GPT comparison. The supported CLI works; no local client modifications apply.
-2. Supply approved registry credentials for the private-container test. On-device
+1. Supply approved registry credentials for the private-container test. On-device
    cloud registration does not create the CLI profile expected by the registry
    helper. Copying the user's local account token is awaiting their response.
-3. Complete approved SMS send/receive, eSIM mutation, modem-reset, peripheral,
+2. Complete approved SMS send/receive, eSIM mutation, modem-reset, peripheral,
    power and combined-load tests. GPS fixes require head1's antenna; head2 has none.
-4. Publish the prepared regional image CI workflow through an authorized
+3. Publish the prepared regional image CI workflow through an authorized
    workflow-write credential. PR #91 still has no image CI checks.
-5. Revalidate live layout/backups and recovery, flash the exact candidate, and
+4. Revalidate live layout/backups and recovery, flash the exact candidate, and
    repeat acceptance on its particle9/BP 2.0.8 base. Existing-base package results
    do not establish full candidate-image acceptance or host flashing/setup.
+
+## Existing setup partition — live check
+
+Head2 has exactly one `misc` partition on its system disk, `/dev/sda3`:
+LBA 138758, 256 sectors × 4096 bytes = 1,048,576 bytes. Its bootstrap length
+header is currently zero. This supports the CLI/bootstrap format's four-byte
+length plus up to 1,048,572 bytes of JSON. The check was read-only; setup can
+use the existing partition without adding, resizing or formatting partitions.
+[Live evidence](scripts/qli/validation/head2-misc-check.log).
 
 ## Current head2 device results — supported CLI run
 
@@ -227,7 +237,7 @@ and repository-generation tools built successfully.
 | QLI release-channel behavior | **PASS**, rejects unavailable feed without claiming APT updates | Same follow-up log |
 | Private registry container deployment | **INCOMPLETE**; host build/upload and cloud desired state passed, device pull failed for missing CLI account credentials | No account token copied without user response |
 | GNSS position fix | **UNAVAILABLE ON HEAD2**; user confirms only head1 has a GPS antenna | [Unfiltered suite output](scripts/qli/validation/head2-gnss-suite.log) records the attempted require-fix run |
-| Reboot persistence | First reboot reconnected with same reported device ID; exact key/GPT comparison **pending** after second reboot | First test marker was under volatile `/var/tmp`; corrected to `/var/lib`, then Embroid sign-in expired |
+| Reboot persistence | **PASS**, new boot ID; unchanged device ID, registration key/certificate hashes and all 14 GPT copies; cloud reconnected | [Second-reboot comparison](scripts/qli/validation/head2-after-reboot.log) |
 
 The GNSS require-fix run returned 33 pass / 8 fail / 11 skip. Seven failures
 require an antenna/fix unavailable on head2. The remaining NMEA-counter check

@@ -93,11 +93,17 @@ The release branches and tag streams are separate:
 | Ubuntu 26.04 | `26.04` | `26.04/1.3.x` | `1.3.0` |
 | Qualcomm Linux 2.0 open | `qli-2.0` | `qli-2.0/1.4.x` | `1.4.0` |
 
-Open QLI PRs against `qli-2.0`, not `main`. The PR workflow builds full
-NA and RoW headless flashable Linux ZIPs, validates every archive member and
-write extent, and uploads ZIP/checksum/manifest/layout artifacts to GitHub.
-Same-repository PRs also publish download links under `prerelease/` when
-`UPLOAD_PR_ASSETS` is enabled (the default).
+Open QLI PRs against `qli-2.0`, not `main`. During bring-up, the workflow also
+accepts PRs targeting `feature/qli-2.0-bringup`, including candidate PR #91.
+It builds the PR's exact head commit into NA and RoW headless flashable Linux
+ZIPs, validates every archive member and write extent, and uploads each ZIP,
+SHA-256, manifest, flash layout and package validation report to GitHub.
+The Actions summary and one updated comment per region link these artifacts
+(retained for 14 days). Same-repository PRs also upload the ZIP and sidecars
+under `prerelease/` when `UPLOAD_PR_ASSETS` is enabled (the default); the PR
+comments include direct download links. No release channel is updated by a PR.
+Download and extract the GitHub artifact wrapper to obtain the flashable ZIP,
+or download that ZIP directly from the S3 link in the comment.
 
 Merging a PR into `qli-2.0` tags the exact merge commit and explicitly
 dispatches the image build. The first release is `qli-2.0/1.4.0`; subsequent
@@ -407,42 +413,26 @@ can use a versions file from the Ubuntu branch explicitly; the QLI branch no
 longer carries a second set of Ubuntu kernel/firmware/package pins.
 
 `build_qli` requires the exact component RPM artifacts and their complete
-additional dependency closure in `rpm_packages`. The checked-in list currently
-contains only the built Kigen LPA wrapper. All three component RPM jobs passed
-using the published shared SDK, but their private artifacts still need to be
-retrieved and pinned; the image's runtime dependency RPMs also remain to be built.
-This deliberately blocks composition:
-there is no fallback to a partial image, Debian packages or an external feed.
+additional dependency closure in `rpm_packages`. The lock contains all 17
+packages: four Particle packages and 13 runtime dependencies. Image CI consumes
+the already built, checksummed component RPMs and runtime bundle; it does not
+build Yocto or an SDK. Kigen's pinned serial binary is wrapped deterministically
+with `scripts/qli/package-lpa.py`, and the resulting RPM must match the lock.
+The existing `KIGEN_SDK_TOKEN` secret supplies access to that private binary.
 
-1. Reuse the checksummed SDK published by the RIL CI job. For a deliberate cold
-   build on a Linux x86_64 host, run
-   `scripts/qli/build-sdk.sh versions.json /path/to/yocto-workspace`.
-2. Retrieve the successful component RPM artifacts, or source the aarch64 SDK
-   and build each component with its
-   `packaging/build-rpm.sh`; stage the pinned syscon inputs using its checksum
-   verifier. Build the missing utilities with `scripts/qli/build-runtime-rpms.sh`
-   in a separate workspace using the locked Yocto configuration.
-   Kigen's existing serial binary is wrapped by `scripts/qli/package-lpa.py`.
-3. Verify native module loading and installed dependencies against the QLI
-   rootfs. Pin successful outputs from `packages.json`, including source commit,
-   version/release, aarch64/noarch architecture, QLI revision, URL and SHA-256.
-4. Run `make build_qli INPUT_REGION=NA` and `INPUT_REGION=RoW`. The composer
-   stages only locked RPMs, generates a private file repository, installs exact
-   package identities with external repositories disabled, applies the pinned
-   QLI overlays, verifies installed identities/loading, file integrity, service
-   definitions/enabled state and version metadata, and removes the repository.
-   The factory ZIP includes a checksummed `package-validation.json` report.
+Run `make build_qli INPUT_REGION=NA` and `INPUT_REGION=RoW`. The composer stages
+only locked RPMs, generates a local repository, installs exact package identities
+with external repositories disabled, applies the pinned QLI overlays, verifies
+installed identities/loading, file integrity, service definitions/enabled state
+and version metadata, and removes the repository. Missing or mismatched packages
+fail composition. The factory ZIP includes a checksummed
+`package-validation.json` report.
 
-The locally committed composer CI workflow builds the pinned Yocto utilities/SDK
-and component RPMs first,
-retains their source metadata, then passes only checksum-matching locked outputs
-to both regional image jobs. Configure `QLI_SDK_RUNNER`, `QLI_YOCTO_WORKSPACE`
-and the private-input read token `QLI_INPUTS_TOKEN`. The default hosted runner
-fails the prerequisites rather than attempting a build without the required
-space/toolchain. Component repositories also provide standalone SDK dispatch
-jobs. GitHub rejected the workflow push because the credential lacks `workflow` scope.
-That commit remains local; the pipeline needs its first configured-host run.
-No package feed, release tag or release publication is part of this work.
+Only when changing the package pins, build new component artifacts in their
+repositories using the shared SDK. Build missing utilities separately with
+`scripts/qli/build-runtime-rpms.sh` against the locked Yocto configuration,
+then review and pin their exact outputs before composing images.
+No package feed, release tag or release publication is part of candidate testing.
 
 See [PARTICLE-STACK-VALIDATION.md](PARTICLE-STACK-VALIDATION.md) for acceptance
 status. Existing hardware results elsewhere in this document describe the older
