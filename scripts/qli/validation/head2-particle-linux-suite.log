@@ -1,0 +1,35 @@
+particle-linux test suite
+unit=particle-linux  service=io.particle.Particled
+
+PASS  pre_cli_present                        particlectl is installed
+PASS  pre_jq_present                         jq is available for reading the system document
+PASS  pre_unit_active                        particle-linux is active
+PASS  pre_bus_name_owned                     io.particle.Particled owns its bus name
+PASS  pre_systemdoc_readable                 'particlectl systemdoc' returns parseable JSON
+PASS  doc_has_device_identity                the document carries a device id and model
+SKIP  doc_has_package_versions               the document reports the installed particle-linux version
+      -> dpkg has no record of particle-linux; cannot compare
+PASS  doc_has_power                          system.power reports a battery percentage and source
+PASS  doc_has_memory                         system.memory reports totals that add up
+PASS  doc_has_uptime                         system.uptime is close to the kernel's
+PASS  doc_network_matches_interface          features.network names an interface that exists
+PASS  gnss_feature_present                   features.gnss exists when a GNSS daemon is running
+PASS  gnss_fix_state_is_a_known_name         features.gnss.fixState is one of the five documented names
+PASS  gnss_dop_values_present                hdop, vdop and pdop all reach the document
+PASS  gnss_accuracy_is_null                  accuracy is reported as null rather than synthesized
+PASS  gnss_age_is_plausible                  ageMs is present and not absurd
+SKIP  gnss_position_matches_the_daemon       the position in the document matches what the daemon reports
+      -> the daemon has no fix, so there is no position to compare
+SKIP  gnss_timestamp_is_from_the_fix         the timestamp is UTC from the fix, not the host clock
+      -> no timestamp yet; the receiver has not reported a UTC time
+PASS  cell_feature_present                   features.cellular exists when the RIL daemon is running
+PASS  cell_matches_the_daemon                the active ICCID in the document matches the daemon's
+PASS  log_no_sync_errors                     no GnssSync or RilSync errors since the unit started
+PASS  drop_doc_goes_stale_without_the_daemon stopping the GNSS daemon marks the document's location stale
+PASS  drop_doc_recovers_when_the_daemon_returns restarting the GNSS daemon reconnects without restarting particle-linux
+
+20 passed, 0 failed, 3 skipped
+
+Restoring device state...
+Restored.
+Suite exit code: 0

@@ -1,0 +1,157 @@
+Verified all 17 locked RPM inputs
+No repository match: *
+Package particle-kigen-lpa-0.1.8-1.aarch64 is already installed.
+Dependencies resolved.
+================================================================================
+ Package                  Arch      Version                 Repository     Size
+================================================================================
+Installing:
+ grep                     armv8_2a  3.12-r0                 @commandline  148 k
+ jq                       armv8_2a  1.8.1-r0                @commandline  195 k
+ libgpiod-tools           armv8_2a  2.2.4-r0                @commandline   51 k
+ libgpiod3                armv8_2a  2.2.4-r0                @commandline   22 k
+ libonig5                 armv8_2a  6.9.10-r0               @commandline  207 k
+ networkmanager-wwan      armv8_2a  1.56.0-r0.particle1     @commandline   59 k
+ particle-linux           aarch64   0.25.2-1                @commandline   52 M
+ particle-tachyon-ril     aarch64   0.7.0-1                 @commandline  631 k
+ particle-tachyon-syscon  aarch64   1.0.52-1                @commandline  144 k
+ sed                      armv8_2a  4.10-r0                 @commandline  115 k
+ socat                    armv8_2a  1.8.1.1-r0              @commandline  251 k
+ sudo                     armv8_2a  1.9.17p2-r0             @commandline  417 k
+ sudo-lib                 armv8_2a  1.9.17p2-r0             @commandline  400 k
+ sudo-sudo                armv8_2a  1.9.17p2-r0             @commandline  137 k
+Upgrading:
+ networkmanager-daemon    armv8_2a  1.56.0-r0.particle1     @commandline  2.1 M
+ networkmanager-wifi      armv8_2a  1.56.0-r0.particle1     @commandline   78 k
+
+Transaction Summary
+================================================================================
+Install  14 Packages
+Upgrade   2 Packages
+
+Total size: 57 M
+Downloading Packages:
+Running transaction check
+Transaction check succeeded.
+Running transaction test
+Transaction test succeeded.
+Running transaction
+  Preparing        :                                                        1/1
+  Upgrading        : networkmanager-daemon-1.56.0-r0.particle1.armv8_2a    1/18
+  Running scriptlet: networkmanager-daemon-1.56.0-r0.particle1.armv8_2a    1/18
+%post(networkmanager-daemon-1.56.0-r0.particle1.armv8_2a): scriptlet start
+%post(networkmanager-daemon-1.56.0-r0.particle1.armv8_2a): execv(/bin/sh) pid 2492
++ set -e
++ type systemctl
++ OPTS=
++ '[' -n '' ']'
++ '[' enable = enable ']'
++ for service in NetworkManager.service NetworkManager-dispatcher.service
++ systemctl enable NetworkManager.service
++ for service in NetworkManager.service NetworkManager-dispatcher.service
++ systemctl enable NetworkManager-dispatcher.service
++ '[' -z '' ']'
++ systemctl
++ systemctl daemon-reload
++ '[' -n 'NetworkManager.service NetworkManager-dispatcher.service' ']'
++ systemctl preset NetworkManager.service NetworkManager-dispatcher.service
++ '[' -n '' ']'
++ '[' enable = enable ']'
++ '[' -n 'NetworkManager.service NetworkManager-dispatcher.service' ']'
++ systemctl --no-block restart NetworkManager.service NetworkManager-dispatcher.service
+%post(networkmanager-daemon-1.56.0-r0.particle1.armv8_2a): waitpid(2492) rc 2492 status 0
+
+  Installing       : sudo-lib-1.9.17p2-r0.armv8_2a                         2/18
+  Installing       : sudo-sudo-1.9.17p2-r0.armv8_2a                        3/18
+  Installing       : sudo-1.9.17p2-r0.armv8_2a                             4/18
+  Installing       : socat-1.8.1.1-r0.armv8_2a                             5/18
+  Installing       : sed-4.10-r0.armv8_2a                                  6/18
+  Running scriptlet: sed-4.10-r0.armv8_2a                                  6/18
+%post(sed-4.10-r0.armv8_2a): scriptlet start
+%post(sed-4.10-r0.armv8_2a): execv(/bin/sh) pid 2733
++ set -e
++ update-alternatives --install /usr/bin/sed sed /usr/bin/sed.sed 100
+update-alternatives: Linking /usr/bin/sed to /usr/bin/sed.sed
+%post(sed-4.10-r0.armv8_2a): waitpid(2733) rc 2733 status 0
+
+  Installing       : libonig5-6.9.10-r0.armv8_2a                           7/18
+  Running scriptlet: libonig5-6.9.10-r0.armv8_2a                           7/18
+%post(libonig5-6.9.10-r0.armv8_2a): scriptlet start
+%post(libonig5-6.9.10-r0.armv8_2a): execv(/bin/sh) pid 2766
++ set -e
++ '[' x = x ']'
++ '[' -x /sbin/ldconfig ']'
++ /sbin/ldconfig
+%post(libonig5-6.9.10-r0.armv8_2a): waitpid(2766) rc 2766 status 0
+
+  Installing       : jq-1.8.1-r0.armv8_2a                                  8/18
+  Running scriptlet: jq-1.8.1-r0.armv8_2a                                  8/18
+%post(jq-1.8.1-r0.armv8_2a): scriptlet start
+%post(jq-1.8.1-r0.armv8_2a): execv(/bin/sh) pid 2770
++ set -e
++ '[' x = x ']'
++ '[' -x /sbin/ldconfig ']'
++ /sbin/ldconfig
+%post(jq-1.8.1-r0.armv8_2a): waitpid(2770) rc 2770 status 0
+
+  Installing       : libgpiod3-2.2.4-r0.armv8_2a                           9/18
+  Running scriptlet: libgpiod3-2.2.4-r0.armv8_2a                           9/18
+%post(libgpiod3-2.2.4-r0.armv8_2a): scriptlet start
+%post(libgpiod3-2.2.4-r0.armv8_2a): execv(/bin/sh) pid 2772
++ set -e
++ '[' x = x ']'
++ '[' -x /sbin/ldconfig ']'
++ /sbin/ldconfig
+%post(libgpiod3-2.2.4-r0.armv8_2a): waitpid(2772) rc 2772 status 0
+
+  Installing       : grep-3.12-r0.armv8_2a                                10/18
+  Running scriptlet: grep-3.12-r0.armv8_2a                                10/18
+%post(grep-3.12-r0.armv8_2a): scriptlet start
+%post(grep-3.12-r0.armv8_2a): execv(/bin/sh) pid 2776
++ set -e
++ update-alternatives --install /usr/bin/grep grep /usr/bin/grep.grep 100
+update-alternatives: Linking /usr/bin/grep to /usr/bin/grep.grep
++ update-alternatives --install /usr/bin/egrep egrep /usr/bin/egrep.grep 100
+update-alternatives: Linking /usr/bin/egrep to /usr/bin/egrep.grep
++ update-alternatives --install /usr/bin/fgrep fgrep /usr/bin/fgrep.grep 100
+update-alternatives: Linking /usr/bin/fgrep to /usr/bin/fgrep.grep
+%post(grep-3.12-r0.armv8_2a): waitpid(2776) rc 2776 status 0
+
+  Installing       : particle-tachyon-syscon-1.0.52-1.aarch64             11/18
+  Installing       : libgpiod-tools-2.2.4-r0.armv8_2a                     12/18
+  Installing       : particle-tachyon-ril-0.7.0-1.aarch64                 13/18
+  Installing       : particle-linux-0.25.2-1.aarch64                      14/18
+  Installing       : networkmanager-wwan-1.56.0-r0.particle1.armv8_2a     15/18
+  Upgrading        : networkmanager-wifi-1.56.0-r0.particle1.armv8_2a     16/18
+  Cleanup          : networkmanager-wifi-1.56.0-r0.armv8_2a               17/18
+  Running scriptlet: networkmanager-daemon-1.56.0-r0.armv8_2a             18/18
+%preun(networkmanager-daemon-1.56.0-r0.armv8_2a): scriptlet start
+%preun(networkmanager-daemon-1.56.0-r0.armv8_2a): execv(/bin/sh) pid 2886
++ '[' 1 = 0 ']'
+%preun(networkmanager-daemon-1.56.0-r0.armv8_2a): waitpid(2886) rc 2886 status 0
+
+  Cleanup          : networkmanager-daemon-1.56.0-r0.armv8_2a             18/18
+
+Upgraded:
+  networkmanager-daemon-1.56.0-r0.particle1.armv8_2a
+  networkmanager-wifi-1.56.0-r0.particle1.armv8_2a
+Installed:
+  grep-3.12-r0.armv8_2a
+  jq-1.8.1-r0.armv8_2a
+  libgpiod-tools-2.2.4-r0.armv8_2a
+  libgpiod3-2.2.4-r0.armv8_2a
+  libonig5-6.9.10-r0.armv8_2a
+  networkmanager-wwan-1.56.0-r0.particle1.armv8_2a
+  particle-linux-0.25.2-1.aarch64
+  particle-tachyon-ril-0.7.0-1.aarch64
+  particle-tachyon-syscon-1.0.52-1.aarch64
+  sed-4.10-r0.armv8_2a
+  socat-1.8.1.1-r0.armv8_2a
+  sudo-1.9.17p2-r0.armv8_2a
+  sudo-lib-1.9.17p2-r0.armv8_2a
+  sudo-sudo-1.9.17p2-r0.armv8_2a
+
+Complete!
+0.25.2
+PASS: head2 installed all 17 pinned RPMs; component file integrity passed
+Remote exit code: 0

@@ -1,179 +1,324 @@
 {
-  "sources": {
-    // New BP firmware (Quectel r108) — referenced as a published ARTIFACT ONLY, never as a
-    // repo dependency. Provides the boot chain (xbl/uefi/tz/aop/hyp/...), the QCM6490 fw, and
-    // the pre-built region NON-HLOS images (nonhlos-em.img / nonhlos-na.img). Boot blobs are
-    // TEST-signed; the composer RE-SIGNS them with the selectable key (see signing block).
-    // Replaces the old 20.04 base (tachyon-release-builder) + U-Boot.
-    // 2.0.3 was the NON-HLOS-packaging release (#7) — first to ship nonhlos-em.img /
-    // nonhlos-na.img alongside QCM6490_bootbinaries + QCM6490_fw. Since then:
-    //   2.0.4 (#8) XBL: fix low-battery boot stuck in the UEFI charging loop.
-    //   2.0.5 (#9) qup: hand QUPV3_1_SE0 to HLOS as the 40pin header UART.
-    //   2.0.6 (#10) grub: resolve the rootfs by PARTLABEL, not /dev/sda3.
-    //   2.0.7 (#11) battman: request DR_Swap when DP alt mode needs this port to be the DFP.
-    // 2.0.5 had to move together with kernel particle5: BP #9 releases the SE to HLOS and kernel
-    // #38 enables it in DT, and bumping only one side leaves the 40pin header UART dead. That
-    // pairing is satisfied and stays satisfied here.
-    // 2.0.6 is inert on this path: its grub fix is for the SDK's own tools/make-efi-img, whereas
-    // the composer builds efi.img from its OWN vendored copy (scripts/efi/grub-efi-src-dir), which
-    // already resolves root=PARTLABEL=system. It is picked up only because we were two behind.
-    // 2.0.7 is the live change: attached as a PD Sink the port starts as UFP, DP alt mode entry
-    // needs it to be the DFP, and nothing asked for the swap -- so whether an external display lit
-    // up depended on the monitor requesting it, and with no battery attached the screen stayed
-    // dark. It pairs with kernel particle8, which fixes what happened once DP *did* come up.
-    // The artifact layout is unchanged from 2.0.3 (same 519 entries, both nonhlos images), so the
-    // fetch/split in `make fetch_bp_fw` needs no changes.
-    "bp-fw": {
-      "version": "2.0.7",
-      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.7.zip"
+  "distribution": "qualcomm-linux",
+  "distribution_version": "2.0",
+  "distribution_variant": "open",
+  "kernel_release": "6.8.0-1058-particle",
+  "kernel_package_version": "6.8.0-1058.59+particle9",
+  "bp_fw_version": "2.0.8",
+  "rootfs_member": "images/rb3gen2-core-kit/qcom-multimedia-image-rb3gen2-core-kit/rootfs.img",
+  "assets": {
+    "rootfs": {
+      "url": "https://artifacts.codelinaro.org/artifactory/qli-ci/flashable-binaries/meta-qcom/rb3gen2-core-kit/qli-2.0-qcom-multimedia-image.zip",
+      "sha256": "31e25f8af580319737f76e825107ab6e9f99aa4bc523b181f130ee9af4a0ac0d"
     },
-
-    // The 24.04 base rootfs image (built by particle-iot/tachyon-ubuntu-24.04 via livecd-rootfs).
-    // Consumed as tachyon-ubuntu-24.04-<VARIANT>-image-<param>.img.xz from the release channel.
-    // Variants: headless (== server) and desktop, both published.
-    // 28-0b77b9a was rebuilt against the latest particle kernel, so it already carries
-    // linux-particle 6.8.0-1058.59+particle8 — matching the kernel pinned below.
-    "particle-iot/tachyon-ubuntu-24.04": {
-      "type": "git_release",
-      "param": "28-0b77b9a"
+    "kernel_image": {
+      "url": "https://linux-dist.particle.io/kernel/release/stable-6.8.0-1058.59particle9/linux-image-6.8.0-1058-particle_6.8.0-1058.59%2Bparticle9_arm64.deb",
+      "sha256": "03757d0e99566a311015567171c8838e2df5e266408ee1dc5e6836841f8cfcac"
     },
-
-    // Kernel input (single source of truth for the kernel line). Unlike main — where this was the
-    // "See PKG_linux_particle below" placeholder and the kernel was never fetched — the new-BP flow
-    // FETCHES this kernel modules deb to extract qcm6490-tachyon.dtb for dtb_a, so these are real
-    // download coordinates. The version here MUST stay in lock-step with PKG_linux_particle in the
-    // env block below and the kernel baked into the 24.04 base (ABI 1058), or check-pinned-packages
-    // will fail.  <-- deb_version == env.PKG_linux_particle (see below)
-    "particle-iot/tachyon-ubuntu-24.04-kernel": {
-      "type": "s3_release",
-      "param": "stable-6.8.0-1058.59particle8",
-      "abi": "1058",
-      // keep this equal to env.PKG_linux_particle below
-      "deb_version": "6.8.0-1058.59+particle8",
-      "base_url": "https://linux-dist.particle.io/kernel/release"
+    "kernel_modules": {
+      "url": "https://linux-dist.particle.io/kernel/release/stable-6.8.0-1058.59particle9/linux-modules-6.8.0-1058-particle_6.8.0-1058.59%2Bparticle9_arm64.deb",
+      "sha256": "bc4711d26c252f0e432b492ea36bd8f26897b7da1aea724357af2d204842cfb8"
     },
-
-    // Overlay stack applied to the rootfs (packages, configs, Particle services). The former
-    // 1.1 layout and its `when: { env: ENV_UBUNTU_24_04_VERSION, min: "1.2" }` gates were
-    // retired; the firmware/audio/modem overlays now apply unconditionally.
-    // Pinned to a full 40-char commit sha, not `main`: the composer fetches this with
-    // `git fetch --depth 1 origin <ref>`, so a moving ref makes a build non-reproducible
-    // and lets overlay behaviour change under a composer release. Abbreviated shas do
-    // NOT work here -- the server rejects them ("couldn't find remote ref"). Bump this
-    // deliberately when you want new overlays.
-    // 43aeed16 (#43) = "Backport the two fixes left behind on feature/new-bp (/vendor from
-    // initramfs, HDMI UCM verb)". Wi-Fi is the reason to take this. link-ath11k-firmware (already
-    // shipped, via overlays #26) symlinks /lib/firmware/updates/ath11k/.../board.bin ->
-    // /vendor/wlan/bdwlang.elf, but /vendor was mounted only by fstab at local-fs.target, ~300ms
-    // AFTER udev autoloads ath11k_pci -- so the board file is missing and the card never appears.
-    // amss.bin/m3.bin are the quieter half: linux-firmware ships same-named blobs, so those
-    // resolved to the upstream file instead of the vendor one with nothing logged. #43 adds an
-    // initramfs init-bottom hook that mounts core_nhlos_a before switch_root, replacing the race
-    // with a fixed ordering. Latent since 1.2.6 -- NOT a 1.2.20 regression; being a race is why it
-    // took two months to get reported. Also restores the HDMI UCM verb split, unrelated but
-    // stranded on the same branch: an unplugged DisplayPort used to fail the whole HiFi verb.
-    // 276e9868 = "24.04: ship NetworkManager's connectivity conf so first boot doesn't restart NM"
-    // (#40). Adds add-nm-connectivity-check to the 24.04 stack only. It writes the exact bytes
-    // particled would otherwise write to /etc/NetworkManager/conf.d/20-connectivity.conf, so on a
-    // fresh image particled finds the file already correct and never restarts NetworkManager --
-    // the restart that landed mid-Wi-Fi-association and cost ~7m30s before the first boot reached
-    // connected. The file header is load-bearing and the overlay test compares byte-for-byte: if
-    // particle-linux ever changes DESIRED_CONNECTIVITY_CONF, this overlay has to change with it.
-    // Pairs with PKG_particle_linux 0.25.2-1 below; either alone helps, both together is the fix.
-    // dc2f331b (#39) = "set-initial-time: compare against the setup time, not a hardcoded 2024".
-    "particle-iot/tachyon-overlay": {
-      "type": "git_release",
-      "param": "43aeed16ee09ee28a32c0d122577b2bd13d34037"
+    "bp_fw": {
+      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.8.zip",
+      "sha256": "f43514bd9f26da3d4475fb96033538de6538c641d217f559bb37a307f3fba26b"
     },
-
-    // The overlay TOOL (engine that applies the stack). Provides the `when` env-gate and ENV_*
-    // chroot forwarding the new-BP stack relies on (PR #3 merged to main).
-    // Pinned for the same reason as tachyon-overlay above: full 40-char sha, bumped
-    // deliberately. This tool applies the overlay stack, so a silent change here rewrites
-    // how every overlay is applied.
-    "particle-iot/tachyon-overlay-tool": {
-      "type": "git_release",
-      "param": "0b5f8fb597a8ba17e6e7035a0ca13d16ef29599c"
+    "qrtr_source": {
+      "url": "https://codeload.github.com/linux-msm/qrtr/tar.gz/27d2c9dfb4e8653ac314ebe2b7980fed2f4bac2e",
+      "filename": "qrtr-27d2c9dfb4e8653ac314ebe2b7980fed2f4bac2e.tar.gz",
+      "sha256": "315641ec00b010100b1e5d91eac1c76105e8978fb8a72c2428d779193e5c6290"
     },
-
-    // The Kigen LPA (eSIM local profile assistant) shipped as a prebuilt binary.
-    // Private repo: fetched on the HOST by fetch_kigen_sdk and handed to the
-    // overlay container as a resource, because the container has no credentials.
-    "particle-iot-inc/kigen-sdk": {
-      "type": "git_release",
-      "param": "0.1.8",
-      "asset": "lpa-linux-arm64"
+    "pd_mapper_source": {
+      "url": "https://codeload.github.com/linux-msm/pd-mapper/tar.gz/5ecd2fe926aca7abfe40724177f63b942cff3947",
+      "filename": "pd-mapper-5ecd2fe926aca7abfe40724177f63b942cff3947.tar.gz",
+      "sha256": "08972b8813d08da5e20d27e57c5989398a0b750be92cd4398b5b21190c6ccdd0"
+    },
+    "gpu_zap_mdt": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-gpu-firmware/files/a660_zap.mdt",
+      "sha256": "85b91bac9af0a79b9955126280903f881fee6f4ad3e69d4db961b1ef9f8ef9a3"
+    },
+    "gpu_zap_b00": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-gpu-firmware/files/a660_zap.b00",
+      "sha256": "e18210e36c1d1f25becbec8f92ede88dbcc5ca3c952e39337bc1b0adf4a093d6"
+    },
+    "gpu_zap_b01": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-gpu-firmware/files/a660_zap.b01",
+      "sha256": "59b4b80ea6dd92daaa5e2403c7b834d40d763a7c1ee18d2d70603aba54388c27"
+    },
+    "gpu_zap_b02": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-gpu-firmware/files/a660_zap.b02",
+      "sha256": "1a5fdbf458ea547c5459b301ab577a83461797b77bde9501fb48fc62d2d5f185"
+    },
+    "audio_topology": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-tachyon-audio/files/qcm6490-tachyon-snd-card-tplg.bin",
+      "sha256": "b230c8f66a741d804d7169a0132b1052305c166b061e43ca28d3e652186a27cb"
+    },
+    "audio_ucm_card": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-tachyon-audio/files/qcm6490-tachyon-snd-card.conf",
+      "sha256": "2d0d9309dd08e2e41508eebf8f58023a683166a7e8ca8e3d402e82f3189b7fd3"
+    },
+    "audio_ucm_alias": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-tachyon-audio/files/qcm6490.conf",
+      "sha256": "2d0d9309dd08e2e41508eebf8f58023a683166a7e8ca8e3d402e82f3189b7fd3"
+    },
+    "audio_ucm_hifi": {
+      "url": "https://raw.githubusercontent.com/particle-iot/tachyon-overlays/4bbd8a8947f30862f66c4d4faf4eac9a2c67da31/overlays/add-tachyon-audio/files/HiFi.conf",
+      "sha256": "af15a338012bb643a3f618fbee42777757cd880d4c5eed28b51193af0b982e7c"
     }
   },
-
-  // Signing configuration. The composer signs every boot/firmware blob itself (selectable key).
-  // profile=test  -> local test signer; key resolves to ./keys/<key>/ (committed test keys only).
-  // profile=prod  -> production/proprietary key supplied at build time via secret/mount, NEVER
-  //                  committed. See scripts/signing/README.md and keys/README.md.
-  "signing": {
-    "profile": "test",
-    "key": "qti_presigned_certs-key2048_exp257_hashSHA384"
+  "recovery_images": {
+    "NA": {
+      "url": "https://linux-dist.particle.io/releases/1.2.24/NA/tachyon-ubuntu-24.04-NA-desktop-1.2.24.zip",
+      "sha256": "11a82b07fa2bdbfeb49c6fb279a975a7317a303c77bd52b77a88c3b7a75bdb18"
+    },
+    "RoW": {
+      "url": "https://linux-dist.particle.io/releases/1.2.24/RoW/tachyon-ubuntu-24.04-RoW-desktop-1.2.24.zip",
+      "sha256": "1e6e42f9418d52d8992205b90a544a955f866599dd4866c20009aefe0751e7ba"
+    }
   },
-
-  "env": {
-    // Kernel version pinned INSIDE the rootfs by the overlay. MUST equal the kernel source
-    // deb_version above (6.8.0-1058.59+particle7) and be installable on the base image's ABI.
-    "PKG_linux_particle": "6.8.0-1058.59+particle8",
-
-    // Optional: URL to manually install kernel .deb (for unpublished PR builds).
-    // Multiple URLs separated by @@@ for related packages (image + modules).
-
-    //This is the particle debian package. 0.25.2 fixes the other half of the first-boot stall
-    //that the 1.2.18 run on head1 surfaced. particled compared 20-connectivity.conf against its
-    //desired contents, found it absent, wrote it and RESTARTED NetworkManager -- which tore down
-    //the Wi-Fi association in progress and left the device offline for ~7m30s. 0.25.2 reloads
-    //NetworkManager instead (systemctl reload, falling back to a restart only if reload fails);
-    //a reload re-reads conf.d without touching live connections. It also bounds the
-    //CheckConnectivity D-Bus call at 30s: the call has no timeout of its own, and one that never
-    //returned would stop the forced-connectivity timer rescheduling and silently defeat the
-    //workaround it exists to drive. The overlay above stops the rewrite happening at all on a
-    //fresh image; this covers upgrades and any image built without that overlay.
-    //Published to `latest`, as every particle-linux release since 0.22.1-1 is.
-    "PKG_particle_linux": "0.25.2-1",
-
-    //Radio code (RIL). 0.7.0 configures the modem's RF for the antenna that is
-    //attached, and makes it a switchable profile rather than a one-shot fix. The
-    //SG560D enables 4x4 MIMO on NR5G and LTE by default, which raises the packet
-    //loss rate on the two-element moulded antenna, and NA boards additionally have
-    //to run at reduced TX power for FCC certification -- but an external antenna
-    //adapter is a different aerial, so those settings belong to the antenna and not
-    //to the board. 0.7.0 adds `antenna --set internal|external`, `--get` and
-    //`--list` to ctl plus SetAntenna/GetAntenna on D-Bus, persists the profile in
-    ///etc/particle/antenna.yaml, and defaults to internal -- so a device that
-    //upgrades into this version and has never been configured lands on the
-    //FCC-correct profile. It reads all three settings before writing any of them,
-    //so a modem that cannot answer is left alone rather than half configured: MIMO
-    //written with TX power still at full is exactly the state an NA board is not
-    //certified for. It also refuses to touch a board whose AT+GMR variant is
-    //neither NA nor EM, and resets the modem rather than rebooting the device,
-    //tracking the reset separately from the write because AT+QTXPWR resets the
-    //modem by itself.
-    //This supersedes the modem-rf-config overlay. tachyon-overlays#41 is closed and
-    //never landed on main, so there is nothing to remove alongside this bump; the
-    //package form also reaches devices already in the field through `apt upgrade`
-    //rather than needing an OS image update, and avoids that overlay's first-boot
-    //reboot landing in the middle of setup, cloud claim and eSIM download.
-    //Published to the `latest` feed, not `stable`, exactly as 0.6.x is.
-    "PKG_particle_tachyon_ril": "0.7.0-1",
-
-    //The syscon package
-    "PKG_particle_tachyon_syscon": "1.0.52-1",
-
-    //version used in the debian file to pin the version down
-    "PIN_PRIORITY": "900"
+  "yocto": {
+    "repository": "https://github.com/qualcomm-linux/meta-qcom-releases.git",
+    "revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+    "lock_sha256": "e4325fd591b38241c4a00398cbb2232d7f562282c542b313a1e06a671abeb4f0"
   },
-
-  // Variant-only pins. Folded into the overlay env by the Makefile as
-  // env_<INPUT_VARIANT>, so these apply to that variant alone.
-  // particle-tachyon-desktop-setup lived in the shared env, which meant the pin
-  // machinery installed it on headless too.
-  "env_desktop": {
-    //Version of the setup app being used
-    "PKG_particle_tachyon_desktop_setup": "2.7.0"
+  "overlay_stack": "qli-headless-2.0",
+  "overlays": {
+    "repository": "https://github.com/particle-iot/tachyon-overlays.git",
+    "revision": "81f025a5c1ff8c9c1de8b6478fc895e65881241b"
+  },
+  "overlay_tool": {
+    "repository": "https://github.com/particle-iot/tachyon-overlay-tool.git",
+    "revision": "4b63dbf7378fadccc2fc35c9ce09a3601b51d10a"
+  },
+  "rpm_packages": [
+    {
+      "name": "particle-kigen-lpa",
+      "version": "0.1.8",
+      "release": "1",
+      "architecture": "aarch64",
+      "filename": "particle-kigen-lpa-0.1.8-1.aarch64.rpm",
+      "sha256": "fa874f9f91e7a73dbd8e70d21e3ccc45c37cdb93dcc81265feaec26719e401b4",
+      "source_revision": "973755701421813c6a8e19b2a2a0c4f1aa7946e6",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed"
+    },
+    {
+      "filename": "particle-tachyon-ril-0.7.0-1.aarch64.rpm",
+      "name": "particle-tachyon-ril",
+      "version": "0.7.0",
+      "release": "1",
+      "architecture": "aarch64",
+      "source_revision": "74934c1e46ae0226724cb9bf8fb7de83660b7d36",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "sha256": "e18c16a74bb836a2786c53ef37bfb6d2046ace422df3dd26b7d12e0097c26999",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-tachyon-ril/74934c1e46ae0226724cb9bf8fb7de83660b7d36/e18c16a74bb836a2786c53ef37bfb6d2046ace422df3dd26b7d12e0097c26999/particle-tachyon-ril-0.7.0-1.aarch64-74934c1e46ae0226724cb9bf8fb7de83660b7d36.rpm"
+    },
+    {
+      "filename": "particle-tachyon-syscon-1.0.52-1.aarch64.rpm",
+      "name": "particle-tachyon-syscon",
+      "version": "1.0.52",
+      "release": "1",
+      "architecture": "aarch64",
+      "source_revision": "157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "sha256": "13f3e9b3b494c036d273ef5f5b8b6b70a5deff4c515b6c5f80f37f695c8cbffc",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-tachyon-syscon/157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd/13f3e9b3b494c036d273ef5f5b8b6b70a5deff4c515b6c5f80f37f695c8cbffc/particle-tachyon-syscon-1.0.52-1.aarch64-157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd.rpm"
+    },
+    {
+      "filename": "particle-linux-0.25.2-1.aarch64.rpm",
+      "name": "particle-linux",
+      "version": "0.25.2",
+      "release": "1",
+      "architecture": "aarch64",
+      "source_revision": "e952c705e60f6a85cac06efd75daebe5a452c791",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "sha256": "a6aee23999809f28ffa602ab69c9a194b598cfa0271b7f5831eafcfb2ef89a3a",
+      "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-linux/e952c705e60f6a85cac06efd75daebe5a452c791/a6aee23999809f28ffa602ab69c9a194b598cfa0271b7f5831eafcfb2ef89a3a/particle-linux-0.25.2-1.aarch64-e952c705e60f6a85cac06efd75daebe5a452c791.rpm"
+    },
+    {
+      "name": "grep",
+      "version": "3.12",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "grep-3.12-r0.src.rpm",
+      "filename": "grep-3.12-r0.armv8_2a.rpm",
+      "sha256": "4255540ef9e4e4cdd8b1a5b6c16357fbbae3c4e5d699d62371de5178ff6f7699",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "jq",
+      "version": "1.8.1",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "jq-1.8.1-r0.src.rpm",
+      "filename": "jq-1.8.1-r0.armv8_2a.rpm",
+      "sha256": "c4a21303ef2b956a2d75a30da851d9e0e273a9ece604801bcc3c8da13361599a",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libgpiod-tools",
+      "version": "2.2.4",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "libgpiod-2.2.4-r0.src.rpm",
+      "filename": "libgpiod-tools-2.2.4-r0.armv8_2a.rpm",
+      "sha256": "413869bec8fe43707c68ee45707e6ecedeb236f3c39d0755ce33e6f71d4889da",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libgpiod3",
+      "version": "2.2.4",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "libgpiod-2.2.4-r0.src.rpm",
+      "filename": "libgpiod3-2.2.4-r0.armv8_2a.rpm",
+      "sha256": "ad67ac1e873cf774c05d56c251a53f040c864c87d57e485ffa56190ebc176983",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libonig5",
+      "version": "6.9.10",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "onig-6.9.10-r0.src.rpm",
+      "filename": "libonig5-6.9.10-r0.armv8_2a.rpm",
+      "sha256": "224c2f3cde6878caa67a7ef741dcd10ffabbc2bcd5b3daeb6428bc824cc2718c",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-daemon",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-daemon-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "35930a8d7d3936326ed060889ea08e857d45ea92c9af912ba5dcaeb889d1a314",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-wifi",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-wifi-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "554b05c2db65077df9992a28d7f30e24fd821ab4566b7ba271fcd0ad99f96f1b",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-wwan",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-wwan-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "19424d1242f6632d68c095349863fc59da879d0cb288ec53b2939a8e75e7dcb6",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sed",
+      "version": "4.10",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sed-4.10-r0.src.rpm",
+      "filename": "sed-4.10-r0.armv8_2a.rpm",
+      "sha256": "50651484e87366bc39d0131abfafeac0c3b777682f336d3dbcd4dc9d3062e098",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "socat",
+      "version": "1.8.1.1",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "socat-1.8.1.1-r0.src.rpm",
+      "filename": "socat-1.8.1.1-r0.armv8_2a.rpm",
+      "sha256": "239fc79a84fbfeb90261bff7f49b4f9e625fd6aff805c456d09aa8b671533915",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "ab2a9c3b7d05202244dca52c7ef51d87d45a438f2cb4587034a61425454ae69f",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo-lib",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-lib-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "e52fb97a83508317c5511ab5037de5784302a5178750274fddd331b82ab577a2",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo-sudo",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-sudo-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "3129980f96817c21eb016a7f536628139739cae712472416f1bb1aff6b455496",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    }
+  ],
+  "lpa": {
+    "repository": "particle-iot-inc/kigen-sdk",
+    "version": "0.1.8",
+    "source_revision": "973755701421813c6a8e19b2a2a0c4f1aa7946e6",
+    "filename": "lpa-linux-arm64",
+    "sha256": "77c76192dcdc3c3920831a7662bc03bf8529b234f62aa058ca31c47e4ed7f7e1",
+    "source_date_epoch": 1786863571
+  },
+  "components": {
+    "particle-linux": {
+      "repository": "https://github.com/particle-iot-inc/particle-linux.git",
+      "revision": "e952c705e60f6a85cac06efd75daebe5a452c791"
+    },
+    "ril": {
+      "repository": "https://github.com/particle-iot-inc/particle-tachyon-ril.git",
+      "revision": "74934c1e46ae0226724cb9bf8fb7de83660b7d36"
+    },
+    "syscon": {
+      "repository": "https://github.com/particle-iot-inc/particle-tachyon-syscon.git",
+      "revision": "157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd"
+    }
+  },
+  "qli_sdk": {
+    "manifest_key": "sdk/qli-2.0/x86_64/v1/f60db25b6dae7e1b6052bab9048eb3737192b8a065da1a0454e6873ca52f8d29/manifest.json",
+    "sha256": "596df0e8028f1d9c9093ba46dd8c3e1f0a1d3eaf9c64fe186a1fee9f65051da6"
+  },
+  "qli_runtime": {
+    "manifest_key": "candidates/qli-2.0/runtime/v1/c1c47bc678ae784ec21cfbd291d62a272eb5d42b2bd61392bac8c4f5cf4cd4ca/manifest.json",
+    "sha256": "3edd3a90ff8f6eaeac15ac0dc69213eed93a96c0abbacba2d723861a7bac9114"
   }
 }

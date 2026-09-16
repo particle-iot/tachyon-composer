@@ -1,0 +1,45 @@
+Result=success
+ExecMainStatus=0
+Sep 16 04:11:57 tachyon-qli systemd[1]: Starting Particle Tachyon Supervisory MCU Upgrade...
+Sep 16 04:11:57 tachyon-qli bash[3505]: Checking Syscon firmware for newer version
+Sep 16 04:11:57 tachyon-qli bash[3505]: Local Version: 1.0.52
+Sep 16 04:11:57 tachyon-qli bash[3505]: Syscon Version: 1.0.52
+Sep 16 04:11:57 tachyon-qli bash[3505]: Syscon version (1.0.52) is up-to-date or newer. Skipping upgrade.
+Sep 16 04:12:00 tachyon-qli bash[3505]: SysCon.id.hw_revision: 1.2.0
+Sep 16 04:12:00 tachyon-qli bash[3505]: SysCon.id.device_id: 422a060000000000d0c7965f
+Sep 16 04:12:00 tachyon-qli bash[3505]: SysCon.id.serial_number: P06400000000000
+Sep 16 04:12:00 tachyon-qli bash[3505]: SysCon.id.region: NA
+Sep 16 04:12:00 tachyon-qli bash[3505]: Warning: file /opt/particle/syscon.json not found
+Sep 16 04:12:00 tachyon-qli bash[3505]: Creating /opt/particle/syscon.json
+Sep 16 04:12:00 tachyon-qli bash[3505]: Identities backup: /opt/particle/syscon.json
+Sep 16 04:12:00 tachyon-qli bash[3505]: Updating /opt/particle/syscon.json with SysCon.id.hw_revision: 1.2.0
+Sep 16 04:12:00 tachyon-qli bash[3505]: Updating /opt/particle/syscon.json with SysCon.id.device_id: 422a060000000000d0c7965f
+Sep 16 04:12:00 tachyon-qli bash[3505]: Updating /opt/particle/syscon.json with SysCon.id.serial_number: P06400000000000
+Sep 16 04:12:00 tachyon-qli bash[3505]: Updating /opt/particle/syscon.json with SysCon.id.region: NA
+Sep 16 04:12:00 tachyon-qli bash[3566]: SysCon.id.hw_revision: 1.2.0
+Sep 16 04:12:00 tachyon-qli bash[3566]: SysCon.id.device_id: 422a060000000000d0c7965f
+Sep 16 04:12:00 tachyon-qli bash[3566]: SysCon.id.serial_number: P06400000000000
+Sep 16 04:12:00 tachyon-qli bash[3566]: SysCon.id.region: NA
+Sep 16 04:12:00 tachyon-qli bash[3566]: Identities backup: /opt/particle/syscon.json
+Sep 16 04:12:00 tachyon-qli systemd[1]: particle-tachyon-syscon.service: Deactivated successfully.
+Sep 16 04:12:00 tachyon-qli systemd[1]: Finished Particle Tachyon Supervisory MCU Upgrade.
+{"command": ["curl", "--interface", "qmapmux0.0", "--connect-timeout", "15", "--max-time", "25", "-sS", "-o", "/dev/null", "-w", "HTTP %{http_code} local_ip=%{local_ip}\n", "https://api.particle.io/"], "exit_code": 0, "stdout": "HTTP 302 local_ip=100.75.238.0\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "esim", "list"], "exit_code": 0, "stdout": "[[ICCID redacted], disabled]\n[[ICCID redacted], enabled]\n[[ICCID redacted], disabled]\n", "stderr": "Listing profiles...\nProfiles listed\n"}
+{"command": ["particle-tachyon-ril-ctl", "sms", "list", "--limit", "1"], "exit_code": 0, "stdout": "[message output withheld; 76 bytes]", "stderr": ""}
+{"command": ["particlectl", "status"], "exit_code": 0, "stdout": "Cloud connection status: Connected\n", "stderr": ""}
+{"command": ["particlectl", "release-channel", "stable"], "exit_code": 1, "stdout": "This image installs Particle RPMs during composition. No Particle update feed is configured; install a newer system image to update.\n", "stderr": "Cannot set release channel\n"}
+Id=particle-linux.service
+ActiveState=active
+NRestarts=1
+ExecMainStatus=0
+
+Id=particle-tachyon-rild.service
+ActiveState=active
+NRestarts=0
+ExecMainStatus=0
+
+Id=particle-tachyon-gnss.service
+ActiveState=active
+NRestarts=0
+ExecMainStatus=0
+Remote exit code: 0

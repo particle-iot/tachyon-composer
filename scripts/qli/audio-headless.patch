@@ -1,0 +1,51 @@
+--- HiFi.conf
++++ HiFi.conf
+@@ -18,7 +18,6 @@
+ 		cset "name='Left Channel Capture Volume' 8"
+ 		cset "name='Right Channel Capture Volume' 8"
+ 		cset "name='Capture Digital Volume' 192,192"
+-		cset "name='DISPLAY_PORT_RX_0 Audio Mixer MultiMedia4' on,on"
+ 	]
+ 
+ 	DisableSequence [
+@@ -27,7 +26,6 @@
+ 		cset "name='Right Mixer Right Playback Switch' off"
+ 		cset "name='MultiMedia3 Mixer PRIMARY_MI2S_TX' off,off"
+ 		cset "name='Onboard Mic Switch' off"
+-		cset "name='DISPLAY_PORT_RX_0 Audio Mixer MultiMedia4' off,off"
+ 	]
+ }
+ 
+@@ -54,24 +52,7 @@
+ 		PlaybackPriority 100
+ 		PlaybackPCM "hw:${CardId},0"
+ 		PlaybackChannels 2
+-	}
+-}
+-
+-SectionDevice."HDMI" {
+-	Comment "HDMI/DisplayPort output"
+-
+-	EnableSequence [
+-		cset "name='DISPLAY_PORT_RX_0 Audio Mixer MultiMedia4' on,on"
+-	]
+-
+-	DisableSequence [
+-		cset "name='DISPLAY_PORT_RX_0 Audio Mixer MultiMedia4' off,off"
+-	]
+-
+-	Value {
+-		PlaybackPriority 200
+-		PlaybackPCM "hw:${CardId},3"
+-		PlaybackChannels 2
++		PlaybackRate 48000
+ 	}
+ }
+ 
+@@ -95,5 +76,6 @@
+ 		CapturePriority 100
+ 		CapturePCM "hw:${CardId},2"
+ 		CaptureChannels 2
++		CaptureRate 48000
+ 	}
+ }

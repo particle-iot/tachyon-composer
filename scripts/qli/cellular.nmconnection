@@ -1,0 +1,18 @@
+[connection]
+id=cellular
+type=gsm
+autoconnect=true
+wait-device-timeout=90
+
+[gsm]
+# Particle's default SIM/APN, also used by the Ubuntu modem overlay.
+apn=ksx.global.data
+home-only=false
+
+[ipv4]
+method=auto
+route-metric=700
+
+[ipv6]
+method=auto
+route-metric=700

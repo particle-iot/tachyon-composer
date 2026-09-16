@@ -1,0 +1,89 @@
+particle-tachyon-gnss test suite
+unit=particle-tachyon-gnss  service=io.particle.tachyon.GNSS
+
+PASS  pre_ctl_present                        particle-tachyon-ril-ctl is installed
+PASS  pre_busctl_present                     busctl is available for D-Bus assertions
+PASS  pre_unit_active                        particle-tachyon-gnss is active
+PASS  pre_bus_name_owned                     io.particle.tachyon.GNSS owns its bus name
+PASS  dbus_introspect_getgnss                GetGnss is exported as a method returning a{sv}
+PASS  dbus_introspect_getinterval            GetGnssInterval is exported returning s
+PASS  dbus_introspect_setinterval            SetGnssInterval is exported taking i
+PASS  dbus_getgnss_returns_dict              GetGnss returns a dictionary carrying the documented keys
+PASS  dbus_getgnss_unprivileged              the bus policy lets a non-root caller reach the interface
+PASS  dbus_setinterval_rejects_out_of_range  SetGnssInterval rejects an out-of-range value with InvalidArgs
+PASS  dbus_introspect_location               Location property is exported as a{sv}
+PASS  dbus_introspect_fixstate               FixState property is exported as u
+PASS  dbus_property_location                 Get on Location returns a dictionary
+PASS  dbus_property_fixstate                 Get on FixState returns a known enum value
+PASS  dbus_propertieschanged_on_change       PropertiesChanged is emitted when a property actually changes
+PASS  dbus_interval_is_a_ceiling             Location is never emitted faster than the configured interval
+PASS  dbus_introspect_enable                 Enable method is exported taking i
+PASS  dbus_introspect_enabled_property       Enabled property is exported as b
+PASS  ctl_gnss_bare                          'gnss' prints a location report and exits 0
+PASS  ctl_gnss_key_set_matches_baseline      'gnss' emits exactly the 0.4.6 key set (no breaking change)
+PASS  ctl_gnss_get                           'gnss --get' prints the interval and exits 0
+PASS  ctl_gnss_power                         'gnss --power on|off' sets and 'gnss --power' queries
+PASS  param_set_zero                         '--set 0' is accepted (lower boundary)
+PASS  param_set_max                          '--set 3600' is accepted (upper boundary)
+PASS  param_set_negative                     '--set -1' is rejected
+PASS  param_set_over_max                     '--set 3601' is rejected
+PASS  param_set_non_numeric                  '--set abc' is rejected rather than silently meaning 0
+PASS  param_set_empty                        '--set ' with an empty argument is rejected
+PASS  param_set_missing_argument             '--set' with no argument prints usage and exits non-zero
+PASS  param_power_invalid                    '--power banana' is rejected
+PASS  param_unknown_flag                     an unknown gnss flag exits non-zero
+PASS  persist_yaml_created                   the daemon creates /etc/particle/gps.yaml
+PASS  persist_default_on                     a device with no /etc/particle/gps.yaml comes up with GNSS on
+FAIL  stream_nmea_progress                   the NMEA callback stream advances without requiring a fix
+      -> NMEA count stayed at 6 for 15s; the callback stream is stalled
+FAIL  fix_acquired                           a GNSS fix is available
+      -> no fix within 90s; required by --require-fix
+FAIL  fix_lat_lon_plausible                  latitude and longitude are non-zero and in range
+      -> no GNSS fix within 90s (fixmode=0, valid=0); required by --require-fix
+FAIL  fix_mode_valid                         fixmode reports a 2D or 3D fix
+      -> no GNSS fix within 90s (fixmode=0, valid=0); required by --require-fix
+FAIL  fix_satellites_used                    at least one satellite is used for positioning
+      -> no GNSS fix within 90s (fixmode=0, valid=0); required by --require-fix
+FAIL  fix_utc_near_host_clock                the fix timestamp is close to the host clock
+      -> no GNSS fix within 90s (fixmode=0, valid=0); required by --require-fix
+SKIP  fix_accuracy_present                   accuracy is reported in metres
+      -> not available on this platform: the vendor API that exposes accuracy needs mcmlocserverd, which the image does not ship
+FAIL  fix_state_reaches_fix                  FixState reaches FIX_2D or FIX_3D when a fix is held
+      -> no GNSS fix within 90s (fixmode=0, valid=0); required by --require-fix
+FAIL  fix_state_is_stable                    FixState does not flap while a fix is held
+      -> no GNSS fix within 90s (fixmode=0, valid=0); required by --require-fix
+SKIP  life_child_exists                      the daemon has forked a GNSS child
+      -> disruptive, skipped by --quick
+SKIP  life_child_signals_unblocked           the child does not block SIGINT/SIGTERM
+      -> disruptive, skipped by --quick
+SKIP  life_session_soak                      child PID, NMEA progress and RSS remain healthy across the session boundary
+      -> disruptive, skipped by --quick
+SKIP  life_stop_is_prompt                    'systemctl stop' completes promptly while idle
+      -> disruptive, skipped by --quick
+SKIP  life_stop_with_orphaned_child          'systemctl stop' is prompt even with an orphaned child
+      -> disruptive, skipped by --quick
+SKIP  life_child_respawns_once               killing the child produces exactly one respawn, daemon unaffected
+      -> disruptive, skipped by --quick
+SKIP  life_sighup_recycles_session           SIGHUP rebuilds the session without dropping the bus name
+      -> disruptive, skipped by --quick
+SKIP  life_power_round_trip                  '--power off' takes effect and reports FixState = DISABLED
+      -> disruptive, skipped by --quick
+SKIP  life_persist_values_survive_restart    interval written over D-Bus survives a daemon restart
+      -> disruptive, skipped by --quick
+SKIP  life_suspend_resume                    a fix is re-acquired after suspend/resume without a manual restart
+      -> disruptive, skipped by --quick
+
+33 passed, 8 failed, 11 skipped
+Failures:
+  stream_nmea_progress
+  fix_acquired
+  fix_lat_lon_plausible
+  fix_mode_valid
+  fix_satellites_used
+  fix_utc_near_host_clock
+  fix_state_reaches_fix
+  fix_state_is_stable
+
+Restoring device state...
+Restored.
+Suite exit code: 1

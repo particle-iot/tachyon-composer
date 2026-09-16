@@ -1,0 +1,156 @@
+ld-linux-aarch64.so.1()(64bit)
+ld-linux-aarch64.so.1(GLIBC_2.17)(64bit)
+libc.so.6()(64bit)
+libc.so.6(GLIBC_2.17)(64bit)
+rpmlib(CompressedFileNames) <= 3.0.4-1
+rpmlib(FileDigests) <= 4.6.0-1
+rpmlib(PayloadFilesHavePrefix) <= 4.0-1
+rtld(GNU_HASH)
+/bin/bash
+/bin/sh
+bash
+config(particle-linux) = 0.25.2-1
+coreutils
+docker-compose
+docker-moby
+docker-moby-cli
+ld-linux-aarch64.so.1()(64bit)
+ld-linux-aarch64.so.1(GLIBC_2.17)(64bit)
+libc.so.6()(64bit)
+libc.so.6(GLIBC_2.17)(64bit)
+libc.so.6(GLIBC_2.25)(64bit)
+libc.so.6(GLIBC_2.28)(64bit)
+libdl.so.2()(64bit)
+libdl.so.2(GLIBC_2.17)(64bit)
+libgcc_s.so.1()(64bit)
+libgcc_s.so.1(GCC_3.0)(64bit)
+libgcc_s.so.1(GCC_4.2.0)(64bit)
+libm.so.6()(64bit)
+libm.so.6(GLIBC_2.17)(64bit)
+libm.so.6(GLIBC_2.27)(64bit)
+libm.so.6(GLIBC_2.29)(64bit)
+libpthread.so.0()(64bit)
+libpthread.so.0(GLIBC_2.17)(64bit)
+libstdc++.so.6()(64bit)
+libstdc++.so.6(CXXABI_1.3)(64bit)
+libstdc++.so.6(CXXABI_1.3.5)(64bit)
+libstdc++.so.6(CXXABI_1.3.7)(64bit)
+libstdc++.so.6(CXXABI_1.3.9)(64bit)
+libstdc++.so.6(GLIBCXX_3.4)(64bit)
+libstdc++.so.6(GLIBCXX_3.4.11)(64bit)
+libstdc++.so.6(GLIBCXX_3.4.14)(64bit)
+libstdc++.so.6(GLIBCXX_3.4.15)(64bit)
+libstdc++.so.6(GLIBCXX_3.4.18)(64bit)
+libstdc++.so.6(GLIBCXX_3.4.20)(64bit)
+libstdc++.so.6(GLIBCXX_3.4.21)(64bit)
+libstdc++.so.6(GLIBCXX_3.4.26)(64bit)
+libstdc++.so.6(GLIBCXX_3.4.9)(64bit)
+networkmanager-nmcli
+rpmlib(CompressedFileNames) <= 3.0.4-1
+rpmlib(FileDigests) <= 4.6.0-1
+rpmlib(PayloadFilesHavePrefix) <= 4.0-1
+rtld(GNU_HASH)
+shadow
+sudo
+systemd
+upower
+/bin/bash
+/bin/sh
+bash
+config(particle-tachyon-ril) = 0.7.0-1
+ld-linux-aarch64.so.1()(64bit)
+ld-linux-aarch64.so.1(GLIBC_2.17)(64bit)
+libc.so.6()(64bit)
+libc.so.6(GLIBC_2.17)(64bit)
+libc.so.6(GLIBC_2.25)(64bit)
+libc.so.6(GLIBC_2.32)(64bit)
+libc.so.6(GLIBC_2.34)(64bit)
+libc.so.6(GLIBC_2.38)(64bit)
+libc.so.6(GLIBC_2.42)(64bit)
+libm.so.6()(64bit)
+libm.so.6(GLIBC_2.17)(64bit)
+libparticle_ril.so()(64bit)
+libsqlite3.so.0()(64bit)
+libsystemd.so.0()(64bit)
+libsystemd.so.0(LIBSYSTEMD_221)(64bit)
+libsystemd.so.0(LIBSYSTEMD_222)(64bit)
+libsystemd.so.0(LIBSYSTEMD_243)(64bit)
+logrotate
+modemmanager
+networkmanager-nmcli
+rpmlib(CompressedFileNames) <= 3.0.4-1
+rpmlib(FileDigests) <= 4.6.0-1
+rpmlib(PayloadFilesHavePrefix) <= 4.0-1
+rtld(GNU_HASH)
+socat
+systemd
+/bin/bash
+/bin/sh
+bash
+coreutils
+grep
+jq
+ld-linux-aarch64.so.1()(64bit)
+ld-linux-aarch64.so.1(GLIBC_2.17)(64bit)
+libc.so.6()(64bit)
+libc.so.6(GLIBC_2.17)(64bit)
+libc.so.6(GLIBC_2.34)(64bit)
+libc.so.6(GLIBC_2.38)(64bit)
+libc.so.6(GLIBC_2.42)(64bit)
+rpmlib(CompressedFileNames) <= 3.0.4-1
+rpmlib(FileDigests) <= 4.6.0-1
+rpmlib(PayloadFilesHavePrefix) <= 4.0-1
+rtld(GNU_HASH)
+sed
+systemd
+Checking /usr/bin/particle-tachyon-rild
+	linux-vdso.so.1 (0x0000ffffa566c000)
+	libparticle_ril.so => /usr/lib/libparticle_ril.so (0x0000ffffa55a0000)
+	libsystemd.so.0 => /lib/libsystemd.so.0 (0x0000ffffa5200000)
+	libsqlite3.so.0 => /lib/libsqlite3.so.0 (0x0000ffffa5420000)
+	libc.so.6 => /lib/libc.so.6 (0x0000ffffa5040000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffffa562f000)
+	libm.so.6 => /lib/libm.so.6 (0x0000ffffa4f70000)
+Checking /usr/bin/particle-tachyon-gnss
+	linux-vdso.so.1 (0x0000ffff9288e000)
+	libparticle_ril.so => /usr/lib/libparticle_ril.so (0x0000ffff927e0000)
+	libsystemd.so.0 => /lib/libsystemd.so.0 (0x0000ffff92400000)
+	libc.so.6 => /lib/libc.so.6 (0x0000ffff92620000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffff92851000)
+	libm.so.6 => /lib/libm.so.6 (0x0000ffff92330000)
+Checking /usr/bin/particle-tachyon-ril-ctl
+	linux-vdso.so.1 (0x0000ffffbbfd5000)
+	libsystemd.so.0 => /lib/libsystemd.so.0 (0x0000ffffbbc00000)
+	libc.so.6 => /lib/libc.so.6 (0x0000ffffbba40000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffffbbf98000)
+	libm.so.6 => /lib/libm.so.6 (0x0000ffffbbea0000)
+Checking /usr/bin/particle-tachyon-syscon-ctl
+	linux-vdso.so.1 (0x0000ffff939ba000)
+	libc.so.6 => /lib/libc.so.6 (0x0000ffff93790000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffff9397d000)
+Checking /usr/bin/mspm0flash
+	linux-vdso.so.1 (0x0000ffffa04fc000)
+	libc.so.6 => /lib/libc.so.6 (0x0000ffffa02e0000)
+	/lib/ld-linux-aarch64.so.1 (0x0000ffffa04bf000)
+Checking /usr/bin/lpa
+	linux-vdso.so.1 (0x0000ffffb8752000)
+	libc.so.6 => /lib/libc.so.6 (0x0000ffffb8450000)
+	/lib/ld-linux-aarch64.so.1 (0x0000ffffb8715000)
+Checking /usr/bin/particlectl
+	linux-vdso.so.1 (0x0000ffffaba22000)
+	libstdc++.so.6 => /lib/libstdc++.so.6 (0x0000ffffa7600000)
+	libm.so.6 => /lib/libm.so.6 (0x0000ffffa7930000)
+	libgcc_s.so.1 => /lib/libgcc_s.so.1 (0x0000ffffab9b0000)
+	libpthread.so.0 => /lib/libpthread.so.0 (0x0000ffffab980000)
+	libc.so.6 => /lib/libc.so.6 (0x0000ffffa7440000)
+	/lib/ld-linux-aarch64.so.1 (0x0000ffffab9e5000)
+	libdl.so.2 => /lib/libdl.so.2 (0x0000ffffab950000)
+0.25.2
+Usage: bundle setup [options]
+
+Run once to register with the Particle Cloud
+
+Options:
+  --force     restart setup even if already complete
+  -h, --help  display help for command
+Payload-only ABI check: not an RPM installation or hardware pass

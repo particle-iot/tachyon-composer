@@ -232,6 +232,7 @@ help:
 	@echo "  fetch_overlay_tool          Clone tachyon-overlay-tool inside Docker"
 	@echo "  fetch_tachyon_overlays      Clone tachyon-overlays inside Docker"
 	@echo "  vendor_sectools             Refresh the committed sectoolsv2 signer in scripts/signing/sectools/ (~38MB)"
+	@echo "  build_qli / fetch_qli_recovery / test_qli (see QLI.md)"
 	@echo "  doctor / check_qemu / setup_qemu / clean"
 	@echo ""
 	@echo "Required parameters:"
@@ -587,3 +588,6 @@ clean:
 	@echo "Cleanup completed."
 
 .DEFAULT_GOAL := help
+
+# Independent experimental QLI entry points; preserve the existing default goal.
+include scripts/qli/qli.mk

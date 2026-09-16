@@ -1,0 +1,12 @@
+[Unit]
+Description=Expose existing Tachyon persist filesystem to TEE
+RequiresMountsFor=/persist
+Before=sfsconfig.service
+ConditionPathIsMountPoint=/persist
+
+[Mount]
+What=/persist
+Where=/var/lib/tee
+Type=none
+Options=bind
+DirectoryMode=0755

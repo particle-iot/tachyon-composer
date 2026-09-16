@@ -1,0 +1,11 @@
+{
+  "partition": "misc",
+  "device": "/dev/sda3",
+  "start_lba": 138758,
+  "sectors": 256,
+  "sector_bytes": 4096,
+  "capacity_bytes": 1048576,
+  "bootstrap_header_length": 0,
+  "max_bootstrap_json_bytes": 1048572
+}
+PASS: existing misc supports setup bootstrap; read-only check, no partition changes

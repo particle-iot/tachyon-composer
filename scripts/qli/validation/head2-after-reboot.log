@@ -1,0 +1,15 @@
+PASS: new boot ID, unchanged Particle device ID, unchanged registration key/certificate, all 14 GPT copies unchanged
+Cloud connection status: Connected
+Id=particle-linux.service
+NRestarts=0
+ExecMainStatus=0
+Id=particle-tachyon-rild.service
+NRestarts=0
+ExecMainStatus=0
+Id=particle-tachyon-gnss.service
+NRestarts=0
+ExecMainStatus=0
+Connected
+Result=success
+ExecMainStatus=0
+PASS: registered device reconnected after reboot; candidate services and RPM integrity passed

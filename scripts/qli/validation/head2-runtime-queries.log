@@ -1,0 +1,29 @@
+Id=particle-linux.service
+ActiveState=active
+SubState=running
+NRestarts=0
+ExecMainStatus=0
+
+Id=particle-tachyon-rild.service
+ActiveState=active
+SubState=running
+NRestarts=0
+ExecMainStatus=0
+
+Id=particle-tachyon-gnss.service
+ActiveState=active
+SubState=running
+NRestarts=0
+ExecMainStatus=0
+{"command": ["particlectl", "message", "hi"], "exit_code": 0, "stdout": "Received result: unknown command\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "state"], "exit_code": 0, "stdout": "Connected\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "status"], "exit_code": 0, "stdout": "state: 12\nsignal-quality: 35, true\naccess-technologies: 13\nm3gpp-registration-state: 5\nm3gpp-operator-code: 310410\nm3gpp-operator-name: AT&T\ncdma-cdma1x-registration-state: 4\ncdma-evdo-registration-state: 4\ncdma-sid: 0\ncdma-nid: 0\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "vitals"], "exit_code": 0, "stdout": "signal_strength: -73\nrsrp: -106\nrsrq: -13\nrssnr: 3\nmcc: 310\nmnc: 410\nmccmnc: 310410\nmobile_carrier: AT&T\nact: 13\ndata_connection: 2\nstatus: 0\nretry: -1\ncall_id: 0\ntype: IP\nifname: qmapmux0.0\naddresses: 100.75.238.0\ndnses: 185.253.108.253 8.8.8.8\ngateways: 100.75.238.1\nmtu: 1360\nregistration_state: 5\nlac: 35634\ncid: 170836233\nrat: 14\nregistration_denied_reason: 255\nmax_calls: 1\ntac: 0\npci: 0\neci: 0\ncsgid: 0\ntadv: 0\ncgi_valid: 1\nlast_status_update_ms: 4058\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "sim", "status"], "exit_code": 0, "stdout": "slot: 1\ncard-state: present\napplication-type: usim\napplication-state: ready\npin-lock-state: disabled\npin1-state: disabled\npin2-state: enabled-not-verified\npersonalization-state: 2\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "active_sim", "--get"], "exit_code": 0, "stdout": "active_sim: 1\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "antenna", "--get"], "exit_code": 0, "stdout": "profile: internal\nvariant: NA\nnr5g_num_rx_cfg: 0102 (want 0102)\nlte_disable_4l_per_band: FFFFFFFFFFFFFFFFFFFF00000000000000000000000000000000000000000000 (want FFFFFFFFFFFFFFFFFFFF00000000000000000000000000000000000000000000)\ntx_power: reduced (want reduced)\n\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "gnss"], "exit_code": 0, "stdout": "valid: 0\nlast_lock_time_ms: 0\nsvnum: 0\nbeidou_svnum: 0\nnshemi: \newhemi: \nlatitude: 0.000000\nlongitude: 0.000000\ngpssta: 0\nposslnum: 0\nfixmode: 0\npdop: 0.000000\nhdop: 0.000000\nvdop: 0.000000\naltitude: 0.000000\nspeed: 0.000000\nutc: 0000/00/00 00:00:00\nslmsg[0]: 0,0,0,0\nslmsg[1]: 0,0,0,0\nslmsg[2]: 0,0,0,0\nslmsg[3]: 0,0,0,0\nslmsg[4]: 0,0,0,0\nslmsg[5]: 0,0,0,0\nslmsg[6]: 0,0,0,0\nslmsg[7]: 0,0,0,0\nslmsg[8]: 0,0,0,0\nslmsg[9]: 0,0,0,0\nslmsg[10]: 0,0,0,0\nslmsg[11]: 0,0,0,0\nbeidou_slmsg[0]: 0,0,0,0\nbeidou_slmsg[1]: 0,0,0,0\nbeidou_slmsg[2]: 0,0,0,0\nbeidou_slmsg[3]: 0,0,0,0\nbeidou_slmsg[4]: 0,0,0,0\nbeidou_slmsg[5]: 0,0,0,0\nbeidou_slmsg[6]: 0,0,0,0\nbeidou_slmsg[7]: 0,0,0,0\nbeidou_slmsg[8]: 0,0,0,0\nbeidou_slmsg[9]: 0,0,0,0\nbeidou_slmsg[10]: 0,0,0,0\nbeidou_slmsg[11]: 0,0,0,0\npossl[0]: 0\npossl[1]: 0\npossl[2]: 0\npossl[3]: 0\npossl[4]: 0\npossl[5]: 0\npossl[6]: 0\npossl[7]: 0\npossl[8]: 0\npossl[9]: 0\npossl[10]: 0\npossl[11]: 0\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "sms", "list", "--limit", "0"], "exit_code": 1, "stdout": "Usage:\n  particle-tachyon-ril-ctl sms                              Open the interactive SMS browser\n  particle-tachyon-ril-ctl sms list [--limit N] [--offset N] List stored messages\n  particle-tachyon-ril-ctl sms read <id>                    Read a message and mark it read\n  particle-tachyon-ril-ctl sms send <number> <message>       Send and store a message\n  particle-tachyon-ril-ctl sms delete <id>                  Delete a stored message\n  particle-tachyon-ril-ctl sms unread <id>                  Mark an incoming message unread\n  particle-tachyon-ril-ctl sms read-state <id>              Print read or unread\n", "stderr": ""}
+{"command": ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "device"], "exit_code": 0, "stdout": "wlp1s0:wifi:connected\nqrtr0:gsm:connected\nlo:loopback:connected (externally)\ndocker0:bridge:connected (externally)\nvirbr0:bridge:connected (externally)\np2p-dev-wlp1s0:wifi-p2p:disconnected\nqmapmux0.0:rmnet:unmanaged\n", "stderr": ""}
+{"command": ["lpa", "version"], "exit_code": 0, "stdout": "LPA version: 0.1.8\n", "stderr": ""}
+Remote exit code: 0
