@@ -1,0 +1,13 @@
+Command failed with Error: Could not send a message to the particle-linux service. Make sure it is running with systemctl start particle-linux and try again.
+    at Setup.verifyService (/snapshot/particle-linux-0.25.2/dist/bundle.js:166125:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Setup.run (/snapshot/particle-linux-0.25.2/dist/bundle.js:166109:11)
+    at async Object.setup2 [as setup] (/snapshot/particle-linux-0.25.2/dist/bundle.js:172349:7)
+    at async _Command.parseAsync (/snapshot/particle-linux-0.25.2/dist/bundle.js:116199:9)
+    at async runParticleLinuxCli (/snapshot/particle-linux-0.25.2/dist/bundle.js:194579:9)
+This error originated either by throwing inside of an async function without a catch block, or by rejecting a promise which was not handled with .catch(). The promise rejected with the reason:
+Error: getaddrinfo EAI_AGAIN o19522.ingest.us.sentry.io
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:120:26)
+    at GetAddrInfoReqWrap.callbackTrampoline (node:internal/async_hooks:130:17)
+particlectl setup exit code with daemon unavailable: 1
+PASS: unavailable daemon produces setup error and exit 1

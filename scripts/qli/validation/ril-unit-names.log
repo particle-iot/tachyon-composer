@@ -1,0 +1,49 @@
+Testing packaged unit: particle-tachyon-rild
+/proc/ is not mounted. This is not a supported mode of operation. Please fix
+your invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.
+Your mileage may vary.
+Failed to enable unit: Unit particle-tachyon-rild.service does not exist
+Binding to IPv6 address not available since kernel does not support IPv6.
+Binding to IPv6 address not available since kernel does not support IPv6.
+/proc/ is not mounted. This is not a supported mode of operation. Please fix
+your invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.
+Your mileage may vary.
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-tachyon-rild.service' → '/usr/lib/systemd/system/particle-tachyon-rild.service'.
+/proc/ is not mounted. This is not a supported mode of operation. Please fix
+your invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.
+Your mileage may vary.
+enabled
+Testing packaged unit: particle-tachyon-gnss
+/proc/ is not mounted. This is not a supported mode of operation. Please fix
+your invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.
+Your mileage may vary.
+Failed to enable unit: Unit particle-tachyon-gnss.service does not exist
+Binding to IPv6 address not available since kernel does not support IPv6.
+Binding to IPv6 address not available since kernel does not support IPv6.
+/proc/ is not mounted. This is not a supported mode of operation. Please fix
+your invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.
+Your mileage may vary.
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-tachyon-gnss.service' → '/usr/lib/systemd/system/particle-tachyon-gnss.service'.
+/proc/ is not mounted. This is not a supported mode of operation. Please fix
+your invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.
+Your mileage may vary.
+enabled
+Testing packaged unit: particle-tachyon-gnss-resume
+/proc/ is not mounted. This is not a supported mode of operation. Please fix
+your invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.
+Your mileage may vary.
+Failed to enable unit: Unit particle-tachyon-gnss-resume.service does not exist
+Binding to IPv6 address not available since kernel does not support IPv6.
+Binding to IPv6 address not available since kernel does not support IPv6.
+/proc/ is not mounted. This is not a supported mode of operation. Please fix
+your invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.
+Your mileage may vary.
+Created symlink '/etc/systemd/system/suspend.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/hibernate.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/suspend-then-hibernate.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/hybrid-sleep.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+/proc/ is not mounted. This is not a supported mode of operation. Please fix
+your invocation environment to mount /proc/ and /sys/ properly. Proceeding anyway.
+Your mileage may vary.
+enabled
+Unit naming defect reproduced; corrected names verified in clean QLI rootfs. No service runtime/hardware acceptance.
