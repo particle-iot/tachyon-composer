@@ -84,7 +84,7 @@
   "overlay_stack": "qli-headless-2.0",
   "overlays": {
     "repository": "https://github.com/particle-iot/tachyon-overlays.git",
-    "revision": "9e8450f618888f0ffe96471657551316792eaf87"
+    "revision": "32957a3a01130cc9bb85f1dbb2fd23733eb88010"
   },
   "overlay_tool": {
     "repository": "https://github.com/particle-iot/tachyon-overlay-tool.git",
