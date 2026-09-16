@@ -40,7 +40,7 @@ of unused daemon subpackages; automatic ELF library dependencies stay enabled.
 jq, onig (jq’s runtime library), socat, sudo, grep, sed, libgpiod and NetworkManager with modem support. It
 runs `package_write_rpm` tasks only, rather than recursive `do_build` or image/
 SDK tasks. A separate graph audit rejects kernel, bootloader, graphics and SDK
-work before compilation. The measured graph is **223 recipes / 2,477 tasks**,
+work before compilation. The measured graph is **223 recipes / 2,478 tasks**,
 with hard limits of 250 recipes / 2,800 tasks. Ptest suites are disabled. The optional GPIO simulator
 subpackage is excluded from the runtime bundle, and its kernel-module
 recommendations do not pull in a Qualcomm kernel build; images use the separately

@@ -1,0 +1,28 @@
+Testing corrected packaged unit: particle-tachyon-rild
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-tachyon-rild.service' → '/usr/lib/systemd/system/particle-tachyon-rild.service'.
+Testing corrected packaged unit: particle-tachyon-gnss
+Created symlink '/etc/systemd/system/multi-user.target.wants/particle-tachyon-gnss.service' → '/usr/lib/systemd/system/particle-tachyon-gnss.service'.
+Testing corrected packaged unit: particle-tachyon-gnss-resume
+Created symlink '/etc/systemd/system/suspend.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/hibernate.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/suspend-then-hibernate.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+Created symlink '/etc/systemd/system/hybrid-sleep.target.wants/particle-tachyon-gnss-resume.service' → '/usr/lib/systemd/system/particle-tachyon-gnss-resume.service'.
+	linux-vdso.so.1 (0x0000ffffa8aa7000)
+	libparticle_ril.so => /usr/lib/libparticle_ril.so (0x0000ffffa89e0000)
+	libsystemd.so.0 => /lib/libsystemd.so.0 (0x0000ffffa8600000)
+	libsqlite3.so.0 => /lib/libsqlite3.so.0 (0x0000ffffa8860000)
+	libc.so.6 => /lib/libc.so.6 (0x0000ffffa8440000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffffa8a6a000)
+	libm.so.6 => /lib/libm.so.6 (0x0000ffffa8370000)
+	linux-vdso.so.1 (0x0000ffffab62f000)
+	libparticle_ril.so => /usr/lib/libparticle_ril.so (0x0000ffffab590000)
+	libsystemd.so.0 => /lib/libsystemd.so.0 (0x0000ffffab200000)
+	libc.so.6 => /lib/libc.so.6 (0x0000ffffab040000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffffab5f2000)
+	libm.so.6 => /lib/libm.so.6 (0x0000ffffab4c0000)
+	linux-vdso.so.1 (0x0000ffff807e0000)
+	libsystemd.so.0 => /lib/libsystemd.so.0 (0x0000ffff80400000)
+	libc.so.6 => /lib/libc.so.6 (0x0000ffff80240000)
+	/usr/lib/ld-linux-aarch64.so.1 => /lib/ld-linux-aarch64.so.1 (0x0000ffff807a3000)
+	libm.so.6 => /lib/libm.so.6 (0x0000ffff806b0000)
+PASS: rebuilt RPM unit definitions, enablement and ELF dependencies in clean QLI. Service runtime and hardware tests remain pending.

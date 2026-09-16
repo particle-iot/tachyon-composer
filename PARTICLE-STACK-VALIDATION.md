@@ -41,14 +41,16 @@ need the corresponding lab equipment.
 
 **Not ready for image acceptance or landing.** Candidate testing has found and
 fixed packaging/runtime defects; full installation, regional image builds and
-successful setup still remain unverified. The complete DNF transaction currently
-fails on absent runtime packages: `socat`, `jq`, `sudo`, `grep`, and `sed`.
-The bounded dependency build is [job 444](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/444).
-Its graph contains 223 recipes / 2,477 tasks and excludes image, kernel and SDK builds.
+successful setup still remain unverified. The initial dependency bundle now supplies `socat`, `jq`, `sudo`, `grep` and
+`sed`, but a new complete DNF transaction found jq's missing `libonig5` RPM.
+The [cached dependency refresh, job 460](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/460)
+adds that explicit output. Its audited graph contains 223 recipes / 2,478 tasks:
+one additional packaging task, with no image, kernel or SDK build.
+[Actual DNF failure](scripts/qli/validation/missing-libonig.log).
 
 | Component | Current published source | RPM build | Debian build | Downloads |
 | --- | --- | --- | --- | --- |
-| [RIL #63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) | `6bbb9550920a6df7e3cae5a5821b7868ca194bf5` | [449 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/449) | [450 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/450) | [S3 links](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63#issuecomment-5690745458) |
+| [RIL #63](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63) | `74934c1e46ae0226724cb9bf8fb7de83660b7d36` | [467 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/467) | [463 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-ril/463) | [S3 links](https://github.com/particle-iot-inc/particle-tachyon-ril/pull/63#issuecomment-5690745458) |
 | [Syscon #36](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36) | `157b47ccf8c6109ac9dff04f8b73f3e595ec5bdd` | [214 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/214) | [212 passed](https://circleci.com/gh/particle-iot-inc/particle-tachyon-syscon/212) | [S3 links](https://github.com/particle-iot-inc/particle-tachyon-syscon/pull/36#issuecomment-5690729732) |
 | [Particle Linux #154](https://github.com/particle-iot-inc/particle-linux/pull/154) | `e952c705e60f6a85cac06efd75daebe5a452c791` | [3657 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3657) | [ARM64 3654 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3654), [AMD64 3656 passed](https://circleci.com/gh/particle-iot-inc/particle-linux/3656) | [S3 links](https://github.com/particle-iot-inc/particle-linux/pull/154#issuecomment-5690740398) |
 
@@ -63,14 +65,13 @@ URLs. Runtime dependencies remain unpinned pending the actual build outputs.
   controller now returns firmware `1.0.52` on head2 for short, long and equals
   forms. [Device output](scripts/qli/validation/head2-syscon-fixed-rpm.log).
   This ran the extracted controller; the full syscon package/service is pending.
-- **RIL:** the published RPM installs Debian-prefixed unit filenames, so all
-  three canonical RIL/GNSS services fail to enable. [Reproduction](scripts/qli/validation/ril-unit-names.log).
-  Local commit `55831b8b4f3aebd6516c22a7990f5000dd46dcca` fixes the installer;
-  67 packaging tests pass. A locally rebuilt RPM has SHA-256
-  `b5bae97eed57cf7c112a4d04573c079ed4eb74b178d94febb4d348b6454e429c`
+- **RIL:** the previous RPM installed Debian-prefixed unit filenames, so all
+  three canonical RIL/GNSS services failed to enable. [Reproduction](scripts/qli/validation/ril-unit-names.log).
+  PR63 now fixes the installer; 67 packaging tests and the new RPM/DEB builds pass.
+  The published RPM has SHA-256
+  `e18c16a74bb836a2786c53ef37bfb6d2046ace422df3dd26b7d12e0097c26999`
   and passes actual QLI unit verification, enablement and library loading.
-  [Corrected RPM output](scripts/qli/validation/ril-fixed-unit-names.log).
-  Push/rebuild is pending completion of the existing shared dependency job.
+  [Published RPM output](scripts/qli/validation/ril-published-unit-names.log).
 - **Setup:** a missing Particle daemon previously printed an error but returned
   status 0. Error propagation alone still returned 0 when offline telemetry
   failed. PR154 now preserves status 1 before telemetry. Its actual rebuilt RPM
@@ -174,7 +175,8 @@ and repository-generation tools built successfully.
 
 ## Remaining before a complete candidate run
 
-1. Publish the RIL service-name fix, rebuild, then refresh its artifact pins.
+1. The RIL service-name fix and updated Particle Linux/syscon artifacts are built,
+   downloaded, verified and pinned. Complete runtime dependency pins next.
 2. Build the missing runtime dependencies with `build-runtime-rpms.sh`, using the
    pinned stock QLI recipe configuration in a separate workspace. The minimal
    SDK's reduced libraries must not be installed into an image. Build and pin
@@ -195,7 +197,8 @@ DNF preflight recorded above. It runs QLI 2.0 and kernel ABI
 The root filesystem has about 51 GiB free. Embroid access is restored. Seven
 protected NV/persist partition backups were captured, transferred to a private
 host directory and checksum-verified. Network credentials in that archive are
-not published. Raw GPT copies and a fresh baseline remain required before flashing.
+not published. Both GPT copies from all seven UFS LUNs were CRC-validated, privately downloaded
+and checksum-verified as well. Revalidate the live baseline immediately before flashing.
 CLI access and extracted-payload probes are not full candidate acceptance.
 
 All of the following are **not run for the full-stack candidate**:
