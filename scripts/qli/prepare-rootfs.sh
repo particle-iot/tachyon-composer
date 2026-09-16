@@ -61,8 +61,8 @@ fstab.write_text('\n'.join(lines)+'\n')
 # A unique machine ID and fresh SSH host keys are generated on the board.
 (r/'etc/machine-id').write_text('')
 for p in (r/'etc/ssh').glob('ssh_host_*'): p.unlink()
-# Disable the reference image's default root password; serial autologin provides
-# lab recovery and SSH accepts keys only. The random password is not retained.
+# Disable the reference image's default root password until Particle setup
+# supplies the user's password. The random password is not retained.
 password=subprocess.run(['openssl','passwd','-6','-stdin'],input=secrets.token_urlsafe(48)+'\n',text=True,capture_output=True,check=True).stdout.strip()
 shadow=r/'etc/shadow'
 rows=shadow.read_text().splitlines()
@@ -105,19 +105,7 @@ done
 ln -sfn /usr/lib/systemd/system/ModemManager.service "$units/dbus-org.freedesktop.ModemManager1.service"
 mkdir -p "$root/etc/NetworkManager/system-connections"
 install -m 600 "$here/cellular.nmconnection" "$root/etc/NetworkManager/system-connections/cellular.nmconnection"
-ln -sfn /usr/lib/systemd/system/sshd.socket "$units/sockets.target.wants/sshd.socket"
-cat > "$root/etc/ssh/sshd_config" <<'EOF'
-HostKey /etc/ssh/ssh_host_ed25519_key
-HostKey /etc/ssh/ssh_host_rsa_key
-PermitRootLogin prohibit-password
-PasswordAuthentication no
-KbdInteractiveAuthentication no
-PermitEmptyPasswords no
-PubkeyAuthentication yes
-UsePAM yes
-AuthorizedKeysFile .ssh/authorized_keys
-Subsystem sftp internal-sftp
-EOF
+# The qli-ssh overlay owns SSH policy and enables the existing socket unit.
 mkdir -p "$root/root/.ssh"
 chmod 700 "$root/root/.ssh"
 # Optional public keys only. Network credentials are never baked into the ZIP.
