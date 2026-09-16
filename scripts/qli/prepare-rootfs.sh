@@ -74,6 +74,8 @@ units="$root/etc/systemd/system"
 mkdir -p "$units/multi-user.target.wants" "$units/getty.target.wants" "$units/sockets.target.wants"
 mkdir -p "$units/wireplumber.service.d"
 install -m 644 "$here/wireplumber.conf" "$units/wireplumber.service.d/tachyon.conf"
+mkdir -p "$units/systemd-journal-flush.service.d"
+install -m 644 "$here/journal-flush.conf" "$units/systemd-journal-flush.service.d/tachyon.conf"
 ln -sfn /usr/lib/systemd/system/multi-user.target "$units/default.target"
 # The 6.18 reference-board gadget configuration and display startup are replaced
 # for this headless experiment. ModemManager owns the cellular modem.
