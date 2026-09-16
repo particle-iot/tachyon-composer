@@ -1,0 +1,26 @@
+Directory walk started
+Directory walk done - 4 packages
+Temporary output repo path: /target/tmp/stack-validation/.repodata/
+Preparing sqlite DBs
+Pool started (with 5 workers)
+Pool finished
+sudo: unable to resolve host ddcb98412e2c: Temporary failure in name resolution
+Added particle-build repo from file:///tmp/stack-validation
+particle-build                                  619 kB/s | 1.7 kB     00:00    
+Error: 
+ Problem 1: conflicting requests
+  - nothing provides socat needed by particle-tachyon-ril-0.7.0-1.aarch64 from particle-build
+ Problem 2: conflicting requests
+  - nothing provides grep needed by particle-tachyon-syscon-1.0.52-1.aarch64 from particle-build
+  - nothing provides jq needed by particle-tachyon-syscon-1.0.52-1.aarch64 from particle-build
+  - nothing provides sed needed by particle-tachyon-syscon-1.0.52-1.aarch64 from particle-build
+ Problem 3: conflicting requests
+  - nothing provides sudo needed by particle-linux-0.25.2-1.aarch64 from particle-build
+(try to add '--skip-broken' to skip uninstallable packages)
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+  File "/overlay-tool/overlay.py", line 350, in install_package
+    subprocess.run(["sudo", "chroot", mount_point, *command, *packages], check=True)
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['sudo', 'chroot', '/target', 'dnf', '-y', '--disablerepo=*', '--setopt=reposdir=/dev/null', '--repofrompath=particle-build,file:///tmp/stack-validation', '--enablerepo=particle-build', '--setopt=install_weak_deps=False', '--setopt=skip_if_unavailable=False', '--setopt=best=True', '--setopt=localpkg_gpgcheck=False', '--nogpgcheck', 'install', 'particle-kigen-lpa', 'particle-tachyon-ril', 'particle-tachyon-syscon', 'particle-linux']' returned non-zero exit status 1.

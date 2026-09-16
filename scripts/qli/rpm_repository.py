@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from assets import digest, fetch
 
-REQUIRED = {'particle-linux', 'particle-tachyon-ril', 'particle-tachyon-syscon', 'particle-kigen-lpa', 'jq', 'socat', 'sudo',
+REQUIRED = {'particle-linux', 'particle-tachyon-ril', 'particle-tachyon-syscon', 'particle-kigen-lpa', 'jq', 'socat', 'sudo', 'grep', 'sed',
             'networkmanager-daemon', 'networkmanager-wwan', 'networkmanager-wifi'}
 
 

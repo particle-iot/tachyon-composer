@@ -37,7 +37,7 @@ of unused daemon subpackages; automatic ELF library dependencies stay enabled.
 ## Image runtime packages are a separate build
 
 `build-runtime-rpms.sh versions.json RUNTIME_WORKSPACE` retains the original
-image dependency build (jq, socat, sudo, libgpiod and NetworkManager with modem
+image dependency build (jq, socat, sudo, grep, sed, libgpiod and NetworkManager with modem
 support). This is an explicit image-composition operation. It is never called
 by component RPM CI. Use a different workspace from the SDK so that the stock
 runtime configuration and SDK-only library configuration cannot contaminate
