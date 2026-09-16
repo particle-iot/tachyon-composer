@@ -43,6 +43,7 @@ def rootfs(root, config):
                  '/usr/lib/NetworkManager/1.56.0/libnm-device-plugin-wifi.so',
                  '/etc/wireplumber/wireplumber.conf.d/51-tachyon-audio.conf',
                  '/etc/systemd/system/wireplumber.service.d/tachyon.conf',
+                 '/etc/systemd/system/systemd-journal-flush.service.d/tachyon.conf',
                  '/etc/tachyon-qli/build.json'):
         p = inside(root, path)
         if not p.is_file() or p.stat().st_size == 0:
