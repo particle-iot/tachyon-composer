@@ -133,6 +133,162 @@
       "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
       "sha256": "a6aee23999809f28ffa602ab69c9a194b598cfa0271b7f5831eafcfb2ef89a3a",
       "url": "https://packages.particle.io/candidates/qli-2.0/particle-iot-inc/particle-linux/e952c705e60f6a85cac06efd75daebe5a452c791/a6aee23999809f28ffa602ab69c9a194b598cfa0271b7f5831eafcfb2ef89a3a/particle-linux-0.25.2-1.aarch64-e952c705e60f6a85cac06efd75daebe5a452c791.rpm"
+    },
+    {
+      "name": "grep",
+      "version": "3.12",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "grep-3.12-r0.src.rpm",
+      "filename": "grep-3.12-r0.armv8_2a.rpm",
+      "sha256": "4255540ef9e4e4cdd8b1a5b6c16357fbbae3c4e5d699d62371de5178ff6f7699",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "jq",
+      "version": "1.8.1",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "jq-1.8.1-r0.src.rpm",
+      "filename": "jq-1.8.1-r0.armv8_2a.rpm",
+      "sha256": "c4a21303ef2b956a2d75a30da851d9e0e273a9ece604801bcc3c8da13361599a",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libgpiod-tools",
+      "version": "2.2.4",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "libgpiod-2.2.4-r0.src.rpm",
+      "filename": "libgpiod-tools-2.2.4-r0.armv8_2a.rpm",
+      "sha256": "413869bec8fe43707c68ee45707e6ecedeb236f3c39d0755ce33e6f71d4889da",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libgpiod3",
+      "version": "2.2.4",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "libgpiod-2.2.4-r0.src.rpm",
+      "filename": "libgpiod3-2.2.4-r0.armv8_2a.rpm",
+      "sha256": "ad67ac1e873cf774c05d56c251a53f040c864c87d57e485ffa56190ebc176983",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "libonig5",
+      "version": "6.9.10",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "onig-6.9.10-r0.src.rpm",
+      "filename": "libonig5-6.9.10-r0.armv8_2a.rpm",
+      "sha256": "224c2f3cde6878caa67a7ef741dcd10ffabbc2bcd5b3daeb6428bc824cc2718c",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-daemon",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-daemon-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "35930a8d7d3936326ed060889ea08e857d45ea92c9af912ba5dcaeb889d1a314",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-wifi",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-wifi-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "554b05c2db65077df9992a28d7f30e24fd821ab4566b7ba271fcd0ad99f96f1b",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "networkmanager-wwan",
+      "version": "1.56.0",
+      "release": "r0.particle1",
+      "architecture": "armv8_2a",
+      "source_rpm": "networkmanager-1.56.0-r0.particle1.src.rpm",
+      "filename": "networkmanager-wwan-1.56.0-r0.particle1.armv8_2a.rpm",
+      "sha256": "19424d1242f6632d68c095349863fc59da879d0cb288ec53b2939a8e75e7dcb6",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sed",
+      "version": "4.10",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sed-4.10-r0.src.rpm",
+      "filename": "sed-4.10-r0.armv8_2a.rpm",
+      "sha256": "50651484e87366bc39d0131abfafeac0c3b777682f336d3dbcd4dc9d3062e098",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "socat",
+      "version": "1.8.1.1",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "socat-1.8.1.1-r0.src.rpm",
+      "filename": "socat-1.8.1.1-r0.armv8_2a.rpm",
+      "sha256": "239fc79a84fbfeb90261bff7f49b4f9e625fd6aff805c456d09aa8b671533915",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "ab2a9c3b7d05202244dca52c7ef51d87d45a438f2cb4587034a61425454ae69f",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo-lib",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-lib-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "e52fb97a83508317c5511ab5037de5784302a5178750274fddd331b82ab577a2",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "sudo-sudo",
+      "version": "1.9.17p2",
+      "release": "r0",
+      "architecture": "armv8_2a",
+      "source_rpm": "sudo-1.9.17p2-r0.src.rpm",
+      "filename": "sudo-sudo-1.9.17p2-r0.armv8_2a.rpm",
+      "sha256": "3129980f96817c21eb016a7f536628139739cae712472416f1bb1aff6b455496",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
     }
   ],
   "lpa": {
@@ -160,5 +316,9 @@
   "qli_sdk": {
     "manifest_key": "sdk/qli-2.0/x86_64/v1/f60db25b6dae7e1b6052bab9048eb3737192b8a065da1a0454e6873ca52f8d29/manifest.json",
     "sha256": "596df0e8028f1d9c9093ba46dd8c3e1f0a1d3eaf9c64fe186a1fee9f65051da6"
+  },
+  "qli_runtime": {
+    "manifest_key": "candidates/qli-2.0/runtime/v1/c1c47bc678ae784ec21cfbd291d62a272eb5d42b2bd61392bac8c4f5cf4cd4ca/manifest.json",
+    "sha256": "3edd3a90ff8f6eaeac15ac0dc69213eed93a96c0abbacba2d723861a7bac9114"
   }
 }
