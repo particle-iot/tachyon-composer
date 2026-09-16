@@ -44,7 +44,7 @@ successfully in a clean QLI filesystem with external repositories and container
 networking disabled. Both regional candidate images were built locally from
 composer commit `ec1a29b94d396d1a60b13c75076cae281431ae8f`; each passes all 35
 composition checks and the ZIP checksum/flash-operation verifier. No candidate
-image has been flashed or successfully set up on head2.
+image has been flashed. On-device setup passed on the existing QLI base.
 
 The cached runtime refresh added the missing `libonig5` output. The complete
 [bundle manifest](https://packages.particle.io/candidates/qli-2.0/runtime/v1/c1c47bc678ae784ec21cfbd291d62a272eb5d42b2bd61392bac8c4f5cf4cd4ca/manifest.json)
@@ -54,11 +54,13 @@ The audited runtime graph contains 223 recipes / 2,478 tasks, with no image,
 kernel or SDK build. Only the 13 required runtime RPMs plus four Particle RPMs
 are staged in the image repository.
 
-**Device testing is paused at Embroid client/transport failures.** A locally
-modified lease-handling client and an interactive transfer workaround were used
-earlier; the user instructed that Embroid bugs must be reported and work stopped.
-Neither workaround is approved for continued testing. A supported Embroid path
-must be established before resuming device operations.
+The installed, unmodified Embroid CLI `0.7.24+keychain.002e94ae` passed health,
+repeated ADB execution and normal `adb push` after the user renewed sign-in.
+All 17 RPMs are now installed on head2. On-device setup completed successfully
+and the device connected to Particle cloud. The new candidate image has not
+been flashed: these runtime tests use the existing particle8/BP 2.0.7 base.
+A later Embroid sign-in expiration currently prevents the final second-reboot
+comparison. No client patches or transfer workarounds were used in this run.
 
 | Component | Current published source | RPM build | Debian build | Downloads |
 | --- | --- | --- | --- | --- |
@@ -76,7 +78,8 @@ URLs. All 13 runtime dependencies are also pinned to the verified build outputs.
   required option arguments and numeric validation. The corrected candidate
   controller now returns firmware `1.0.52` on head2 for short, long and equals
   forms. [Device output](scripts/qli/validation/head2-syscon-fixed-rpm.log).
-  This ran the extracted controller; the full syscon package/service is pending.
+  The full syscon RPM is now installed; its service completed successfully and
+  skipped flashing because installed firmware already matches version 1.0.52.
 - **RIL:** the previous RPM installed Debian-prefixed unit filenames, so all
   three canonical RIL/GNSS services failed to enable. [Reproduction](scripts/qli/validation/ril-unit-names.log).
   PR63 now fixes the installer; 67 packaging tests and the new RPM/DEB builds pass.
@@ -123,7 +126,7 @@ particle9 and BP 2.0.8 applied during candidate composition.
 | RoW image overlay checks | **PASS**, 35 checks | [Report](scripts/qli/validation/tachyon-qli-2.0-RoW-headless-formfactor_dvt-1.4.0-candidate.20260916.1.package-validation.json) |
 | Both ZIP checksum inventories and allowed flash operations | **PASS**, check-only; no device operations | [NA](scripts/qli/validation/tachyon-qli-2.0-NA-headless-formfactor_dvt-1.4.0-candidate.20260916.1.bundle-check.txt), [RoW](scripts/qli/validation/tachyon-qli-2.0-RoW-headless-formfactor_dvt-1.4.0-candidate.20260916.1.bundle-check.txt) |
 | Head2 staged package inventory | **PASS**, 17 RPM hashes and package identities verified; staging only | Saved Embroid result, exit 0; full installation not executed |
-| Full candidate on-device installation, setup, registration and functional radio tests | **NOT RUN / PAUSED** | Supported Embroid client/transport required |
+| On-device pinned RPM installation, setup and basic radio tests | **PASS within existing-base scope** | See current device results below; complete new-image acceptance remains pending |
 
 Candidate version: `1.4.0-candidate.20260916.1`. ZIP SHA-256 values:
 
@@ -139,9 +142,9 @@ still require pre-flash and post-flash verification.
 
 The earlier missing-dependency failures are superseded by the successful full
 transaction above. The archived failure logs remain diagnostic evidence.
-Head2 still has kernel package particle8 and BP 2.0.7. LPA is installed there;
-the other three Particle packages are staged but have not been installed. No
-flashing or bootstrap/identity changes have occurred.
+Head2 still has kernel package particle8 and BP 2.0.7. All four Particle packages
+and all 13 dependencies are installed. Device registration and the Particle
+service configuration were applied. No candidate image was flashed.
 
 ## Actual QLI installation checks — 2026-09-15
 
@@ -194,31 +197,61 @@ and repository-generation tools built successfully.
 
 ## Remaining before a complete candidate run
 
-1. Restore supported Embroid client/transport operation. Do not use the local
-   lease patch or interactive file-transfer workaround for further tests.
-2. Publish the prepared regional image CI workflow through an authorized
-   workflow-write credential. The current GitHub token lacks `workflow` scope;
-   PR #91 has no image CI checks. Both local image builds have passed.
-3. Revalidate the live board layout and private backups, stage a verified
-   recovery image, and verify compatibility with the supported Embroid flash
-   interface before flashing the exact NA candidate.
-4. Complete all head2 setup/runtime and preservation checks below. Obtain the
-   required Particle account/product and radio test resources for those flows.
+1. Renew the Embroid session to finish the second-reboot key/certificate and
+   GPT comparison. The supported CLI works; no local client modifications apply.
+2. Supply approved registry credentials for the private-container test. On-device
+   cloud registration does not create the CLI profile expected by the registry
+   helper. Copying the user's local account token is awaiting their response.
+3. Complete approved SMS send/receive, eSIM mutation, modem-reset, peripheral,
+   power and combined-load tests. GPS fixes require head1's antenna; head2 has none.
+4. Publish the prepared regional image CI workflow through an authorized
+   workflow-write credential. PR #91 still has no image CI checks.
+5. Revalidate live layout/backups and recovery, flash the exact candidate, and
+   repeat acceptance on its particle9/BP 2.0.8 base. Existing-base package results
+   do not establish full candidate-image acceptance or host flashing/setup.
+
+## Current head2 device results — supported CLI run
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| All 17 pinned RPMs installed via DNF, external repositories disabled | **PASS**; exact package identities and component file integrity | [Device installation](scripts/qli/validation/head2-full-installed.log) |
+| Linux, RIL and GNSS service startup; D-Bus access | **PASS** | [Startup](scripts/qli/validation/head2-services-started.log) |
+| `particlectl setup` | **PASS**, interactive registration completed by user, CLI exit 0 | Device `422a060000000000d0c7965f`, product `43400`; cloud status connected |
+| Cloud connection and RPM/image version reporting | **PASS**, including reconnection after first reboot | [System document and status](scripts/qli/validation/head2-cloud-baseline-durable.log) |
+| RIL suite `--no-esim` | **81 pass, 0 fail, 6 skip** | [Suite output](scripts/qli/validation/head2-ril-suite.log); skipped group writes to eSIM |
+| Particle Linux suite | **20 pass, 0 fail, 3 skip** | [Suite output](scripts/qli/validation/head2-particle-linux-suite.log) |
+| Installed RPM versions versus system document | **PASS**, independently asserted | [Version assertion](scripts/qli/validation/head2-cloud-baseline-durable.log); packaged suite's Debian-only version check skips on RPM |
+| Cellular disconnect/reconnect and HTTPS bound to cellular interface | **PASS** | [Cycle and traffic](scripts/qli/validation/head2-cellular-cycle.log) |
+| SIM status, current antenna configuration, eSIM listing, SMS mailbox access | **PASS**, read/query scope only | [Queries](scripts/qli/validation/head2-runtime-queries.log), [follow-up](scripts/qli/validation/head2-runtime-followup.log) |
+| Syscon service/identity backup and equal-version upgrade guard | **PASS**, firmware unchanged at 1.0.52 | [Service result](scripts/qli/validation/head2-runtime-followup.log) |
+| QLI release-channel behavior | **PASS**, rejects unavailable feed without claiming APT updates | Same follow-up log |
+| Private registry container deployment | **INCOMPLETE**; host build/upload and cloud desired state passed, device pull failed for missing CLI account credentials | No account token copied without user response |
+| GNSS position fix | **UNAVAILABLE ON HEAD2**; user confirms only head1 has a GPS antenna | [Unfiltered suite output](scripts/qli/validation/head2-gnss-suite.log) records the attempted require-fix run |
+| Reboot persistence | First reboot reconnected with same reported device ID; exact key/GPT comparison **pending** after second reboot | First test marker was under volatile `/var/tmp`; corrected to `/var/lib`, then Embroid sign-in expired |
+
+The GNSS require-fix run returned 33 pass / 8 fail / 11 skip. Seven failures
+require an antenna/fix unavailable on head2. The remaining NMEA-counter check
+assumes continuing raw callbacks. The native implementation deduplicates
+unchanged ModemManager NMEA snapshots (`gnss_native.c`); a stationary count on
+this antenna-less board is not sufficient evidence that polling stopped. This
+check needs backend-aware validation and a fix-capable board; it is not counted
+as passed. GNSS lifecycle/suspend checks were not run by `--quick`.
 
 ## Head2 baseline and functional acceptance
 
 The Embroid product CLI with `--gateway broker` successfully reported ADB state
 `device`, read head2's inventory, downloaded the exact candidates and ran the
 DNF preflight recorded above. It runs QLI 2.0 and kernel ABI
-`6.8.0-1058-particle`, with all three candidate Particle packages absent.
-The root filesystem had about 51 GiB free at capture. Device work is now paused. Seven
+`6.8.0-1058-particle`, with all four Particle candidate packages now installed.
+The root filesystem had about 51 GiB free at capture. Device work awaits renewed sign-in. Seven
 protected NV/persist partition backups were captured, transferred to a private
 host directory and checksum-verified. Network credentials in that archive are
 not published. Both GPT copies from all seven UFS LUNs were CRC-validated, privately downloaded
 and checksum-verified as well. Revalidate the live baseline immediately before flashing.
 CLI access and extracted-payload probes are not full candidate acceptance.
 
-All of the following are **not run for the full-stack candidate**:
+The following still require **complete acceptance on the newly built image**;
+existing-base passes are scoped in the table above:
 
 - Fresh host CLI and on-device setup; password, SSH keys, timezone, Wi-Fi,
   registration, eSIM bootstrap and container credentials persist after reboot.

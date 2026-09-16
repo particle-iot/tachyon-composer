@@ -1,0 +1,12 @@
+{"command": ["particle-tachyon-ril-ctl", "disconnect"], "exit_code": 0, "stdout": "Command queued\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "state"], "exit_code": 0, "stdout": "Connected\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "state"], "exit_code": 0, "stdout": "Connected\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "state"], "exit_code": 0, "stdout": "Registered\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "connect"], "exit_code": 0, "stdout": "Command queued\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "state"], "exit_code": 0, "stdout": "Registered\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "state"], "exit_code": 0, "stdout": "Registered\n", "stderr": ""}
+{"command": ["particle-tachyon-ril-ctl", "state"], "exit_code": 0, "stdout": "Connected\n", "stderr": ""}
+{"command": ["curl", "--interface", "qmapmux0.0", "--connect-timeout", "15", "--max-time", "25", "-sS", "-o", "/dev/null", "-w", "HTTP %{http_code}\n", "https://api.particle.io/"], "exit_code": 0, "stdout": "HTTP 302\n", "stderr": ""}
+{"command": ["particlectl", "status"], "exit_code": 0, "stdout": "Cloud connection status: Connected\n", "stderr": ""}
+PASS: RIL disconnect/reconnect and cellular-bound HTTPS request
+Remote exit code: 0
