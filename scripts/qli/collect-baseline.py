@@ -31,7 +31,10 @@ def main():
         capacities.append({'lun': lun, 'size_bytes': int(run('blockdev', '--getsize64', disk['path'])),
                            'sector_size': int(run('blockdev', '--getss', disk['path']))})
         table = json.loads(run('sfdisk', '-J', disk['path']))['partitiontable']
-        sector = table['sectorsize']
+        # Ubuntu 20.04's sfdisk JSON omits sectorsize; query the real device.
+        sector = table.get('sectorsize', capacities[-1]['sector_size'])
+        if table.get('unit') != 'sectors' or sector != capacities[-1]['sector_size']:
+            raise RuntimeError('Unexpected sfdisk sector geometry')
         for p in table['partitions']:
             parts.append({'lun': lun, 'label': p.get('name', ''), 'path': p['node'],
                           'start_bytes': p['start'] * sector, 'size_bytes': p['size'] * sector,
