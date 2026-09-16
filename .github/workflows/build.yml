@@ -499,9 +499,11 @@ jobs:
       && needs.publish_metadata.result == 'success'
       && startsWith(github.ref, 'refs/tags/')
     env:
+      # Merge this release into latest; stable is promoted separately.
+      PUSH_LATEST_JSON:     ${{ vars.PUSH_LATEST_JSON || 'true' }}
       LINUX_DIST_S3_BUCKET: ${{ secrets.LINUX_DIST_S3_BUCKET }}
       AWS_REGION:           ${{ secrets.AWS_REGION }}
-      # QLI has a dedicated channel; Ubuntu latest/stable are separate.
+      # Retain the dedicated QLI channel for existing clients.
       PUSH_QLI_JSON:      ${{ vars.PUSH_QLI_JSON || 'true' }}
     steps:
       - name: Configure AWS
@@ -642,6 +644,21 @@ jobs:
           make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update shared latest release metadata
+        if: env.PUSH_LATEST_JSON == 'true'
+        env:
+          LATEST_KEY: 'meta/tachyon-latest.json'
+          CF_DIST_ID: ${{ secrets.LINUX_DIST_CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          set -euo pipefail
+          tachyon-update-published-metadata \
+            "$LINUX_DIST_S3_BUCKET" "$LATEST_KEY" release_metadata.json \
+            --origin_key distribution --origin "qualcomm-linux"
+          if [ -n "${CF_DIST_ID:-}" ]; then
+            aws cloudfront create-invalidation --distribution-id "$CF_DIST_ID" \
+              --paths "/${LATEST_KEY}"
+          fi
 
       - name: Publish QLI channel metadata
         if: env.PUSH_QLI_JSON == 'true'
