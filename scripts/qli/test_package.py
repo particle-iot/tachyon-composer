@@ -19,6 +19,9 @@ class FlashSafetyTests(unittest.TestCase):
         for lun, label, start in [(0, 'efi', 6), (0, 'system', 20),
                                   (6, 'dtb_a', 6), (6, 'core_nhlos_a', 20)]:
             self.add(lun, label, start)
+        misc = self.add(0, 'misc', 100)
+        misc.set('num_partition_sectors', '256')
+        (self.root/'misc.img').write_bytes(bytes(1024 * 1024))
         (self.root/'prog_firehose_ddr.elf').write_bytes(b'firehose')
 
     def add(self, lun, label, start, filename=None):
@@ -47,7 +50,7 @@ class FlashSafetyTests(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in self.root.glob('*.xml')), ['rawprogram_qli.xml'])
         self.assertFalse((self.root/'gpt_main0.bin').exists())
         writes = list(ET.parse(self.root/'rawprogram_qli.xml').getroot())
-        self.assertEqual({p.get('label') for p in writes}, {'efi','system','dtb_a','core_nhlos_a'})
+        self.assertEqual({p.get('label') for p in writes}, {'efi','system','dtb_a','core_nhlos_a','misc'})
 
     def test_final_zip_verifies_and_detects_changed_payload(self):
         self.write()
@@ -65,7 +68,7 @@ class FlashSafetyTests(unittest.TestCase):
             archive()
             manifest, writes = verify_bundle(image)
             self.assertEqual(manifest['region'], 'NA')
-            self.assertEqual(len(writes), 4)
+            self.assertEqual(len(writes), 5)
             (self.root/'system.img').write_bytes(b'corrupted')
             archive()
             with self.assertRaisesRegex(ValueError, 'Archive hash mismatch'):
@@ -85,6 +88,25 @@ class FlashSafetyTests(unittest.TestCase):
                     z.write(p, p.name)
             with self.assertRaisesRegex(ValueError, 'Archive hash mismatch'):
                 verify_bundle(image)
+
+    def test_setup_partition_has_a_real_full_size_blank_payload(self):
+        self.write()
+        attrs, write = next((a, r) for a, r in programs(self.root) if r['label'] == 'misc')
+        self.assertEqual(attrs['num_partition_sectors'], '256')
+        self.assertEqual(write['size_bytes'], 1024 * 1024)
+        self.assertEqual((self.root / write['filename']).read_bytes(), bytes(1024 * 1024))
+
+    def test_missing_setup_partition_is_rejected(self):
+        self.xml.remove(next(p for p in self.xml if p.get('label') == 'misc'))
+        self.write()
+        with self.assertRaisesRegex(ValueError, 'Missing required partition'):
+            programs(self.root)
+
+    def test_short_setup_payload_is_rejected(self):
+        (self.root / 'misc.img').write_bytes(bytes(4096))
+        self.write()
+        with self.assertRaisesRegex(ValueError, 'misc payload must cover'):
+            programs(self.root)
 
     def test_nv_payload_is_rejected(self):
         self.add(5, 'modemst1', 6)

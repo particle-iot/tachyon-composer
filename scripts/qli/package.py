@@ -12,7 +12,7 @@ from assets import digest
 # Only payload partitions from the pinned Tachyon layout. No NV, persist, GPT,
 # erase commands, provisioning, or reference-board geometry is accepted.
 ALLOWED = {
-    0: {'system', 'efi'},
+    0: {'system', 'efi', 'misc'},
     1: {'xbl_a', 'xbl_config_a'},
     2: {'xbl_a', 'xbl_config_a'},
     3: {'cdt'},
@@ -20,7 +20,7 @@ ALLOWED = {
         'devcfg_a', 'qupfw_a', 'uefisecapp_a', 'imagefv_a', 'shrm_a',
         'core_nhlos_a', 'multiimgoem_a', 'cpucp_a', 'toolsfv'},
 }
-REQUIRED = {(0, 'system'), (0, 'efi'), (6, 'dtb_a'), (6, 'core_nhlos_a')}
+REQUIRED = {(0, 'system'), (0, 'efi'), (0, 'misc'), (6, 'dtb_a'), (6, 'core_nhlos_a')}
 
 
 def programs(factory):
@@ -47,6 +47,8 @@ def programs(factory):
             payload = factory / filename
             if not payload.is_file() or not payload.stat().st_size or (count and payload.stat().st_size > count * sector):
                 raise ValueError(f'Missing/oversize payload: {filename}')
+            if label == 'misc' and payload.stat().st_size != count * sector:
+                raise ValueError('misc payload must cover the declared setup partition')
             if int(a.get('file_sector_offset', '0')) != 0:
                 raise ValueError('Partial payload offsets are not supported')
             # ptool emits count=0 for the growing system partition. The experiment

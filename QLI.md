@@ -52,7 +52,10 @@ and this kernel can panic during device probing. The build checks QLI's actual
 kmod resolver to ensure `msm_display` is suppressed and `msm` remains available.
 
 The root image is 10 GiB and must fit the existing system partition. The
-packaged manifest has explicit, finite write extents for 22 Tachyon payloads.
+packaged manifest has explicit, finite write extents for 23 Tachyon payloads, including a blank 1 MiB `misc.img` for setup.
+The standard Particle CLI finds `misc` in the flash XML and writes bootstrap
+configuration to the existing partition after flashing. The image initializes
+`misc`; it does not create or resize any partition.
 It contains no GPT writes, patch XML, UFS provisioning, NV writes or persist
 writes. Reference-image `systemd-repart` and `format-tee-partition` are masked.
 The persist-formatting helper is removed. TEE bind-mounts the existing
