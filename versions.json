@@ -38,11 +38,11 @@
     // The 24.04 base rootfs image (built by particle-iot/tachyon-ubuntu-24.04 via livecd-rootfs).
     // Consumed as tachyon-ubuntu-24.04-<VARIANT>-image-<param>.img.xz from the release channel.
     // Variants: headless (== server) and desktop, both published.
-    // 29-ea3e13e was rebuilt against the latest particle kernel, so it already carries
-    // linux-particle 6.8.0-1058.59+particle9 — matching the kernel pinned below.
+    // 30-5321e13 was rebuilt against the latest particle kernel, so it already carries
+    // linux-particle 6.8.0-1058.59+particle10 — matching the kernel pinned below.
     "particle-iot/tachyon-ubuntu-24.04": {
       "type": "git_release",
-      "param": "29-ea3e13e"
+      "param": "30-5321e13"
     },
 
     // Kernel input (single source of truth for the kernel line). Unlike main — where this was the
@@ -53,10 +53,10 @@
     // will fail.  <-- deb_version == env.PKG_linux_particle (see below)
     "particle-iot/tachyon-ubuntu-24.04-kernel": {
       "type": "s3_release",
-      "param": "stable-6.8.0-1058.59particle9",
+      "param": "stable-6.8.0-1058.59particle10",
       "abi": "1058",
       // keep this equal to env.PKG_linux_particle below
-      "deb_version": "6.8.0-1058.59+particle9",
+      "deb_version": "6.8.0-1058.59+particle10",
       "base_url": "https://linux-dist.particle.io/kernel/release"
     },
 
@@ -90,7 +90,7 @@
     // dc2f331b (#39) = "set-initial-time: compare against the setup time, not a hardcoded 2024".
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "43aeed16ee09ee28a32c0d122577b2bd13d34037"
+      "param": "acca7e9fc9659d2b46528614ef5e3ba7bdd56fbb"
     },
 
     // The overlay TOOL (engine that applies the stack). Provides the `when` env-gate and ENV_*
@@ -125,7 +125,7 @@
   "env": {
     // Kernel version pinned INSIDE the rootfs by the overlay. MUST equal the kernel source
     // deb_version above (6.8.0-1058.59+particle7) and be installable on the base image's ABI.
-    "PKG_linux_particle": "6.8.0-1058.59+particle9",
+    "PKG_linux_particle": "6.8.0-1058.59+particle10",
 
     // Optional: URL to manually install kernel .deb (for unpublished PR builds).
     // Multiple URLs separated by @@@ for related packages (image + modules).
