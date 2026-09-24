@@ -316,9 +316,5 @@
   "qli_sdk": {
     "manifest_key": "sdk/qli-2.0/x86_64/v1/f60db25b6dae7e1b6052bab9048eb3737192b8a065da1a0454e6873ca52f8d29/manifest.json",
     "sha256": "596df0e8028f1d9c9093ba46dd8c3e1f0a1d3eaf9c64fe186a1fee9f65051da6"
-  },
-  "qli_runtime": {
-    "manifest_key": "candidates/qli-2.0/runtime/v1/c1c47bc678ae784ec21cfbd291d62a272eb5d42b2bd61392bac8c4f5cf4cd4ca/manifest.json",
-    "sha256": "3edd3a90ff8f6eaeac15ac0dc69213eed93a96c0abbacba2d723861a7bac9114"
   }
 }
