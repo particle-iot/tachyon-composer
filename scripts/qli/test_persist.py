@@ -42,8 +42,19 @@ class PersistTests(unittest.TestCase):
         self.invoke()
         self.assertFalse(any(c[0] == 'mkfs.ext4' for c in self.calls))
 
+    def test_blank_gpt_partition_ignores_partition_entry_metadata(self):
+        def with_gpt_metadata(args, **kwargs):
+            if args[0] == 'blkid':
+                # Real blkid returns 0 with no TYPE when only PART_ENTRY_*
+                # metadata exists; -D makes the blank partition return 2.
+                self.probe = (2 if '-D' in args else 0, '')
+            return self.command(args, **kwargs)
+
+        prepare(self.device, self.sys, with_gpt_metadata)
+        self.assertEqual(self.calls[-1], ['mkfs.ext4', '-F', str(self.device.resolve())])
+
     def test_unknown_or_ambiguous_filesystems_fail_without_formatting(self):
-        for self.probe in [(0, 'xfs\n'), (8, ''), (4, ''), (2, 'ext4')]:
+        for self.probe in [(0, 'xfs\n'), (0, ''), (8, ''), (4, ''), (2, 'ext4')]:
             with self.assertRaisesRegex(RuntimeError, 'refusing to format'):
                 self.invoke()
         self.assertFalse(any(c[0] == 'mkfs.ext4' for c in self.calls))
