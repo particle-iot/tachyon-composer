@@ -47,7 +47,7 @@ def collect(config_path, workspace, bundle):
         rows.append(dict(zip(('name', 'version', 'release', 'architecture', 'source_rpm'), fields),
                          filename=path.name, sha256=digest(path), source_revision=config['yocto']['revision'],
                          qli_release_revision=config['yocto']['revision']))
-    required = {'jq', 'libonig5', 'socat', 'sudo', 'grep', 'sed', 'networkmanager-daemon', 'networkmanager-wwan', 'networkmanager-wifi'}
+    required = {'jq', 'libonig5', 'socat', 'sudo', 'grep', 'sed', 'networkmanager-daemon', 'networkmanager-wwan', 'networkmanager-wifi', 'tzdata', 'tzdata-core'}
     if required - {row['name'] for row in rows}:
         raise ValueError('Missing requested runtime package outputs')
     bundle.mkdir(parents=True, exist_ok=True)

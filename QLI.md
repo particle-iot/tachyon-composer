@@ -439,8 +439,10 @@ can use a versions file from the Ubuntu branch explicitly; the QLI branch no
 longer carries a second set of Ubuntu kernel/firmware/package pins.
 
 `build_qli` requires the exact component RPM artifacts and their complete
-additional dependency closure in `rpm_packages`. The lock contains all 17
-packages: four Particle packages and 13 runtime dependencies. Image CI consumes
+additional dependency closure in `rpm_packages`, including the full stock
+`tzdata` package set. Named timezones are required by setup before it saves
+cloud registration and eSIM configuration; UTC alone does not exercise this
+dependency. Image CI consumes
 the already built, checksummed component RPMs and runtime bundle; it does not
 build Yocto or an SDK. Kigen's pinned serial binary is wrapped deterministically
 with `scripts/qli/package-lpa.py`, and the resulting RPM must match the lock.
@@ -449,8 +451,10 @@ The existing `KIGEN_SDK_TOKEN` secret supplies access to that private binary.
 Run `make build_qli INPUT_REGION=NA` and `INPUT_REGION=RoW`. The composer stages
 only locked RPMs, generates a local repository, installs exact package identities
 with external repositories disabled, applies the pinned QLI overlays, verifies
-installed identities/loading, file integrity, service definitions/enabled state
-and version metadata, and removes the repository. Missing or mismatched packages
+installed identities/loading, file integrity, service definitions/enabled state,
+version metadata, and every timezone advertised in `zone.tab` and `zone1970.tab`.
+It also checks Denver's winter and summer UTC offsets inside the image, then
+removes the repository. Missing or mismatched packages
 fail composition. The factory ZIP includes a checksummed
 `package-validation.json` report.
 
@@ -459,6 +463,12 @@ repositories using the shared SDK. Build missing utilities separately with
 `scripts/qli/build-runtime-rpms.sh` against the locked Yocto configuration,
 then review and pin their exact outputs before composing images.
 No package feed, release tag or release publication is part of candidate testing.
+
+For hardware setup acceptance, use a named timezone such as `America/Denver`
+and confirm it survives reboot with `timedatectl show -p Timezone`. Verify that
+bootstrap reaches cloud registration, consumes its `misc` record, and connects
+to the cloud. An active `particle-linux.service` alone does not prove setup
+completed: bootstrap errors can leave the daemon running but unregistered.
 
 See [PARTICLE-STACK-VALIDATION.md](PARTICLE-STACK-VALIDATION.md) for acceptance
 status. Existing hardware results elsewhere in this document describe the older

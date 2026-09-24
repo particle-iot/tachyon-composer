@@ -27,6 +27,9 @@ class InstalledPackageTests(unittest.TestCase):
         self.metadata.parent.mkdir(parents=True)
         self.metadata.write_text(json.dumps(distro_versions(self.config, 'NA', '1.4.0-test')))
         self.report = {'checks': []}
+        timezone_check = patch.object(verify_rpms, 'verify_timezone_data', return_value=400)
+        self.timezone_check = timezone_check.start()
+        self.addCleanup(timezone_check.stop)
 
     def target(self, args, **kwargs):
         command = args[2:]
@@ -37,6 +40,8 @@ class InstalledPackageTests(unittest.TestCase):
             output = '1.0\n'
         elif command[:2] == ['/usr/bin/systemctl', 'is-enabled']:
             output = 'enabled\n'
+        elif command[:2] == ['/usr/bin/env', 'TZ=America/Denver']:
+            output = '-0700' if '2026-01-' in command[-2] else '-0600'
         return subprocess.CompletedProcess(args, 0, output)
 
     def test_full_check_records_packages_and_enabled_units(self):
@@ -70,6 +75,15 @@ class InstalledPackageTests(unittest.TestCase):
 
     def test_rejects_disabled_service_even_with_zero_exit(self):
         self.fail_command(lambda c: c[:2] == ['/usr/bin/systemctl', 'is-enabled'], 'disabled', 0)
+
+    def test_rejects_missing_timezone_data(self):
+        self.timezone_check.side_effect = ValueError('Missing or invalid timezone: America/Denver')
+        with patch.object(verify_rpms.subprocess, 'run', side_effect=self.target):
+            with self.assertRaisesRegex(ValueError, 'America/Denver'):
+                verify_rpms.verify(self.root, self.config, self.report, 'NA', '1.4.0-test')
+
+    def test_rejects_silent_utc_fallback(self):
+        self.fail_command(lambda c: 'TZ=America/Denver' in c, '+0000', 0)
 
     def test_rejects_stale_image_metadata(self):
         metadata = json.loads(self.metadata.read_text())

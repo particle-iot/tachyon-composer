@@ -8,6 +8,7 @@ import subprocess
 
 from assets import digest
 from rpm_repository import validate_lock, distro_versions
+from timezone_data import verify_timezone_data
 
 COMPONENTS = ('particle-linux', 'particle-tachyon-ril', 'particle-tachyon-syscon', 'particle-kigen-lpa')
 SERVICES = ('particle-linux', 'particle-tachyon-rild', 'particle-tachyon-gnss',
@@ -47,6 +48,14 @@ def verify(root, config, report, region, version):
     for unit in units:
         run('enabled:' + unit, ['/usr/bin/systemctl', 'is-enabled', unit], 'enabled')
     run('sudoers', ['/usr/sbin/visudo', '-cf', '/etc/sudoers.d/particle'])
+
+    count = verify_timezone_data(root)
+    report['checks'].append(dict(name='timezone-database', passed=True, zones_checked=count))
+    # Exercise the image's libc timezone handling, including Denver's DST rule.
+    # UTC alone works without tzdata and missed the original setup failure.
+    for month, offset in [('01', '-0700'), ('07', '-0600')]:
+        run('timezone-denver-' + month, ['/usr/bin/env', 'TZ=America/Denver',
+            '/bin/date', '-d', f'2026-{month}-15 12:00:00 UTC', '+%z'], offset)
 
     metadata = json.loads((root / 'etc/particle/distro_versions.json').read_text())
     if metadata != distro_versions(config, region, version):

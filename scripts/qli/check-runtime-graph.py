@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import re
 
-REQUIRED = {'jq', 'socat', 'sudo', 'grep', 'sed', 'libgpiod', 'networkmanager'}
+REQUIRED = {'jq', 'socat', 'sudo', 'grep', 'sed', 'libgpiod', 'networkmanager', 'tzdata'}
 MAX_RECIPES = 250
 MAX_TASKS = 2800
 BANNED = ('meta-toolchain', 'nativesdk-', 'gcc-cross-canadian', 'binutils-cross-canadian',

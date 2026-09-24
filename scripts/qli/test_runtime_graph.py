@@ -10,7 +10,7 @@ spec.loader.exec_module(graph)
 class RuntimeGraphTests(unittest.TestCase):
     def test_scoped_rpm_graph_is_accepted(self):
         report = graph.check(graph.REQUIRED | {'gcc-cross-aarch64', 'linux-libc-headers'}, {'jq.do_package_write_rpm'})
-        self.assertEqual(report['recipe_count'], 9)
+        self.assertEqual(report['recipe_count'], 10)
 
     def test_rejects_kernel_sdk_and_graphics_work(self):
         for recipe in ('linux-qcom', 'meta-toolchain', 'nativesdk-glibc', 'mesa', 'gcc-cross-canadian-aarch64'):
