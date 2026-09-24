@@ -289,6 +289,174 @@
       "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
       "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
       "runtime_bundle": true
+    },
+    {
+      "name": "tzdata",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-2026b-r0.noarch.rpm",
+      "sha256": "90b6f00f68913f5f23ea80504c7fb3ccdba8863e556cc3ed4308387ffffe72de",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-africa",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-africa-2026b-r0.noarch.rpm",
+      "sha256": "7aa1f72eb2aaedd0a8c41b3a070147e868bfeeec760d7709508800c4e3826c18",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-americas",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-americas-2026b-r0.noarch.rpm",
+      "sha256": "9e187790ae8e6047ad9b4cf4e4a1983352781e4077f708b4d03909fc13229593",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-antarctica",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-antarctica-2026b-r0.noarch.rpm",
+      "sha256": "b9d83eb5d672fc0a09ba9beea2786807cf9accdc18dd72339a16f1d096cfd9b5",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-arctic",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-arctic-2026b-r0.noarch.rpm",
+      "sha256": "bdec6dd98107e03129f1d2006478415095a57e6f9272a03ff351a27d186e02b4",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-asia",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-asia-2026b-r0.noarch.rpm",
+      "sha256": "e4a2eaf1f4d3b95d37a52e40f34bef6bce817128675ad2768d5f19fe08a7e07b",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-atlantic",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-atlantic-2026b-r0.noarch.rpm",
+      "sha256": "24ec1f2bd4858617bb8b964b4fffede492e7a5a206b6eb71a44dc667f50b64e5",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-australia",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-australia-2026b-r0.noarch.rpm",
+      "sha256": "2eecdd31d2cc93aaad885a1b5a7dacaf11ba333da2fddde4e9e46d8842273de6",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-core",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-core-2026b-r0.noarch.rpm",
+      "sha256": "9fde708dc5a3576f3dad14dc9ffb939ba759dc0162c2ec926950c072a21337e5",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-europe",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-europe-2026b-r0.noarch.rpm",
+      "sha256": "28c0e5a429d3559e9ecab47a852d13d034fa0a750720618c31007ee961d275d2",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-misc",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-misc-2026b-r0.noarch.rpm",
+      "sha256": "5afa1008967774a517b3189aef6d2f22f1e536b4f4894f73237a9d920cd82650",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-pacific",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-pacific-2026b-r0.noarch.rpm",
+      "sha256": "de2ee7da49ccd1db071dd93b8f402645aaea00e0693644b9a66be01b4d0d928d",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-posix",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-posix-2026b-r0.noarch.rpm",
+      "sha256": "6f008b863238e70e9d0287a72bf150b1e7ca29acd51a7d73f2f0a185311606b4",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
+    },
+    {
+      "name": "tzdata-right",
+      "version": "2026b",
+      "release": "r0",
+      "architecture": "noarch",
+      "source_rpm": "tzdata-2026b-r0.src.rpm",
+      "filename": "tzdata-right-2026b-r0.noarch.rpm",
+      "sha256": "5e2533a4eab84055136d73fe7e9ef49b21ed4251586a930862d2b2bb28305719",
+      "source_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "qli_release_revision": "6612feff64464b9394a5e1020c5d0b71711750ed",
+      "runtime_bundle": true
     }
   ],
   "lpa": {
@@ -316,5 +484,9 @@
   "qli_sdk": {
     "manifest_key": "sdk/qli-2.0/x86_64/v1/f60db25b6dae7e1b6052bab9048eb3737192b8a065da1a0454e6873ca52f8d29/manifest.json",
     "sha256": "596df0e8028f1d9c9093ba46dd8c3e1f0a1d3eaf9c64fe186a1fee9f65051da6"
+  },
+  "qli_runtime": {
+    "manifest_key": "candidates/qli-2.0/runtime/v1/b156f7d22590cba69aa46c4af55d405bfd10be80b2bd316529f6fb9cd883caa9/manifest.json",
+    "sha256": "ca6db59b15d58f6b68dce6629d1853db55d25484f04aa715f659c2b98f8c3fae"
   }
 }
