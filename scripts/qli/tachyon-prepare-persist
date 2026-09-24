@@ -17,7 +17,10 @@ def prepare(device=Path('/dev/disk/by-partlabel/persist'), sys_block=Path('/sys/
     sector = run(['blockdev', '--getss', str(partition)], capture_output=True, text=True, check=True)
     if sector.stdout.strip() != '4096':
         raise RuntimeError('Unexpected persist logical sector size')
-    probe = run(['blkid', '-p', '-s', 'TYPE', '-o', 'value', str(partition)], capture_output=True, text=True)
+    # GPT entry metadata alone makes blkid return success for an unformatted
+    # partition, even with TYPE selected. Probe without those partition details
+    # so status 2 actually identifies an extent with no filesystem signature.
+    probe = run(['blkid', '-p', '-D', '-s', 'TYPE', '-o', 'value', str(partition)], capture_output=True, text=True)
     if probe.returncode == 0 and probe.stdout.strip() == 'ext4':
         return  # Mount/fsck failures never trigger reformatting.
     if probe.returncode != 2 or probe.stdout.strip():
