@@ -18,6 +18,16 @@
     //     pe_snk_state_hard_reset_init(), the single entry for every sink-initiated Hard Reset.
     //     Source-initiated resets and real-battery behaviour are unchanged. 2.0.8 keeps the same
     //     519-entry layout with both nonhlos images (verified), so fetch/split is unaffected.
+    //   2.0.9 (#14) cdsp: raise PWR_CLK_RDY only after qdsp_pm has placed the Q6's own votes.
+    //     The CDSP failed to start on most COLD boots -- `qcom_q6v5_pas a300000.remoteproc:
+    //     start timed out` then `can't start rproc ...: -110` -- and stayed offline; warm
+    //     reboots passed, which is why it read as intermittent. Clock_ImagePostInit() raised the
+    //     handover bit from RCINIT_GROUP_0, and HLOS drops all its proxy votes on that bit --
+    //     including the MASTER_CDSP_PROC -> EBI1 bandwidth vote -- while qdsp_pm (RCINIT_GROUP_2)
+    //     had not yet placed the Q6's own, so the image was starved before it held its own votes.
+    //     clk_regime_imagepostinit now registers in RCINIT_GROUP_2 with a dependency on qdsp_pm,
+    //     the ordering Qualcomm already ships in this SDK's DSP.AT.1.0 trees. Cold boots with
+    //     CDSP up: 6/18 shipped -> 10/10 with the change. One commit, one scons file.
     // 2.0.5 had to move together with kernel particle5: BP #9 releases the SE to HLOS and kernel
     // #38 enables it in DT, and bumping only one side leaves the 40pin header UART dead. That
     // pairing is satisfied and stays satisfied here.
@@ -29,10 +39,13 @@
     // up depended on the monitor requesting it, and with no battery attached the screen stayed
     // dark. It pairs with kernel particle8, which fixes what happened once DP *did* come up.
     // The artifact layout is unchanged from 2.0.3 (same 519 entries, both nonhlos images), so the
-    // fetch/split in `make fetch_bp_fw` needs no changes.
+    // fetch/split in `make fetch_bp_fw` needs no changes. Re-verified for 2.0.9 by reading both
+    // zips' central directories: 519 entries either side, same four top-level members, nothing
+    // added or removed; 62 entries differ (the rebuilt boot binaries plus the adsp/cdsp firmware
+    // and the two nonhlos images that embed them).
     "bp-fw": {
-      "version": "2.0.8",
-      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.8.zip"
+      "version": "2.0.9",
+      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.9.zip"
     },
 
     // The 24.04 base rootfs image (built by particle-iot/tachyon-ubuntu-24.04 via livecd-rootfs).
