@@ -97,11 +97,16 @@
     // resolute kernel line exists (see the kernel source comment above).
     "PKG_linux_particle": "6.8.0-1058.59+particle9",
 
-    //This is the particle debian package. Synced 2026-09-14 to 24.04's 0.25.2-1.
-    "PKG_particle_linux": "0.25.2-1",
+    //This is the particle debian package. Bumped 2026-09-28 to the latest published
+    //particle-linux, 0.26.0-1 (from the `latest` pocket of packages.particle.io/debian;
+    //stable tops out at 0.21.3-1, same as the prior 0.25.2-1 pin — latest-only versions
+    //resolve at build time while add-particle-repo still exposes stable+latest).
+    "PKG_particle_linux": "0.26.0-1",
 
-    //Radio code (RIL). Synced 2026-09-14 to 24.04's 0.7.0-1.
-    "PKG_particle_tachyon_ril": "0.7.0-1",
+    //Radio code (RIL). Bumped 2026-09-28 to 0.8.1-1 (from the `latest` pocket; was 0.7.0-1,
+    //also latest-only — check-pinned-packages installs it before change-particle-repo-to-stable
+    //narrows the shipped image).
+    "PKG_particle_tachyon_ril": "0.8.1-1",
 
     //The syscon package
     "PKG_particle_tachyon_syscon": "1.0.52-1",
