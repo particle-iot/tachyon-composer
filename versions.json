@@ -99,7 +99,9 @@
     // the restart that landed mid-Wi-Fi-association and cost ~7m30s before the first boot reached
     // connected. The file header is load-bearing and the overlay test compares byte-for-byte: if
     // particle-linux ever changes DESIRED_CONNECTIVITY_CONF, this overlay has to change with it.
-    // Pairs with PKG_particle_linux 0.25.2-1 below; either alone helps, both together is the fix.
+    // Pairs with PKG_particle_linux 0.26.0-1 below; either alone helps, both together is the fix.
+    // Re-checked for 0.26.0: src/daemon/InternetState.ts is not in the 0.25.2...0.26.0 diff, so
+    // DESIRED_CONNECTIVITY_CONF is byte-identical and this overlay's comparison still holds.
     // dc2f331b (#39) = "set-initial-time: compare against the setup time, not a hardcoded 2024".
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
@@ -154,7 +156,23 @@
     //workaround it exists to drive. The overlay above stops the rewrite happening at all on a
     //fresh image; this covers upgrades and any image built without that overlay.
     //Published to `latest`, as every particle-linux release since 0.22.1-1 is.
-    "PKG_particle_linux": "0.25.2-1",
+    //
+    //0.26.0 makes first-boot bootstrap durable, which matters here because the setup blob on
+    //`misc` is the only copy. applyBootstrap() previously wrote the config with a plain
+    //writeFileSync and then immediately ran `dd if=/dev/zero of=<misc>`, so a power loss between
+    //the two lost the settings with their only source already gone -- and the release-channel
+    //write was fire-and-forget (`void bootstrapReleaseChannel(...)`), so it could still be in
+    //flight when misc was cleared. Now Config.saveDurably() writes a 0600 temp file, fsyncs it,
+    //renames it over the target and fsyncs the directory; the channel write is awaited; `sync`
+    //runs; only then is the record erased. eraseBootstrap() also stops zeroing the whole
+    //partition -- it clears exactly the 4-byte header plus the record it just read, bounded at
+    //1 MiB, with an explicit fsync, instead of relying on dd's ENOSPC being harmless.
+    //It also reports installed package versions for RPM images and refuses a release-channel
+    //change when there is no feed to change (RPM/QLI only -- on 24.04 the apt feed is present,
+    //so updateReleaseChannel() behaves exactly as before). And #153 reports the applied env hash
+    //back as EnvDoc.device_hash once the files are on disk, so the server learns which values a
+    //device is actually running rather than which ones were published to it.
+    "PKG_particle_linux": "0.26.0-1",
 
     //Radio code (RIL). 0.7.0 configures the modem's RF for the antenna that is
     //attached, and makes it a switchable profile rather than a one-shot fix. The
@@ -179,7 +197,22 @@
     //rather than needing an OS image update, and avoids that overlay's first-boot
     //reboot landing in the middle of setup, cloud claim and eSIM download.
     //Published to the `latest` feed, not `stable`, exactly as 0.6.x is.
-    "PKG_particle_tachyon_ril": "0.7.0-1",
+    //
+    //0.8.0 (#63) is the QLI release: native RPM packaging, shared modem AT leases and
+    //NetworkManager cellular activation for Qualcomm Linux 2.0. The Debian package this image
+    //installs keeps the same D-Bus and CLI surface, so on 24.04 it carries no behaviour change;
+    //it is picked up because 0.8.1 sits on top of it.
+    //
+    //0.8.1 (#64) is the live change: `gnss --active-antenna [on|off]` plus SetActiveAntenna and
+    //the ActiveAntenna property on D-Bus. It drives the LDO that biases a powered (active) GNSS
+    //antenna on GPIO43, defaults to OFF, and persists in /etc/particle/gps.yaml next to `enabled`
+    //and `interval`. Deliberately independent of `gnss --power`: it describes the aerial wired to
+    //the board, not whether the receiver is running, so powering the receiver down leaves the LDO
+    //alone. A failed GPIO write exits non-zero and leaves ActiveAntenna unchanged, so it never
+    //reports a rail it did not actually set. Same reasoning as the antenna profile above -- this
+    //is a property of the attached aerial, so it belongs in a persisted, switchable setting
+    //rather than a build-time choice.
+    "PKG_particle_tachyon_ril": "0.8.1-1",
 
     //The syscon package
     "PKG_particle_tachyon_syscon": "1.0.52-1",
