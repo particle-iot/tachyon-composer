@@ -99,7 +99,9 @@
     // the restart that landed mid-Wi-Fi-association and cost ~7m30s before the first boot reached
     // connected. The file header is load-bearing and the overlay test compares byte-for-byte: if
     // particle-linux ever changes DESIRED_CONNECTIVITY_CONF, this overlay has to change with it.
-    // Pairs with PKG_particle_linux 0.25.2-1 below; either alone helps, both together is the fix.
+    // Pairs with PKG_particle_linux 0.26.1-1 below; either alone helps, both together is the fix.
+    // Re-checked for 0.26.1: src/daemon/InternetState.ts is not in the 0.25.2...0.26.1 diff, so
+    // DESIRED_CONNECTIVITY_CONF is byte-identical and this overlay's comparison still holds.
     // dc2f331b (#39) = "set-initial-time: compare against the setup time, not a hardcoded 2024".
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
@@ -154,7 +156,31 @@
     //workaround it exists to drive. The overlay above stops the rewrite happening at all on a
     //fresh image; this covers upgrades and any image built without that overlay.
     //Published to `latest`, as every particle-linux release since 0.22.1-1 is.
-    "PKG_particle_linux": "0.25.2-1",
+    //
+    //0.26.0 makes first-boot bootstrap durable, which matters here because the setup blob on
+    //`misc` is the only copy. applyBootstrap() previously wrote the config with a plain
+    //writeFileSync and then immediately ran `dd if=/dev/zero of=<misc>`, so a power loss between
+    //the two lost the settings with their only source already gone -- and the release-channel
+    //write was fire-and-forget (`void bootstrapReleaseChannel(...)`), so it could still be in
+    //flight when misc was cleared. Now Config.saveDurably() writes a 0600 temp file, fsyncs it,
+    //renames it over the target and fsyncs the directory; the channel write is awaited; `sync`
+    //runs; only then is the record erased. eraseBootstrap() also stops zeroing the whole
+    //partition -- it clears exactly the 4-byte header plus the record it just read, bounded at
+    //1 MiB, with an explicit fsync, instead of relying on dd's ENOSPC being harmless.
+    //0.26.0 also reports the applied env hash back as EnvDoc.device_hash once the files are on
+    //disk (#153), so the server learns which values a device is actually running rather than
+    //which ones were published to it.
+    //
+    //0.26.1 is packaging hygiene, and the reason to read the two bumps below as one change:
+    //dh_auto_install runs a Makefile `install` target whenever one exists, so adding one for the
+    //QLI RPM build silently staged the RPM layout into the Debian package too, putting the
+    //systemd unit at BOTH /lib/systemd/system and /usr/lib/systemd/system. On a usrmerged rootfs
+    //-- every Tachyon image -- those are one path with two archive members and dpkg refuses to
+    //unpack. That is exactly what made particle-tachyon-ril 0.8.0/0.8.1 and
+    //particle-tachyon-syscon 1.1.0-1 uninstallable. particle-linux escaped only because it has
+    //no top-level Makefile; 0.26.1 says so explicitly in debian/rules, asserts the staging tree
+    //stays clean, and adds CI tests that fail if an `install` target ever appears.
+    "PKG_particle_linux": "0.26.1-1",
 
     //Radio code (RIL). 0.7.0 configures the modem's RF for the antenna that is
     //attached, and makes it a switchable profile rather than a one-shot fix. The
@@ -179,10 +205,61 @@
     //rather than needing an OS image update, and avoids that overlay's first-boot
     //reboot landing in the middle of setup, cloud claim and eSIM download.
     //Published to the `latest` feed, not `stable`, exactly as 0.6.x is.
-    "PKG_particle_tachyon_ril": "0.7.0-1",
+    //
+    //0.8.0 (#63) is the QLI release -- native RPM packaging, shared modem AT leases,
+    //NetworkManager cellular activation. The Debian package keeps the same D-Bus and CLI
+    //surface, so it carries no behaviour change on 24.04.
+    //
+    //0.8.1 (#64) adds `gnss --active-antenna [on|off]` plus SetActiveAntenna and the
+    //ActiveAntenna property on D-Bus. It drives the LDO that biases a powered (active) GNSS
+    //antenna on GPIO43, defaults to OFF, and persists in /etc/particle/gps.yaml next to
+    //`enabled` and `interval`. Deliberately independent of `gnss --power`: it describes the
+    //aerial wired to the board, not whether the receiver is running, so powering the receiver
+    //down leaves the LDO alone. A failed GPIO write exits non-zero and leaves ActiveAntenna
+    //unchanged, so it never reports a rail it did not actually set.
+    //
+    //0.8.2 (#66) and 0.8.3 (#67) are the fix for the packaging defect 0.8.0 introduced: the
+    //Makefile gained an `install` target for the RPM build, dh_auto_install ran it on its own,
+    //and the Debian package ended up shipping the three unit files at both /lib/systemd/system
+    //and /usr/lib/systemd/system -- one path on a usrmerged rootfs, so dpkg refused to unpack
+    //and 0.8.0-1/0.8.1-1 could not be installed at all. 0.8.2 suppressed it with an override;
+    //0.8.3 removed the target outright (nothing called it -- the RPM spec's %install runs
+    //packaging/install.sh directly) and added CI packaging tests. Verified here before pinning:
+    //the 0.8.4-1 deb has zero colliding paths once /lib, /bin and /sbin are resolved through
+    //their usrmerge symlinks, and carries only the three units under lib/systemd/system.
+    //
+    //0.8.4 (#68) is the live fix: `antenna --set` could apply the WRONG profile.
+    //method_set_antenna() writes the config from the bus thread with no lock while the worker
+    //thread reads the same statics in applyAntennaConfig(); readAntennaConfig() clears the
+    //struct and seeds it with the default (internal) before parsing, so a reader arriving in
+    //that window sees `internal` whatever the file says. The board is then configured for the
+    //internal aerial while asking for the external one: 2x2 MIMO, and on an NA board reduced TX
+    //power. The window stays open for as long as an apply takes -- tens of seconds, because it
+    //resets the modem -- so a second `antenna --set` during the first is enough to hit it.
+    //Present since 0.7.0, i.e. every 0.7.x and 0.8.x before this, and silent: `antenna --get`
+    //reports the configured profile, not the one the modem was given. Nothing on disk is wrong,
+    //so a device recovers at the next boot or the next `antenna --set`. The config module now
+    //takes a mutex around the four functions touching those statics, and the host suite
+    //reproduces the race rather than asserting the fix is present.
+    "PKG_particle_tachyon_ril": "0.8.4-1",
 
-    //The syscon package
-    "PKG_particle_tachyon_syscon": "1.0.52-1",
+    //The syscon package. 1.1.0 added native QLI RPM packaging and nothing else -- it explicitly
+    //retains syscon firmware v1.0.52 and mspm0flash 0.4.3 -- so on 24.04 this bump ships the
+    //SAME MCU firmware as 1.0.52-1 did, just rebuilt. 1.1.0-1 itself is uninstallable: it hit
+    //the dh_auto_install trap described under PKG_particle_linux above and shipped
+    //particle-tachyon-syscon.service at both /lib/systemd/system and /usr/lib/systemd/system.
+    //1.1.1 removes the Makefile `install` target rather than only suppressing it, and adds the
+    //same CI packaging tests as the RIL. Verified before pinning: the 1.1.1-1 deb has zero
+    //colliding paths after usrmerge resolution.
+    "PKG_particle_tachyon_syscon": "1.1.1-1",
+
+    //Umbrella metapackage (Section: metapackages, Installed-Size 7) whose entire content is
+    //`Depends: particle-linux, particle-tachyon-ril, particle-tachyon-syscon`. New pin: it gives
+    //the image a single package that names the Particle stack, so `apt install particle-tachyon`
+    //is a meaningful thing to ask for on a device. The dependencies are unversioned, so it does
+    //not fight the three exact pins above -- apt satisfies them with the pinned versions, which
+    //the pin file holds at PIN_PRIORITY.
+    "PKG_particle_tachyon": "1.0.0-1",
 
     //version used in the debian file to pin the version down
     "PIN_PRIORITY": "900"
