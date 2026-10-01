@@ -241,7 +241,46 @@
     //so a device recovers at the next boot or the next `antenna --set`. The config module now
     //takes a mutex around the four functions touching those statics, and the host suite
     //reproduces the race rather than asserting the fix is present.
-    "PKG_particle_tachyon_ril": "0.8.4-1",
+    //
+    //0.9.0 adds a DATA LIVENESS WATCHDOG to rild, and is the first release since 0.4.5 to check
+    //that a bearer the modem lists as active is actually carrying traffic. A device can stay
+    //registered with its PDN listed as up for hours after the network has stopped forwarding it
+    //-- ticket 228 had a fleet sitting like that for eighteen hours after each flight -- and
+    //dataConnection() refuses to redial while the modem lists a call, so nothing ever tore the
+    //dead bearer down. 0.5.2 only tears one down when the modem is NOT registered, which this
+    //case is not.
+    //Passive first, so it costs no roaming data while the link is healthy or idle: every status
+    //pass reads the bearer interface's rx/tx byte counters, and only "tx keeps growing while rx
+    //has been flat for the window" (default 180s) earns a probe -- one DNS query bound to the
+    //interface, carrier resolver then 8.8.8.8. A reply means a send-only workload and the wait
+    //before the next probe doubles; two unanswered probes mean the bearer is dead.
+    //Recovery tears the call down with a bounded QLRIL_DeactivateDataCall (five attempts,
+    //replacing three unbounded loops) and hands the redial to the connection thread's ordinary
+    //dial path. The level climbs per consecutive recovery -- redial, then AT+CFUN=0/1 -- with the
+    //gap doubling from 2min to a 30min cap, and a minute of real rx resets the ladder.
+    //AT+CFUN=1,1 is deliberately NOT a rung it climbs to unasked: on A03 firmware it took the
+    //20.04 AT channel down until a power cycle, and on 24.04 under ModemManager it answers OK,
+    //resets nothing, and leaves +CFUN? at 7 -- which blinds processStatus() and everything built
+    //on it. On the 24.04 native backend the ladder stops at redial.
+    //resetModem() now waits for the AT channel to go away before calling the modem back, and
+    //reports a reset that never happened: on A03 the modem answers OK then drops the channel a
+    //few seconds later, so the old two-second probe caught the PRE-reset channel, called it
+    //recovered, and the dial that followed died with it (measured on head1: four minutes of
+    //unanswered AT+CEREG?). The antenna profile shares this path.
+    //New surface: Reconnect(s) on D-Bus and `ctl reconnect [redial|cycle|reset]`, the supported
+    //way to force a teardown and a fresh data call -- `connect` could not. Watchdog state is
+    //reported in vitals (data_liveness, data_rx_idle_s, data_recoveries, data_probe_ok), in
+    //GetStatus and in the journal. Two keys in /etc/particle/cellular.yaml, data_watchdog and
+    //data_watchdog_window_s, are read at start, and the writer emits them AHEAD of profiles: so
+    //an `apn --add` no longer rewrites them away.
+    //The decision logic is common/data_liveness, a pure state machine on a MONOTONIC clock --
+    //the wall clock jumps when NTP lands after a flight, which is exactly when the watchdog is
+    //busy -- with 21 host tests covering the ladder end to end.
+    //Also fixes an sd-bus cross-thread abort from the same ticket ("Assertion '!bus->current_slot'
+    //failed ... bus_process_internal()"): the property updaters emitted PropertiesChanged from the
+    //worker and status threads while the bus thread was inside sd_bus_process(). They now only
+    //raise a flag and the bus loop emits between its own calls.
+    "PKG_particle_tachyon_ril": "0.9.0-1",
 
     //The syscon package. 1.1.0 added native QLI RPM packaging and nothing else -- it explicitly
     //retains syscon firmware v1.0.52 and mspm0flash 0.4.3 -- so on 24.04 this bump ships the
