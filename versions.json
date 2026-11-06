@@ -28,6 +28,11 @@
     //     clk_regime_imagepostinit now registers in RCINIT_GROUP_2 with a dependency on qdsp_pm,
     //     the ordering Qualcomm already ships in this SDK's DSP.AT.1.0 trees. Cold boots with
     //     CDSP up: 6/18 shipped -> 10/10 with the change. One commit, one scons file.
+    //   2.0.14 (#15-#19; 2.0.10-2.0.13 were intermediate tags of the same batch)
+    //     battman: keep the PD input voltage after EoC on a batteryless board.
+    //     uefi: init the EFS context before efs_mount() logs; make the DT fixup respect
+    //     BufferSize; patch the fsg MAC addresses into OS-supplied device trees.
+    //     ramdump: reset after 60 s without a Sahara transfer.
     // 2.0.5 had to move together with kernel particle5: BP #9 releases the SE to HLOS and kernel
     // #38 enables it in DT, and bumping only one side leaves the 40pin header UART dead. That
     // pairing is satisfied and stays satisfied here.
@@ -42,20 +47,21 @@
     // fetch/split in `make fetch_bp_fw` needs no changes. Re-verified for 2.0.9 by reading both
     // zips' central directories: 519 entries either side, same four top-level members, nothing
     // added or removed; 62 entries differ (the rebuilt boot binaries plus the adsp/cdsp firmware
-    // and the two nonhlos images that embed them).
+    // and the two nonhlos images that embed them). 2.0.14 re-checked the same way against 2.0.9:
+    // 519 entries, same four top-level members, 72 entries differ.
     "bp-fw": {
-      "version": "2.0.9",
-      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.9.zip"
+      "version": "2.0.14",
+      "url": "https://tachyon-ci.particle.io/release/tachyon-bp-fw-2.0.14.zip"
     },
 
     // The 24.04 base rootfs image (built by particle-iot/tachyon-ubuntu-24.04 via livecd-rootfs).
     // Consumed as tachyon-ubuntu-24.04-<VARIANT>-image-<param>.img.xz from the release channel.
     // Variants: headless (== server) and desktop, both published.
-    // 30-5321e13 was rebuilt against the latest particle kernel, so it already carries
-    // linux-particle 6.8.0-1058.59+particle10 — matching the kernel pinned below.
+    // 31-84caf99 was rebuilt against the latest particle kernel, so it already carries
+    // linux-particle 6.8.0-1058.59+particle11 — matching the kernel pinned below.
     "particle-iot/tachyon-ubuntu-24.04": {
       "type": "git_release",
-      "param": "30-5321e13"
+      "param": "31-84caf99"
     },
 
     // Kernel input (single source of truth for the kernel line). Unlike main — where this was the
@@ -66,10 +72,10 @@
     // will fail.  <-- deb_version == env.PKG_linux_particle (see below)
     "particle-iot/tachyon-ubuntu-24.04-kernel": {
       "type": "s3_release",
-      "param": "stable-6.8.0-1058.59particle10",
+      "param": "stable-6.8.0-1058.59particle11",
       "abi": "1058",
       // keep this equal to env.PKG_linux_particle below
-      "deb_version": "6.8.0-1058.59+particle10",
+      "deb_version": "6.8.0-1058.59+particle11",
       "base_url": "https://linux-dist.particle.io/kernel/release"
     },
 
@@ -103,9 +109,13 @@
     // Re-checked for 0.26.1: src/daemon/InternetState.ts is not in the 0.25.2...0.26.1 diff, so
     // DESIRED_CONNECTIVITY_CONF is byte-identical and this overlay's comparison still holds.
     // dc2f331b (#39) = "set-initial-time: compare against the setup time, not a hardcoded 2024".
+    // a8794c29 (#51) = "limit-battery-charge-current: set the battery charge current to 2.5A at
+    // boot". Needs kernel particle11 (kernel#55 adds the charge current table to the dtb).
+    // Also brings #49, which drops the adbd restart hooks; needs adbd >= 34.0.5-11particle3
+    // (tachyon-ubuntu-24.04-pkgs#10) in noble-stable.
     "particle-iot/tachyon-overlay": {
       "type": "git_release",
-      "param": "acca7e9fc9659d2b46528614ef5e3ba7bdd56fbb"
+      "param": "a8794c291c89b5e8e907d723ab491596db13c66a"
     },
 
     // The overlay TOOL (engine that applies the stack). Provides the `when` env-gate and ENV_*
@@ -140,7 +150,7 @@
   "env": {
     // Kernel version pinned INSIDE the rootfs by the overlay. MUST equal the kernel source
     // deb_version above (6.8.0-1058.59+particle7) and be installable on the base image's ABI.
-    "PKG_linux_particle": "6.8.0-1058.59+particle10",
+    "PKG_linux_particle": "6.8.0-1058.59+particle11",
 
     // Optional: URL to manually install kernel .deb (for unpublished PR builds).
     // Multiple URLs separated by @@@ for related packages (image + modules).
